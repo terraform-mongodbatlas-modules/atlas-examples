@@ -1,0 +1,7 @@
+# path-sync copy -n sdlc
+# Maintained by the MongoDB APIx-Integrations team
+* @terraform-mongodbatlas-modules/APIx-Integrations
+
+# Documentation - Cloud Docs team
+.changelog/ @terraform-mongodbatlas-modules/Cloud_Docs
+*.md @terraform-mongodbatlas-modules/Cloud_Docs
