@@ -5,7 +5,7 @@ This repository contains end-to-end Terraform example configurations for deployi
 ## Purpose
 
 The examples in this repository demonstrate how to:
-- Deploy MongoDB Atlas projects and clusters using Terraform
+- Deploy MongoDB Atlas resources using Terraform
 - Integrate Atlas with cloud provider resources
 - Apply common enterprise deployment patterns
 
