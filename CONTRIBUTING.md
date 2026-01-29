@@ -59,9 +59,6 @@ These checks help ensure consistency and reduce CI failures.
 ## Questions
 
 For questions related to:
-
-The Terraform provider: https://github.com/mongodb/terraform-provider-mongodbatlas
-
-Terraform modules: https://registry.terraform.io/namespaces/terraform-mongodbatlas-modules
-
+- The Terraform provider: [terraform-provider-mongodbatlas](https://github.com/mongodb/terraform-provider-mongodbatlas)
+- Terraform modules: [terraform-mongodbatlas-modules](https://registry.terraform.io/namespaces/terraform-mongodbatlas-modules)
 Thanks again for contributing!
