@@ -1,0 +1,25 @@
+name: Format and validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request: {}
+  workflow_dispatch: {}
+
+jobs:
+  lint-and-validate:
+    name: Lint and Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - uses: hashicorp/setup-terraform@651471c36a6092792c552e8b1bef71e592b462d8
+        with:
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive
+      - name: Validate Examples
+        run: |
+          for dir in $(find . -type f -name "main.tf" -exec dirname {} \;); do
+            echo "Validating $dir..."
+            (cd "$dir" && terraform init -backend=false -input=false && terraform validate)
+          done
