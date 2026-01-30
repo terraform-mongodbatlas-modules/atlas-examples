@@ -63,7 +63,7 @@ variable "ip_access_list" {
   description = <<-EOT
     Optional IP access list entries for Atlas.
     By default, no public IP access is allowed (PrivateLink only).
-Private IP whitelisting is not necessary, shown for example purposes only
+    Private IP whitelisting is not necessary, shown for example purposes only
   EOT
 
   type = list(object({
