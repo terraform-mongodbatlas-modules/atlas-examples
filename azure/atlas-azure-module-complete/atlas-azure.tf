@@ -3,7 +3,6 @@ module "atlas_azure" {
 
   project_id = module.atlas_project.id
 
-  atlas_azure_app_id = "6f2deb0d-be72-4524-a403-df531868bac0"
   # ---------------------------------------------------------------------------
   # Service Principal (BYO)
   # ---------------------------------------------------------------------------

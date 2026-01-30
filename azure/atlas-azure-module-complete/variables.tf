@@ -54,7 +54,7 @@ variable "azure_subscription_id" {
 }
 
 variable "tags" {
-  description = "Tags applied to all Atlas and Azure resources"
+  description = "Tags applied to all Atlas resources"
   type        = map(string)
   default     = {}
 }
