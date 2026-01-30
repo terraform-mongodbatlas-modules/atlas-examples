@@ -16,7 +16,7 @@ variable "cluster_name" {
 }
 
 variable "azure_resource_group_name" {
-  description = "Azure Resource Group where Azure resources (Private Endpoints, Backup, Validation  VM) are created."
+  description = "Azure Resource Group where Azure resources (Private Endpoints, Backup, Validation VM) are created."
   type        = string
 }
 
