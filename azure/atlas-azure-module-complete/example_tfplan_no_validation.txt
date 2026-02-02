@@ -1,0 +1,480 @@
+data.azurerm_client_config.current: Reading...
+data.azurerm_resource_group.main: Reading...
+data.azurerm_client_config.current: Read complete after 0s [id=Y2xpZW50Q29uZmlncy9jbGllbnRJZD0wNGIwNzc5NS04ZGRiLTQ2MWEtYmJlZS0wMmY5ZTFiZjdiNDY7b2JqZWN0SWQ9MmNiYWVlOWItZTAwNy00MDYzLWJkNjgtMzUyNzI2MzE3OGVjO3N1YnNjcmlwdGlvbklkPWZkMDFhZGZmLWIzN2UtNDY5My04NDk3LTgzZWNmMTgzYTE0NTt0ZW5hbnRJZD05MTQwNTM4NC1kNzFlLTQ3ZjUtOTJkZC03NTllMjcyY2RjMWM=]
+data.azurerm_resource_group.main: Read complete after 1s [id=/subscriptions/fd01adff-b37e-4693-8497-83ecf183a145/resourceGroups/maastha-rg-dev]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+ <= read (data resources)
+
+Terraform will perform the following actions:
+
+  # module.atlas_azure.data.azurerm_client_config.current will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "azurerm_client_config" "current" {
+      + client_id       = (known after apply)
+      + id              = (known after apply)
+      + object_id       = (known after apply)
+      + subscription_id = (known after apply)
+      + tenant_id       = (known after apply)
+    }
+
+  # module.atlas_azure.azuread_service_principal.atlas[0] will be created
+  + resource "azuread_service_principal" "atlas" {
+      + account_enabled              = true
+      + app_role_assignment_required = false
+      + app_role_ids                 = (known after apply)
+      + app_roles                    = (known after apply)
+      + application_tenant_id        = (known after apply)
+      + client_id                    = "6f2deb0d-be72-4524-a403-df531868bac0"
+      + display_name                 = (known after apply)
+      + homepage_url                 = (known after apply)
+      + id                           = (known after apply)
+      + logout_url                   = (known after apply)
+      + oauth2_permission_scope_ids  = (known after apply)
+      + oauth2_permission_scopes     = (known after apply)
+      + object_id                    = (known after apply)
+      + redirect_uris                = (known after apply)
+      + saml_metadata_url            = (known after apply)
+      + service_principal_names      = (known after apply)
+      + sign_in_audience             = (known after apply)
+      + tags                         = (known after apply)
+      + type                         = (known after apply)
+
+      + feature_tags (known after apply)
+
+      + features (known after apply)
+    }
+
+  # module.atlas_azure.mongodbatlas_cloud_provider_access_authorization.this[0] will be created
+  + resource "mongodbatlas_cloud_provider_access_authorization" "this" {
+      + authorized_date = (known after apply)
+      + feature_usages  = (known after apply)
+      + gcp             = (known after apply)
+      + id              = (known after apply)
+      + project_id      = (known after apply)
+      + role_id         = (known after apply)
+
+      + azure {
+          + atlas_azure_app_id   = "6f2deb0d-be72-4524-a403-df531868bac0"
+          + service_principal_id = (known after apply)
+          + tenant_id            = (known after apply)
+        }
+    }
+
+  # module.atlas_azure.mongodbatlas_cloud_provider_access_setup.this[0] will be created
+  + resource "mongodbatlas_cloud_provider_access_setup" "this" {
+      + aws_config        = (known after apply)
+      + created_date      = (known after apply)
+      + gcp_config        = (known after apply)
+      + id                = (known after apply)
+      + last_updated_date = (known after apply)
+      + project_id        = (known after apply)
+      + provider_name     = "AZURE"
+      + role_id           = (known after apply)
+
+      + azure_config {
+          + atlas_azure_app_id   = "6f2deb0d-be72-4524-a403-df531868bac0"
+          + service_principal_id = (known after apply)
+          + tenant_id            = (known after apply)
+        }
+    }
+
+  # module.atlas_azure.mongodbatlas_private_endpoint_regional_mode.this[0] will be created
+  + resource "mongodbatlas_private_endpoint_regional_mode" "this" {
+      + enabled    = true
+      + id         = (known after apply)
+      + project_id = (known after apply)
+    }
+
+  # module.atlas_azure.mongodbatlas_privatelink_endpoint.this["eastus2"] will be created
+  + resource "mongodbatlas_privatelink_endpoint" "this" {
+      + endpoint_group_names             = (known after apply)
+      + endpoint_service_name            = (known after apply)
+      + error_message                    = (known after apply)
+      + id                               = (known after apply)
+      + interface_endpoints              = (known after apply)
+      + private_endpoints                = (known after apply)
+      + private_link_id                  = (known after apply)
+      + private_link_service_name        = (known after apply)
+      + private_link_service_resource_id = (known after apply)
+      + project_id                       = (known after apply)
+      + provider_name                    = "AZURE"
+      + region                           = "eastus2"
+      + region_name                      = (known after apply)
+      + service_attachment_names         = (known after apply)
+      + status                           = (known after apply)
+    }
+
+  # module.atlas_azure.mongodbatlas_privatelink_endpoint.this["westus2"] will be created
+  + resource "mongodbatlas_privatelink_endpoint" "this" {
+      + endpoint_group_names             = (known after apply)
+      + endpoint_service_name            = (known after apply)
+      + error_message                    = (known after apply)
+      + id                               = (known after apply)
+      + interface_endpoints              = (known after apply)
+      + private_endpoints                = (known after apply)
+      + private_link_id                  = (known after apply)
+      + private_link_service_name        = (known after apply)
+      + private_link_service_resource_id = (known after apply)
+      + project_id                       = (known after apply)
+      + provider_name                    = "AZURE"
+      + region                           = "westus2"
+      + region_name                      = (known after apply)
+      + service_attachment_names         = (known after apply)
+      + status                           = (known after apply)
+    }
+
+  # module.atlas_cluster.data.mongodbatlas_advanced_clusters.this will be read during apply
+  # (config refers to values not yet known)
+ <= data "mongodbatlas_advanced_clusters" "this" {
+      + project_id = (known after apply)
+      + results    = (known after apply)
+    }
+
+  # module.atlas_cluster.mongodbatlas_advanced_cluster.this will be created
+  + resource "mongodbatlas_advanced_cluster" "this" {
+      + advanced_configuration               = {
+          + change_stream_options_pre_and_post_images_expire_after_seconds = (known after apply)
+          + custom_openssl_cipher_config_tls12                             = (known after apply)
+          + custom_openssl_cipher_config_tls13                             = (known after apply)
+          + default_max_time_ms                                            = (known after apply)
+          + default_write_concern                                          = "majority"
+          + javascript_enabled                                             = false
+          + minimum_enabled_tls_protocol                                   = "TLS1_2"
+          + no_table_scan                                                  = (known after apply)
+          + oplog_min_retention_hours                                      = (known after apply)
+          + oplog_size_mb                                                  = (known after apply)
+          + sample_refresh_interval_bi_connector                           = (known after apply)
+          + sample_size_bi_connector                                       = (known after apply)
+          + tls_cipher_config_mode                                         = (known after apply)
+          + transaction_lifetime_limit_seconds                             = (known after apply)
+        }
+      + backup_enabled                       = true
+      + bi_connector_config                  = (known after apply)
+      + cluster_id                           = (known after apply)
+      + cluster_type                         = "SHARDED"
+      + config_server_management_mode        = (known after apply)
+      + config_server_type                   = (known after apply)
+      + connection_strings                   = (known after apply)
+      + create_date                          = (known after apply)
+      + delete_on_create_timeout             = true
+      + encryption_at_rest_provider          = "NONE"
+      + global_cluster_self_managed_sharding = (known after apply)
+      + mongo_db_major_version               = (known after apply)
+      + mongo_db_version                     = (known after apply)
+      + name                                 = "a22zure-module-ex-cluster"
+      + paused                               = (known after apply)
+      + pit_enabled                          = true
+      + project_id                           = (known after apply)
+      + redact_client_log_data               = true
+      + replica_set_scaling_strategy         = (known after apply)
+      + replication_specs                    = (known after apply)
+      + retain_backups_enabled               = true
+      + root_cert_type                       = (known after apply)
+      + state_name                           = (known after apply)
+      + tags                                 = {}
+      + termination_protection_enabled       = (known after apply)
+      + version_release_system               = (known after apply)
+    }
+
+  # module.atlas_project.mongodbatlas_project.this will be created
+  + resource "mongodbatlas_project" "this" {
+      + cluster_count                                    = (known after apply)
+      + created                                          = (known after apply)
+      + id                                               = (known after apply)
+      + ip_addresses                                     = (known after apply)
+      + is_collect_database_specifics_statistics_enabled = (known after apply)
+      + is_data_explorer_enabled                         = (known after apply)
+      + is_extended_storage_sizes_enabled                = (known after apply)
+      + is_performance_advisor_enabled                   = (known after apply)
+      + is_realtime_performance_panel_enabled            = (known after apply)
+      + is_schema_advisor_enabled                        = (known after apply)
+      + is_slow_operation_thresholding_enabled           = (known after apply)
+      + name                                             = "a22zure-module-ex"
+      + org_id                                           = "63bec56c014da65b8f73c05e"
+      + region_usage_restrictions                        = (known after apply)
+      + tags                                             = {}
+      + with_default_alerts_settings                     = true
+    }
+
+  # module.atlas_azure.module.backup_export[0].azurerm_role_assignment.backup_export will be created
+  + resource "azurerm_role_assignment" "backup_export" {
+      + condition_version                = (known after apply)
+      + id                               = (known after apply)
+      + name                             = (known after apply)
+      + principal_id                     = (known after apply)
+      + principal_type                   = (known after apply)
+      + role_definition_id               = (known after apply)
+      + role_definition_name             = "Storage Blob Data Contributor"
+      + scope                            = (known after apply)
+      + skip_service_principal_aad_check = (known after apply)
+    }
+
+  # module.atlas_azure.module.backup_export[0].azurerm_storage_account.atlas[0] will be created
+  + resource "azurerm_storage_account" "atlas" {
+      + access_tier                        = (known after apply)
+      + account_kind                       = "StorageV2"
+      + account_replication_type           = "LRS"
+      + account_tier                       = "Standard"
+      + allow_nested_items_to_be_public    = false
+      + cross_tenant_replication_enabled   = false
+      + default_to_oauth_authentication    = false
+      + dns_endpoint_type                  = "Standard"
+      + https_traffic_only_enabled         = true
+      + id                                 = (known after apply)
+      + infrastructure_encryption_enabled  = false
+      + is_hns_enabled                     = false
+      + large_file_share_enabled           = (known after apply)
+      + local_user_enabled                 = true
+      + location                           = "eastus2"
+      + min_tls_version                    = "TLS1_2"
+      + name                               = "atlasbackupa22zuremodule"
+      + nfsv3_enabled                      = false
+      + primary_access_key                 = (sensitive value)
+      + primary_blob_connection_string     = (sensitive value)
+      + primary_blob_endpoint              = (known after apply)
+      + primary_blob_host                  = (known after apply)
+      + primary_blob_internet_endpoint     = (known after apply)
+      + primary_blob_internet_host         = (known after apply)
+      + primary_blob_microsoft_endpoint    = (known after apply)
+      + primary_blob_microsoft_host        = (known after apply)
+      + primary_connection_string          = (sensitive value)
+      + primary_dfs_endpoint               = (known after apply)
+      + primary_dfs_host                   = (known after apply)
+      + primary_dfs_internet_endpoint      = (known after apply)
+      + primary_dfs_internet_host          = (known after apply)
+      + primary_dfs_microsoft_endpoint     = (known after apply)
+      + primary_dfs_microsoft_host         = (known after apply)
+      + primary_file_endpoint              = (known after apply)
+      + primary_file_host                  = (known after apply)
+      + primary_file_internet_endpoint     = (known after apply)
+      + primary_file_internet_host         = (known after apply)
+      + primary_file_microsoft_endpoint    = (known after apply)
+      + primary_file_microsoft_host        = (known after apply)
+      + primary_location                   = (known after apply)
+      + primary_queue_endpoint             = (known after apply)
+      + primary_queue_host                 = (known after apply)
+      + primary_queue_microsoft_endpoint   = (known after apply)
+      + primary_queue_microsoft_host       = (known after apply)
+      + primary_table_endpoint             = (known after apply)
+      + primary_table_host                 = (known after apply)
+      + primary_table_microsoft_endpoint   = (known after apply)
+      + primary_table_microsoft_host       = (known after apply)
+      + primary_web_endpoint               = (known after apply)
+      + primary_web_host                   = (known after apply)
+      + primary_web_internet_endpoint      = (known after apply)
+      + primary_web_internet_host          = (known after apply)
+      + primary_web_microsoft_endpoint     = (known after apply)
+      + primary_web_microsoft_host         = (known after apply)
+      + public_network_access_enabled      = true
+      + queue_encryption_key_type          = "Service"
+      + resource_group_name                = "maastha-rg-dev"
+      + secondary_access_key               = (sensitive value)
+      + secondary_blob_connection_string   = (sensitive value)
+      + secondary_blob_endpoint            = (known after apply)
+      + secondary_blob_host                = (known after apply)
+      + secondary_blob_internet_endpoint   = (known after apply)
+      + secondary_blob_internet_host       = (known after apply)
+      + secondary_blob_microsoft_endpoint  = (known after apply)
+      + secondary_blob_microsoft_host      = (known after apply)
+      + secondary_connection_string        = (sensitive value)
+      + secondary_dfs_endpoint             = (known after apply)
+      + secondary_dfs_host                 = (known after apply)
+      + secondary_dfs_internet_endpoint    = (known after apply)
+      + secondary_dfs_internet_host        = (known after apply)
+      + secondary_dfs_microsoft_endpoint   = (known after apply)
+      + secondary_dfs_microsoft_host       = (known after apply)
+      + secondary_file_endpoint            = (known after apply)
+      + secondary_file_host                = (known after apply)
+      + secondary_file_internet_endpoint   = (known after apply)
+      + secondary_file_internet_host       = (known after apply)
+      + secondary_file_microsoft_endpoint  = (known after apply)
+      + secondary_file_microsoft_host      = (known after apply)
+      + secondary_location                 = (known after apply)
+      + secondary_queue_endpoint           = (known after apply)
+      + secondary_queue_host               = (known after apply)
+      + secondary_queue_microsoft_endpoint = (known after apply)
+      + secondary_queue_microsoft_host     = (known after apply)
+      + secondary_table_endpoint           = (known after apply)
+      + secondary_table_host               = (known after apply)
+      + secondary_table_microsoft_endpoint = (known after apply)
+      + secondary_table_microsoft_host     = (known after apply)
+      + secondary_web_endpoint             = (known after apply)
+      + secondary_web_host                 = (known after apply)
+      + secondary_web_internet_endpoint    = (known after apply)
+      + secondary_web_internet_host        = (known after apply)
+      + secondary_web_microsoft_endpoint   = (known after apply)
+      + secondary_web_microsoft_host       = (known after apply)
+      + sftp_enabled                       = false
+      + shared_access_key_enabled          = true
+      + table_encryption_key_type          = "Service"
+
+      + blob_properties (known after apply)
+
+      + network_rules (known after apply)
+
+      + queue_properties (known after apply)
+
+      + routing (known after apply)
+
+      + share_properties (known after apply)
+
+      + static_website (known after apply)
+    }
+
+  # module.atlas_azure.module.backup_export[0].azurerm_storage_container.atlas[0] will be created
+  + resource "azurerm_storage_container" "atlas" {
+      + container_access_type             = "private"
+      + default_encryption_scope          = (known after apply)
+      + encryption_scope_override_enabled = true
+      + has_immutability_policy           = (known after apply)
+      + has_legal_hold                    = (known after apply)
+      + id                                = (known after apply)
+      + metadata                          = (known after apply)
+      + name                              = "atlas-backups"
+      + resource_manager_id               = (known after apply)
+      + storage_account_id                = (known after apply)
+    }
+
+  # module.atlas_azure.module.backup_export[0].mongodbatlas_cloud_backup_snapshot_export_bucket.this will be created
+  + resource "mongodbatlas_cloud_backup_snapshot_export_bucket" "this" {
+      + bucket_name      = "atlas-backups"
+      + cloud_provider   = "AZURE"
+      + export_bucket_id = (known after apply)
+      + id               = (known after apply)
+      + project_id       = (known after apply)
+      + role_id          = (known after apply)
+      + service_url      = (known after apply)
+      + tenant_id        = (known after apply)
+    }
+
+  # module.atlas_azure.module.privatelink["eastus2"].data.mongodbatlas_privatelink_endpoint_service.this will be read during apply
+  # (config refers to values not yet known)
+ <= data "mongodbatlas_privatelink_endpoint_service" "this" {
+      + aws_connection_status            = (known after apply)
+      + azure_status                     = (known after apply)
+      + delete_requested                 = (known after apply)
+      + endpoint_service_id              = (known after apply)
+      + endpoints                        = (known after apply)
+      + error_message                    = (known after apply)
+      + gcp_status                       = (known after apply)
+      + id                               = (known after apply)
+      + interface_endpoint_id            = (known after apply)
+      + private_endpoint_connection_name = (known after apply)
+      + private_endpoint_ip_address      = (known after apply)
+      + private_endpoint_resource_id     = (known after apply)
+      + private_link_id                  = (known after apply)
+      + project_id                       = (known after apply)
+      + provider_name                    = "AZURE"
+    }
+
+  # module.atlas_azure.module.privatelink["eastus2"].azurerm_private_endpoint.atlas[0] will be created
+  + resource "azurerm_private_endpoint" "atlas" {
+      + custom_dns_configs       = (known after apply)
+      + id                       = (known after apply)
+      + location                 = "eastus2"
+      + name                     = "pe-atlas-eastus2"
+      + network_interface        = (known after apply)
+      + private_dns_zone_configs = (known after apply)
+      + resource_group_name      = "maastha-rg-dev"
+      + subnet_id                = "/subscriptions/fd01adff-b37e-4693-8497-83ecf183a145/resourceGroups/maastha-rg-dev/providers/Microsoft.Network/virtualNetworks/atlas-vnet-east/subnets/atlas-pe-subnet"
+
+      + private_service_connection {
+          + is_manual_connection           = true
+          + name                           = (known after apply)
+          + private_connection_resource_id = (known after apply)
+          + private_ip_address             = (known after apply)
+          + request_message                = "MongoDB Atlas PrivateLink"
+        }
+    }
+
+  # module.atlas_azure.module.privatelink["eastus2"].mongodbatlas_privatelink_endpoint_service.this will be created
+  + resource "mongodbatlas_privatelink_endpoint_service" "this" {
+      + aws_connection_status            = (known after apply)
+      + azure_status                     = (known after apply)
+      + delete_requested                 = (known after apply)
+      + endpoint_group_name              = (known after apply)
+      + endpoint_service_id              = (known after apply)
+      + error_message                    = (known after apply)
+      + gcp_status                       = (known after apply)
+      + id                               = (known after apply)
+      + interface_endpoint_id            = (known after apply)
+      + private_endpoint_connection_name = (known after apply)
+      + private_endpoint_ip_address      = (known after apply)
+      + private_endpoint_resource_id     = (known after apply)
+      + private_link_id                  = (known after apply)
+      + project_id                       = (known after apply)
+      + provider_name                    = "AZURE"
+
+      + endpoints (known after apply)
+    }
+
+  # module.atlas_azure.module.privatelink["westus2"].data.mongodbatlas_privatelink_endpoint_service.this will be read during apply
+  # (config refers to values not yet known)
+ <= data "mongodbatlas_privatelink_endpoint_service" "this" {
+      + aws_connection_status            = (known after apply)
+      + azure_status                     = (known after apply)
+      + delete_requested                 = (known after apply)
+      + endpoint_service_id              = (known after apply)
+      + endpoints                        = (known after apply)
+      + error_message                    = (known after apply)
+      + gcp_status                       = (known after apply)
+      + id                               = (known after apply)
+      + interface_endpoint_id            = (known after apply)
+      + private_endpoint_connection_name = (known after apply)
+      + private_endpoint_ip_address      = (known after apply)
+      + private_endpoint_resource_id     = (known after apply)
+      + private_link_id                  = (known after apply)
+      + project_id                       = (known after apply)
+      + provider_name                    = "AZURE"
+    }
+
+  # module.atlas_azure.module.privatelink["westus2"].azurerm_private_endpoint.atlas[0] will be created
+  + resource "azurerm_private_endpoint" "atlas" {
+      + custom_dns_configs       = (known after apply)
+      + id                       = (known after apply)
+      + location                 = "westus2"
+      + name                     = "pe-atlas-westus2"
+      + network_interface        = (known after apply)
+      + private_dns_zone_configs = (known after apply)
+      + resource_group_name      = "maastha-rg-dev"
+      + subnet_id                = "/subscriptions/fd01adff-b37e-4693-8497-83ecf183a145/resourceGroups/maastha-rg-dev/providers/Microsoft.Network/virtualNetworks/atlas-vnet-west/subnets/atlas-pe-subnet"
+
+      + private_service_connection {
+          + is_manual_connection           = true
+          + name                           = (known after apply)
+          + private_connection_resource_id = (known after apply)
+          + private_ip_address             = (known after apply)
+          + request_message                = "MongoDB Atlas PrivateLink"
+        }
+    }
+
+  # module.atlas_azure.module.privatelink["westus2"].mongodbatlas_privatelink_endpoint_service.this will be created
+  + resource "mongodbatlas_privatelink_endpoint_service" "this" {
+      + aws_connection_status            = (known after apply)
+      + azure_status                     = (known after apply)
+      + delete_requested                 = (known after apply)
+      + endpoint_group_name              = (known after apply)
+      + endpoint_service_id              = (known after apply)
+      + error_message                    = (known after apply)
+      + gcp_status                       = (known after apply)
+      + id                               = (known after apply)
+      + interface_endpoint_id            = (known after apply)
+      + private_endpoint_connection_name = (known after apply)
+      + private_endpoint_ip_address      = (known after apply)
+      + private_endpoint_resource_id     = (known after apply)
+      + private_link_id                  = (known after apply)
+      + project_id                       = (known after apply)
+      + provider_name                    = "AZURE"
+
+      + endpoints (known after apply)
+    }
+
+Plan: 16 to add, 0 to change, 0 to destroy.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.
