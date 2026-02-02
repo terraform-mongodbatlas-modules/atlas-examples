@@ -27,3 +27,19 @@ output "backup_export" {
   description = "Backup export configuration details"
   value       = module.atlas_azure.backup_export
 }
+
+output "validation_vm" {
+  description = "Validation VM details (if enabled)"
+  value = var.enable_validation_vm ? {
+    vm_name                      = module.validation_vm[0].vm_name
+    private_ip                   = module.validation_vm[0].private_ip_address
+    admin_username               = module.validation_vm[0].admin_username
+    admin_password               = module.validation_vm[0].admin_password
+    console_access               = module.validation_vm[0].console_access
+    database_username            = module.validation_vm[0].database_username
+    validate_privatelink_command = module.validation_vm[0].validate_privatelink_command
+    validate_connection_command  = module.validation_vm[0].validate_connection_command
+    validate_crud_command        = module.validation_vm[0].validate_crud_command
+  } : null
+  sensitive = true
+}

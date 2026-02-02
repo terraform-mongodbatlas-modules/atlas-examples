@@ -76,14 +76,14 @@ variable "ip_access_list" {
 
 # Validation VM
 # ----------------------------------------------------
-# variable "enable_validation_vm" {
-#   description = "Deploy a validation VM to test Atlas deployment over PrivateLink"
-#   type        = bool
-#   default     = true
-# }
+variable "enable_validation_vm" {
+  description = "Deploy a validation VM to test Atlas deployment over PrivateLink"
+  type        = bool
+  default     = true
+}
 
-# variable "validation_vm_ssh_key" {
-#   description = "SSH public key for validation VM access. Required if enable_validation_vm is true."
-#   type        = string
-#   default     = null
-# }
+variable "validation_vm_ssh_key" {
+  description = "SSH public key for validation VM access. Required if enable_validation_vm is true."
+  type        = string
+  default     = null
+}

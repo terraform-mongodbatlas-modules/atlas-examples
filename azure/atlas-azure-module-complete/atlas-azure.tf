@@ -15,6 +15,7 @@ module "atlas_azure" {
   #   service_principal_id     = "<existing-service-principal-object-id>"
   #
   # The service_principal_id must be the Azure AD Object ID.
+  atlas_azure_app_id = "6f2deb0d-be72-4524-a403-df531868bac0"
   create_service_principal = true
 
   # ---------------------------------------------------------------------------
