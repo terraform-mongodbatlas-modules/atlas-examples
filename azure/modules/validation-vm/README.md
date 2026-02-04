@@ -4,11 +4,11 @@ Terraform module that creates an Azure VM for validating MongoDB Atlas connectiv
 
 ## Features
 
-- **Serial Console access** - No SSH port 22 required (enterprise-friendly)
+- **Bastion/SSH access** - Connect via Azure Bastion or direct SSH (default)
 - **Temporary database user** - Auto-created for SCRAM authentication
-- **Managed Identity** - For OIDC authentication option
 - **Pre-installed tools** - mongosh, validation scripts
-- **Boot diagnostics** - Required for Serial Console
+- **Private IP verification** - Confirms traffic uses PrivateLink
+- **Serial Console** - Optional alternative access method (no SSH port 22 required)
 
 ## Usage
 
@@ -27,8 +27,6 @@ module "validation_vm" {
   location             = var.regions[0].azure_location
   subnet_id            = var.regions[0].subnet_id
   admin_ssh_public_key = var.validation_vm_ssh_key
-  name_prefix          = var.cluster_name
-  tags                 = var.tags
 
   atlas_project_id = module.atlas_project.id
 
@@ -69,7 +67,8 @@ output "validation_vm" {
   value = var.enable_validation_vm ? {
     vm_name                      = module.validation_vm[0].vm_name
     private_ip                   = module.validation_vm[0].private_ip_address
-    console_access               = module.validation_vm[0].console_access
+    admin_username               = module.validation_vm[0].admin_username
+    ssh_access                   = module.validation_vm[0].ssh_access
     database_username            = module.validation_vm[0].database_username
     validate_privatelink_command = module.validation_vm[0].validate_privatelink_command
     validate_connection_command  = module.validation_vm[0].validate_connection_command
@@ -86,13 +85,15 @@ output "validation_vm" {
 | `resource_group_name` | Azure Resource Group name | `string` | - | yes |
 | `location` | Azure region | `string` | - | yes |
 | `subnet_id` | Subnet ID (same VNet as Atlas PE) | `string` | - | yes |
-| `admin_ssh_public_key` | SSH public key (optional) | `string` | `null` | no |
+| `admin_ssh_public_key` | SSH public key for Bastion/SSH access | `string` | - | yes |
 | `atlas_project_id` | Atlas Project ID | `string` | - | yes |
 | `atlas_connection_string` | Atlas private endpoint SRV connection string (e.g., `mongodb+srv://cluster-pl-0.xxx.mongodb.net`) | `string` | - | yes |
-| `name_prefix` | Prefix for resource names | `string` | `""` | no |
-| `vm_size` | VM size | `string` | `"Standard_B1s"` | no |
-| `admin_username` | Admin username | `string` | `"azureuser"` | no |
-| `tags` | Resource tags | `map(string)` | `{}` | no |
+
+**Hardcoded defaults** (edit in `main.tf` if needed):
+- `name_prefix`: `atlas` (used for VM name: `atlas-validation-vm`, db user: `atlas-validation-user`)
+- `vm_size`: `Standard_B1s`
+- `admin_username`: `azureuser`
+- `tags`: `{ Purpose = "Atlas Connectivity Validation", ManagedBy = "Terraform" }`
 
 ## Outputs
 
@@ -101,17 +102,13 @@ output "validation_vm" {
 | `vm_id` | VM resource ID |
 | `vm_name` | VM name |
 | `private_ip_address` | Private IP address |
-| `admin_username` | Admin username for VM login |
-| `admin_password` | Admin password for Serial Console login (sensitive) |
-| `console_access` | Serial Console access instructions |
+| `admin_username` | Admin username for SSH access |
+| `ssh_access` | Bastion/SSH access instructions |
 | `database_username` | Temporary database user username |
 | `database_password` | Temporary database user password (sensitive) |
 | `validate_privatelink_command` | Comprehensive PrivateLink validation (recommended) |
 | `validate_connection_command` | Connection test with private IP verification |
 | `validate_crud_command` | CRUD operations test |
-| `managed_identity_principal_id` | For Atlas OIDC user (optional) |
-| `managed_identity_tenant_id` | For Atlas OIDC IdP (optional) |
-| `validate_oidc_command` | OIDC validation command (optional) |
 
 ## Validation Scripts
 
@@ -147,31 +144,29 @@ This script:
 ./validate-crud 'mongodb+srv://user:pass@cluster-pl-0.xxxxx.mongodb.net'
 ```
 
-### OIDC Authentication (managed identity)
-
-```bash
-# Test connection (requires Atlas OIDC setup)
-./validate-oidc 'mongodb+srv://cluster-pl-0.xxxxx.mongodb.net'
-
-# Test CRUD operations
-./validate-oidc 'mongodb+srv://cluster-pl-0.xxxxx.mongodb.net' crud
-```
-
 ## Accessing the VM
 
-Use Azure Serial Console (no port 22 required):
+### Via Azure Bastion (Recommended)
 
-1. Get the password: `terraform output -raw validation_vm | jq -r '.admin_password'`
-   Or: `terraform output -json validation_vm`
-2. Azure Portal → Virtual Machines → `<vm_name>`
-3. Help → Serial Console
-4. Login with username `azureuser` and the password from step 1
+1. Azure Portal → Virtual Machines → `<vm_name>`
+2. Connect → Bastion
+3. Enter username `azureuser` and select SSH Private Key authentication
+4. Upload or paste your private key
 
-Or use Azure Bastion/SSH if configured in your VNet (SSH key authentication also enabled).
+### Via Direct SSH
+
+If you have network access to the VM's private IP:
+
+```bash
+ssh -i ~/.ssh/your_private_key azureuser@<private_ip>
+```
+
+### Via Serial Console (Optional)
+
+To enable Serial Console access (no SSH port 22 required), see the inline comments in `main.tf` for instructions on enabling password authentication.
 
 ## Notes
 
 - The VM is deployed in the same subnet as the Atlas Private Endpoint for connectivity
 - A temporary database user with `readWriteAnyDatabase` role is created for validation
-- The managed identity can be used for OIDC authentication (requires additional Atlas configuration)
 - Boot diagnostics are enabled for Serial Console access

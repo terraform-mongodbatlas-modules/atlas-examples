@@ -1,4 +1,14 @@
 #cloud-config
+# ---------------------------------------------------------------------------
+# Atlas Validation VM Cloud-Init Configuration
+# ---------------------------------------------------------------------------
+# Installs mongosh, Atlas CLI, and validation script for testing PrivateLink.
+# Connection string is pre-configured - just run: ./validate-atlas
+#
+# For backup validation (optional):
+#   export MONGODB_ATLAS_PUBLIC_API_KEY="key" MONGODB_ATLAS_PRIVATE_API_KEY="secret"
+# ---------------------------------------------------------------------------
+
 package_update: true
 package_upgrade: false
 
@@ -12,318 +22,106 @@ packages:
   - gnupg
 
 write_files:
-  # OIDC validation script
-  - path: /home/${admin_username}/validate-oidc
+  # Connection string config file (pre-configured by Terraform)
+  # defer: true ensures file is written after user creation
+  - path: /home/${admin_username}/.atlas-connection
     owner: ${admin_username}:${admin_username}
-    permissions: "0755"
+    permissions: "0600"
     defer: true
     content: |
-      #!/bin/bash
-      # Validate Atlas connectivity using Azure Managed Identity (OIDC)
-      # Usage: ./validate-oidc <connection-string> [ping|crud]
-      
-      set -euo pipefail
-      
-      URI="$${1:-}"
-      TEST="$${2:-ping}"
-      
-      if [ -z "$URI" ]; then
-        echo "Usage: ./validate-oidc <connection-string> [ping|crud]"
-        echo "Example: ./validate-oidc 'mongodb+srv://cluster.mongodb.net'"
-        exit 1
-      fi
-      
-      echo "=== OIDC Validation ==="
-      echo "Fetching Azure managed identity token..."
-      
-      TOKEN=$(curl -s -H "Metadata:true" \
-        "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=api://AzureADTokenExchange" \
-        | jq -r '.access_token')
-      
-      if [ "$TOKEN" = "null" ] || [ -z "$TOKEN" ]; then
-        echo "ERROR: Failed to get managed identity token"
-        exit 1
-      fi
-      
-      echo "Token acquired. Connecting to MongoDB..."
-      
-      if [ "$TEST" = "crud" ]; then
-        mongosh "$URI" --authenticationMechanism MONGODB-OIDC --oidcAccessToken "$TOKEN" --quiet --eval "
-          db = db.getSiblingDB('validation_test');
-          db.test.insertOne({_id:'oidc_test', ts: new Date()});
-          print('Insert: OK');
-          var doc = db.test.findOne({_id:'oidc_test'});
-          print('Read: ' + JSON.stringify(doc));
-          db.test.deleteOne({_id:'oidc_test'});
-          print('Delete: OK');
-          print('OIDC CRUD validation complete!');
-        "
-      else
-        mongosh "$URI" --authenticationMechanism MONGODB-OIDC --oidcAccessToken "$TOKEN" --quiet --eval "
-          var result = db.adminCommand('ping');
-          print('Ping: ' + JSON.stringify(result));
-          print('OIDC connection successful!');
-        "
-      fi
+      ${connection_string}
 
-  # Connection test script (for SCRAM auth)
-  - path: /home/${admin_username}/validate-connection
+  # Atlas project/cluster config for backup validation
+  - path: /home/${admin_username}/.atlas-config
     owner: ${admin_username}:${admin_username}
-    permissions: "0755"
+    permissions: "0600"
     defer: true
     content: |
-      #!/bin/bash
-      # Validate Atlas connectivity over PrivateLink
-      # Verifies DNS resolves to private IP and connection succeeds
-      # Usage: ./validate-connection <connection-string-with-credentials>
-      
-      set -euo pipefail
-      
-      CONNECTION_STRING="$${1:-}"
-      
-      if [ -z "$CONNECTION_STRING" ]; then
-        echo "Usage: ./validate-connection <connection-string>"
-        echo "Example: ./validate-connection 'mongodb+srv://user:pass@cluster.mongodb.net'"
-        exit 1
-      fi
-      
-      echo "=== Atlas PrivateLink Connectivity Test ==="
-      
-      # Extract hostname from connection string
-      HOST=$(echo "$CONNECTION_STRING" | sed -n 's|.*mongodb.*://[^@]*@\([^/]*\).*|\1|p')
-      if [ -z "$HOST" ]; then
-        HOST=$(echo "$CONNECTION_STRING" | sed -n 's|.*mongodb.*://\([^/]*\).*|\1|p')
-      fi
-      
-      echo "1. Testing DNS resolution for: $HOST"
-      if ! nslookup "$HOST" > /dev/null 2>&1; then
-        echo "   DNS: FAILED"
-        exit 1
-      fi
-      echo "   DNS: OK"
-      
-      # Get SRV records to find actual MongoDB hosts
-      echo ""
-      echo "2. Verifying private IP resolution..."
-      SRV_HOSTS=$(dig +short SRV "_mongodb._tcp.$HOST" | awk '{print $4}' | sed 's/\.$//')
-      
-      if [ -z "$SRV_HOSTS" ]; then
-        echo "   WARNING: No SRV records found, checking A record directly"
-        SRV_HOSTS="$HOST"
-      fi
-      
-      PRIVATE_VERIFIED=false
-      for SRV_HOST in $SRV_HOSTS; do
-        IP=$(dig +short "$SRV_HOST" | head -1)
-        if [ -z "$IP" ]; then
-          echo "   ERROR: Could not resolve $SRV_HOST"
-          continue
-        fi
-        
-        # Check if IP is in private ranges (10.x, 172.16-31.x, 192.168.x)
-        if [[ $IP =~ ^10\. ]] || [[ $IP =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]] || [[ $IP =~ ^192\.168\. ]]; then
-          echo "   $SRV_HOST -> $IP (private)"
-          PRIVATE_VERIFIED=true
-        else
-          echo "   ERROR: $SRV_HOST -> $IP (PUBLIC - not using PrivateLink!)"
-          exit 1
-        fi
-      done
-      
-      if [ "$PRIVATE_VERIFIED" = false ]; then
-        echo "   ERROR: Could not verify private IP resolution"
-        exit 1
-      fi
-      echo "   Private network: VERIFIED"
-      
-      echo ""
-      echo "3. Testing MongoDB connection..."
-      if mongosh "$CONNECTION_STRING" --quiet --eval "db.adminCommand('ping')"; then
-        echo ""
-        echo "=== PrivateLink connectivity VERIFIED ==="
-      else
-        echo ""
-        echo "Connection FAILED"
-        exit 1
-      fi
+      ATLAS_PROJECT_ID="${atlas_project_id}"
+      ATLAS_CLUSTER_NAME="${atlas_cluster_name}"
 
-  # CRUD validation script (for SCRAM auth)
-  - path: /home/${admin_username}/validate-crud
+  # Validation script (content loaded from scripts/validate-atlas.sh)
+  - path: /home/${admin_username}/validate-atlas
     owner: ${admin_username}:${admin_username}
     permissions: "0755"
     defer: true
     content: |
-      #!/bin/bash
-      # Validate CRUD operations over PrivateLink
-      # Usage: ./validate-crud <connection-string-with-credentials>
-      
-      set -euo pipefail
-      
-      CONNECTION_STRING="$${1:-}"
-      
-      if [ -z "$CONNECTION_STRING" ]; then
-        echo "Usage: ./validate-crud <connection-string>"
-        echo "Example: ./validate-crud 'mongodb+srv://user:pass@cluster.mongodb.net'"
-        exit 1
-      fi
-      
-      echo "=== CRUD Validation over PrivateLink ==="
-      
-      mongosh "$CONNECTION_STRING" --quiet --eval "
-        db = db.getSiblingDB('validation_test');
-        
-        print('1. Insert...');
-        db.test.insertOne({_id:'crud_test', ts: new Date()});
-        print('   Insert: OK');
-        
-        print('2. Read...');
-        var doc = db.test.findOne({_id:'crud_test'});
-        print('   Read: ' + JSON.stringify(doc));
-        
-        print('3. Update...');
-        db.test.updateOne({_id:'crud_test'}, {\$set: {updated: true}});
-        print('   Update: OK');
-        
-        print('4. Delete...');
-        db.test.deleteOne({_id:'crud_test'});
-        print('   Delete: OK');
-        
-        print('');
-        print('CRUD validation complete!');
-      "
-
-  # Network isolation verification script
-  - path: /home/${admin_username}/validate-privatelink
-    owner: ${admin_username}:${admin_username}
-    permissions: "0755"
-    defer: true
-    content: |
-      #!/bin/bash
-      # Comprehensive PrivateLink validation
-      # Verifies: private DNS, private IP resolution, and optionally that public path fails
-      # Usage: ./validate-privatelink <private-connection-string> [public-connection-string]
-      
-      set -euo pipefail
-      
-      PRIVATE_URI="$${1:-}"
-      PUBLIC_URI="$${2:-}"
-      
-      if [ -z "$PRIVATE_URI" ]; then
-        echo "Usage: ./validate-privatelink <private-connection-string> [public-connection-string]"
-        echo ""
-        echo "Examples:"
-        echo "  ./validate-privatelink 'mongodb+srv://user:pass@cluster-pl-0.xxx.mongodb.net'"
-        echo "  ./validate-privatelink 'mongodb+srv://user:pass@cluster-pl-0.xxx.mongodb.net' 'mongodb+srv://user:pass@cluster.xxx.mongodb.net'"
-        exit 1
-      fi
-      
-      echo "========================================"
-      echo "  Atlas PrivateLink Validation Suite"
-      echo "========================================"
-      echo ""
-      
-      # Extract hostname from private connection string
-      PRIVATE_HOST=$(echo "$PRIVATE_URI" | sed -n 's|.*mongodb.*://[^@]*@\([^/]*\).*|\1|p')
-      if [ -z "$PRIVATE_HOST" ]; then
-        PRIVATE_HOST=$(echo "$PRIVATE_URI" | sed -n 's|.*mongodb.*://\([^/]*\).*|\1|p')
-      fi
-      
-      echo "=== Test 1: Private DNS Resolution ==="
-      echo "Host: $PRIVATE_HOST"
-      echo ""
-      
-      # Get SRV records
-      SRV_HOSTS=$(dig +short SRV "_mongodb._tcp.$PRIVATE_HOST" | awk '{print $4}' | sed 's/\.$//')
-      
-      if [ -z "$SRV_HOSTS" ]; then
-        echo "WARNING: No SRV records, checking A record"
-        SRV_HOSTS="$PRIVATE_HOST"
-      fi
-      
-      ALL_PRIVATE=true
-      for SRV_HOST in $SRV_HOSTS; do
-        IP=$(dig +short "$SRV_HOST" | head -1)
-        if [ -z "$IP" ]; then
-          echo "  ERROR: Could not resolve $SRV_HOST"
-          ALL_PRIVATE=false
-          continue
-        fi
-        
-        if [[ $IP =~ ^10\. ]] || [[ $IP =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]] || [[ $IP =~ ^192\.168\. ]]; then
-          echo "  $SRV_HOST"
-          echo "    -> $IP (PRIVATE)"
-        else
-          echo "  $SRV_HOST"
-          echo "    -> $IP (PUBLIC - FAIL!)"
-          ALL_PRIVATE=false
-        fi
-      done
-      
-      echo ""
-      if [ "$ALL_PRIVATE" = true ]; then
-        echo "Result: PASS - All IPs are private"
-      else
-        echo "Result: FAIL - Public IPs detected"
-        exit 1
-      fi
-      
-      echo ""
-      echo "=== Test 2: Private Endpoint Connection ==="
-      if mongosh "$PRIVATE_URI" --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
-        echo "Result: PASS - Connection successful"
-      else
-        echo "Result: FAIL - Connection failed"
-        exit 1
-      fi
-      
-      # Optional: Test that public path fails
-      if [ -n "$PUBLIC_URI" ]; then
-        echo ""
-        echo "=== Test 3: Public Path Blocked ==="
-        PUBLIC_HOST=$(echo "$PUBLIC_URI" | sed -n 's|.*mongodb.*://[^@]*@\([^/]*\).*|\1|p')
-        if [ -z "$PUBLIC_HOST" ]; then
-          PUBLIC_HOST=$(echo "$PUBLIC_URI" | sed -n 's|.*mongodb.*://\([^/]*\).*|\1|p')
-        fi
-        echo "Testing: $PUBLIC_HOST"
-        echo ""
-        
-        # Test with 5 second timeout
-        if timeout 5 mongosh "$PUBLIC_URI" --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
-          echo "Result: FAIL - Public connection succeeded (network not isolated!)"
-          exit 1
-        else
-          echo "Result: PASS - Public connection blocked (as expected)"
-        fi
-      fi
-      
-      echo ""
-      echo "========================================"
-      echo "  PrivateLink Validation: ALL PASSED"
-      echo "========================================"
+      ${indent(6, validate_script)}
 
 runcmd:
-  - echo "Starting validation VM setup at $(date)" >> /var/log/cloud-init-validation.log
+  # Log file for debugging cloud-init
+  - echo "=== Atlas Validation VM Setup ===" >> /var/log/cloud-init-validation.log
+  - echo "Started at $(date)" >> /var/log/cloud-init-validation.log
+  - echo "" >> /var/log/cloud-init-validation.log
 
-  # Install mongosh via direct download (more reliable than repo)
-  - echo "Installing mongosh..." >> /var/log/cloud-init-validation.log
-  - curl -fsSL https://downloads.mongodb.com/compass/mongosh-2.3.7-linux-x64.tgz -o /tmp/mongosh.tgz
-  - tar -xzf /tmp/mongosh.tgz -C /tmp
-  - cp /tmp/mongosh-*/bin/mongosh /usr/local/bin/
-  - chmod +x /usr/local/bin/mongosh
-  - ln -sf /usr/local/bin/mongosh /usr/bin/mongosh
-  - rm -rf /tmp/mongosh*
-  - mongosh --version >> /var/log/cloud-init-validation.log 2>&1
+  # ---------------------------------------------------------------------------
+  # Install mongosh via MongoDB official apt repository (Ubuntu 22.04 Jammy)
+  # ---------------------------------------------------------------------------
+  - echo "Installing mongosh from MongoDB apt repository..." >> /var/log/cloud-init-validation.log
+  
+  # Import MongoDB public GPG key
+  - curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg 2>> /var/log/cloud-init-validation.log
+  
+  # Add MongoDB repository for Ubuntu 22.04 (Jammy)
+  - echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" > /etc/apt/sources.list.d/mongodb-org-7.0.list
+  
+  # Update package list and install mongosh
+  - apt-get update >> /var/log/cloud-init-validation.log 2>&1
+  - apt-get install -y mongodb-mongosh >> /var/log/cloud-init-validation.log 2>&1
+  
+  # Verify mongosh installation
+  - echo "mongosh version:" >> /var/log/cloud-init-validation.log
+  - mongosh --version >> /var/log/cloud-init-validation.log 2>&1 || echo "mongosh installation may have failed" >> /var/log/cloud-init-validation.log
 
-  - echo "Validation VM setup completed at $(date)" >> /var/log/cloud-init-validation.log
+  # ---------------------------------------------------------------------------
+  # Install Atlas CLI for backup validation
+  # ---------------------------------------------------------------------------
+  - echo "" >> /var/log/cloud-init-validation.log
+  - echo "Installing Atlas CLI..." >> /var/log/cloud-init-validation.log
+  
+  # Download and install Atlas CLI
+  - curl -fsSL https://fastdl.mongodb.org/mongocli/mongodb-atlas-cli_1.14.0_linux_x86_64.deb -o /tmp/mongodb-atlas-cli.deb >> /var/log/cloud-init-validation.log 2>&1
+  - dpkg -i /tmp/mongodb-atlas-cli.deb >> /var/log/cloud-init-validation.log 2>&1 || apt-get install -f -y >> /var/log/cloud-init-validation.log 2>&1
+  - rm -f /tmp/mongodb-atlas-cli.deb
+  
+  # Verify Atlas CLI installation
+  - echo "Atlas CLI version:" >> /var/log/cloud-init-validation.log
+  - atlas --version >> /var/log/cloud-init-validation.log 2>&1 || echo "Atlas CLI installation may have failed" >> /var/log/cloud-init-validation.log
+
+  # Set ownership of files
+  - chown ${admin_username}:${admin_username} /home/${admin_username}/validate-atlas
+  - chown ${admin_username}:${admin_username} /home/${admin_username}/.atlas-connection
+  - chown ${admin_username}:${admin_username} /home/${admin_username}/.atlas-config
+
+  - echo "" >> /var/log/cloud-init-validation.log
+  - echo "Completed at $(date)" >> /var/log/cloud-init-validation.log
+  - echo "=== Setup Complete ===" >> /var/log/cloud-init-validation.log
 
 final_message: |
+  ===========================================
   Atlas Validation VM is ready!
+  ===========================================
   
-  Available commands:
-    ./validate-privatelink  - Comprehensive PrivateLink validation (recommended)
-    ./validate-connection   - Test connectivity with private IP verification
-    ./validate-crud         - Test CRUD operations
-    ./validate-oidc         - Test OIDC authentication (requires Atlas OIDC setup)
+  Run: ./validate-atlas
   
-  Quick start:
-    ./validate-privatelink 'mongodb+srv://user:pass@cluster-pl-0.xxx.mongodb.net'
+  For backup validation (optional):
+    export MONGODB_ATLAS_PUBLIC_API_KEY="key" MONGODB_ATLAS_PRIVATE_API_KEY="secret"
+    ./validate-atlas
+  
+  Options:
+    --strict  Exit on first failure (for CI/CD)
+    --help    Show all options
+  
+  What it validates:
+    1. DNS Resolution - All targets resolve to private IPs
+    2. MongoDB Connection - mongosh can connect
+    3. CRUD Operations - Insert/Read/Update/Delete works
+    4. Backup Validation - Lists recent snapshots (requires API keys)
+    5. Cluster Info - Displays version and topology
+  
+  For backup validation, set Atlas credentials (API keys or Service Account):
+    export MONGODB_ATLAS_PUBLIC_API_KEY="key"
+    export MONGODB_ATLAS_PRIVATE_API_KEY="secret"
+    ./validate-atlas
+  
+  Check /var/log/cloud-init-validation.log for setup details.

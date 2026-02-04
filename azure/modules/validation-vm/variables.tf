@@ -1,5 +1,3 @@
-# Required variables
-# ----------------------------------------------------
 variable "resource_group_name" {
   description = "Name of the Azure Resource Group"
   type        = string
@@ -16,9 +14,14 @@ variable "subnet_id" {
 }
 
 variable "admin_ssh_public_key" {
-  description = "SSH public key for VM access. Optional - password auth is always enabled for Serial Console."
+  description = <<-EOT
+    SSH public key for VM access via Azure Bastion.
+    
+    When provided (non-empty): Creates Azure Bastion with SSH key authentication.
+    When empty/null (default): Uses Serial Console with password authentication.
+  EOT
   type        = string
-  default     = null
+  default     = ""
 }
 
 variable "atlas_project_id" {
@@ -27,33 +30,20 @@ variable "atlas_project_id" {
 }
 
 variable "atlas_connection_string" {
-  description = "MongoDB Atlas private endpoint SRV connection string. For sharded clusters, use private_endpoint[0].srv_connection_string. Example: mongodb+srv://cluster-pl-0.xxxxx.mongodb.net"
+  description = <<-EOT
+    MongoDB Atlas private endpoint connection string. Supports both formats:
+    
+    - SRV format: mongodb+srv://<host> (with or without credentials)
+    - Standard format: mongodb://<host1>:<port>,<host2>:<port>,<host3>:<port>/?replicaSet=...
+    
+    The validation scripts will enumerate all hosts (via SRV lookup or comma-split)
+    and verify each resolves to a private IP address.
+  EOT
   type        = string
 }
 
-
-# Optional variables
-# ----------------------------------------------------
-variable "name_prefix" {
-  description = "Prefix for resource names. If empty, uses 'atlas-validation-vm'."
+variable "atlas_cluster_name" {
+  description = "MongoDB Atlas cluster name. Required for backup validation via Atlas CLI."
   type        = string
   default     = ""
-}
-
-variable "vm_size" {
-  description = "Azure VM size. B1s is cost-effective for validation."
-  type        = string
-  default     = "Standard_B1s"
-}
-
-variable "admin_username" {
-  description = "Admin username for the VM"
-  type        = string
-  default     = "azureuser"
-}
-
-variable "tags" {
-  description = "Tags to apply to all resources"
-  type        = map(string)
-  default     = {}
 }

@@ -2,60 +2,99 @@
 # Atlas Connectivity Validation VM Module
 # ---------------------------------------------------------------------------
 # Creates an Azure VM to validate MongoDB Atlas connectivity over PrivateLink.
-# Location: azure/modules/validation-vm
-# Designed to be called as a module from any Azure example in this repository.
 #
 # Features:
-#   - Serial Console access (no SSH port 22 required)
-#   - Managed Identity (for OIDC authentication option)
-#   - Temporary database user for SCRAM authentication
-#   - Pre-installed mongosh and validation scripts
+#   - Default: Serial Console access (password auth, no public IP)
+#   - Optional: SSH via Azure Bastion (when admin_ssh_public_key provided)
+#   - Pre-installed mongosh, Atlas CLI, and validation scripts
+#   - Validates DNS resolution, connectivity, and CRUD operations
 # ---------------------------------------------------------------------------
 
 locals {
-  vm_name = var.name_prefix != "" ? "${var.name_prefix}-validation-vm" : "atlas-validation-vm"
+  vm_size        = "Standard_B1s"
+  admin_username = "azureuser"
+  name_prefix    = "atlas"
+  vm_name        = "${local.name_prefix}-validation-vm"
+  db_username    = "${local.name_prefix}-validation-user"
+  common_tags = {
+    "Purpose"   = "Atlas Connectivity Validation"
+    "ManagedBy" = "Terraform"
+  }
 
-  common_tags = merge(
-    {
-      "Purpose"   = "Atlas Connectivity Validation"
-      "ManagedBy" = "Terraform"
-    },
-    var.tags
+  # ---------------------------------------------------------------------------
+  # Access Mode Logic
+  # ---------------------------------------------------------------------------
+  # Default: Serial Console
+  # Optional: Azure Bastion + SSH (if SSH key is provided)
+  # ---------------------------------------------------------------------------
+  use_bastion        = var.admin_ssh_public_key != null && trimspace(var.admin_ssh_public_key) != ""
+  use_serial_console = !local.use_bastion
+
+  # ---------------------------------------------------------------------------
+  # Connection String Handling
+  # ---------------------------------------------------------------------------
+  # Supports both SRV and standard connection string formats:
+  #   - SRV: mongodb+srv://[user:pass@]host/...
+  #   - Standard: mongodb://[user:pass@]host1:port,host2:port,host3:port/?replicaSet=...
+  # ---------------------------------------------------------------------------
+  is_srv_connection = can(regex("^mongodb\\+srv://", var.atlas_connection_string))
+
+  # Extract host portion from connection string
+  # For SRV: returns "cluster-pl-0.xxxxx.mongodb.net"
+  # For Standard: returns "host1:port,host2:port,host3:port"
+  connection_host = (
+    can(regex("@([^/?]+)", var.atlas_connection_string))
+    ? regex("@([^/?]+)", var.atlas_connection_string)[0]
+    : regex("^mongodb(?:\\+srv)?://([^@/?]+)", var.atlas_connection_string)[0]
   )
 
-  # Extract host from connection string (remove mongodb+srv:// prefix)
-  cluster_host = replace(var.atlas_connection_string, "mongodb+srv://", "")
-
   # Full connection string with credentials
-  connection_string_with_creds = "mongodb+srv://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.cluster_host}"
+  connection_string_with_creds = local.is_srv_connection ? (
+    "mongodb+srv://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}"
+    ) : (
+    "mongodb://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}/?${regex("\\?(.+)$", var.atlas_connection_string)[0]}"
+  )
+
+  # Load validation script from separate file for easier maintenance
+  validate_script = file("${path.module}/scripts/validate-atlas.sh")
 
   # Cloud-init script to install MongoDB tools and validation scripts
   cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    admin_username = var.admin_username
+    admin_username     = local.admin_username
+    validate_script    = local.validate_script
+    connection_string  = local.connection_string_with_creds
+    atlas_project_id   = var.atlas_project_id
+    atlas_cluster_name = var.atlas_cluster_name
   })
-}
 
-# ---------------------------------------------------------------------------
-# Random Passwords
-# ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # VNet extraction for Bastion subnet
+  # ---------------------------------------------------------------------------
+  # Extract VNet ID from subnet_id to create AzureBastionSubnet in same VNet
+  # Subnet ID format: /subscriptions/.../virtualNetworks/{vnet}/subnets/{subnet}
+  # ---------------------------------------------------------------------------
+  vnet_id = join("/", slice(split("/", var.subnet_id), 0, 9))
+}
 resource "random_password" "db_user" {
   length  = 24
-  special = false # Avoid URL encoding issues in connection string
+  special = false
 }
 
+# For Serial Console access (when not using Bastion)
 resource "random_password" "vm_admin" {
-  length           = 20
-  special          = true
-  override_special = "!@#$%^&*"
+  count = local.use_serial_console ? 1 : 0
+
+  length      = 24
+  special     = false
+  min_lower   = 1
+  min_upper   = 1
+  min_numeric = 1
 }
 
-# ---------------------------------------------------------------------------
 # Temporary Database User (for SCRAM authentication)
-# ---------------------------------------------------------------------------
-
 resource "mongodbatlas_database_user" "validation" {
   project_id         = var.atlas_project_id
-  username           = "${var.name_prefix}-validation-user"
+  username           = local.db_username
   password           = random_password.db_user.result
   auth_database_name = "admin"
 
@@ -94,16 +133,21 @@ resource "azurerm_linux_virtual_machine" "validation" {
   name                = local.vm_name
   resource_group_name = var.resource_group_name
   location            = var.location
-  size                = var.vm_size
+  size                = local.vm_size
 
-  admin_username                  = var.admin_username
-  admin_password                  = random_password.vm_admin.result
-  disable_password_authentication = false
+  admin_username = local.admin_username
 
+  # Authentication mode depends on access method
+  disable_password_authentication = local.use_bastion
+
+  # For Serial Console (when not using Bastion)
+  admin_password = local.use_serial_console ? random_password.vm_admin[0].result : null
+
+  # Bastion: SSH key authentication
   dynamic "admin_ssh_key" {
-    for_each = var.admin_ssh_public_key != null ? [1] : []
+    for_each = local.use_bastion ? [1] : []
     content {
-      username   = var.admin_username
+      username   = local.admin_username
       public_key = var.admin_ssh_public_key
     }
   }
@@ -126,17 +170,67 @@ resource "azurerm_linux_virtual_machine" "validation" {
     version   = "latest"
   }
 
-  # System-assigned managed identity for OIDC authentication
-  identity {
-    type = "SystemAssigned"
-  }
-
-  # Boot diagnostics required for Serial Console access
+  # Boot diagnostics required for Serial Console
   boot_diagnostics {
     # Uses managed storage account
   }
 
   custom_data = base64encode(local.cloud_init)
+
+  tags = local.common_tags
+}
+
+# ---------------------------------------------------------------------------
+# Azure Bastion Resources (conditional - only when SSH key is provided)
+# ---------------------------------------------------------------------------
+# Creates Standard SKU Bastion for native SSH client support.
+# Requires an AzureBastionSubnet in the same VNet as the VM.
+# ---------------------------------------------------------------------------
+
+# Public IP for Azure Bastion
+resource "azurerm_public_ip" "bastion" {
+  count = local.use_bastion ? 1 : 0
+
+  name                = "${local.name_prefix}-bastion-pip"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+
+  tags = local.common_tags
+}
+
+# AzureBastionSubnet in the same VNet as the VM
+# Must be named exactly "AzureBastionSubnet" and have at least /26 CIDR
+resource "azurerm_subnet" "bastion" {
+  count = local.use_bastion ? 1 : 0
+
+  name                 = "AzureBastionSubnet"
+  resource_group_name  = var.resource_group_name
+  virtual_network_name = element(split("/", local.vnet_id), length(split("/", local.vnet_id)) - 1)
+  address_prefixes     = ["10.0.255.0/26"] # Reserved range for Bastion
+
+  # Note: If this CIDR conflicts with existing subnets, you may need to adjust
+  # the address_prefixes or provide the Bastion subnet via a variable.
+}
+
+# Azure Bastion Host (Standard SKU for native SSH client support)
+resource "azurerm_bastion_host" "bastion" {
+  count = local.use_bastion ? 1 : 0
+
+  name                = "${local.name_prefix}-bastion"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  sku                 = "Standard"
+
+  # Enable native client support for SSH from local terminal
+  tunneling_enabled = true
+
+  ip_configuration {
+    name                 = "configuration"
+    subnet_id            = azurerm_subnet.bastion[0].id
+    public_ip_address_id = azurerm_public_ip.bastion[0].id
+  }
 
   tags = local.common_tags
 }
