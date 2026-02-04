@@ -34,7 +34,7 @@ locals {
 
   # Use first region's location for backup storage
   #   backup_azure_location = local.regions_with_inferred_node_count[0].name
-  backup_azure_location = local.regions_with_inferred_node_count[0].azure_location # to be removed once azure module supports Atlas region
+  backup_azure_location = local.regions_with_inferred_node_count[0].azure_location
 
 
   # Set storage account as per Atlas project name

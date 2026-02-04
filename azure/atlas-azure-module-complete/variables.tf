@@ -29,17 +29,19 @@ variable "regions" {
         {
           name           = "US_EAST_2"
           subnet_id      = "/subscriptions/.../subnets/atlas-pe-subnet"
+          azure_location = "eastus2"
         },
         {
           name           = "US_WEST_2"
           subnet_id      = "/subscriptions/.../subnets/atlas-pe-subnet"
+          azure_location = "westus2"
         }
       ]
   EOT
   type = list(object({
     name           = string
     subnet_id      = string
-    azure_location = string # to be removed once azure module supports Atlas region
+    azure_location = string
     node_count     = optional(number)
   }))
 }
@@ -48,7 +50,7 @@ variable "regions" {
 # Optional variables
 # ----------------------------------------------------
 variable "azure_subscription_id" {
-  description = "Azure Subscription ID. Required when PrivateLink or Backup Export is enabled."
+  description = "Azure Subscription ID."
   type        = string
   default     = null # allows to use underlying subscription
 }
@@ -83,7 +85,16 @@ variable "enable_validation_vm" {
 }
 
 variable "validation_vm_ssh_key" {
-  description = "SSH public key for validation VM access. Required if enable_validation_vm is true."
+  description = <<-EOT
+    SSH public key for validation VM access.
+    
+    - If provided: Creates Azure Bastion (Standard) for SSH access
+    - If empty/null (default): Uses Serial Console with password authentication
+    
+    Serial Console (default) requires no additional Azure resources and works
+    through the Azure Portal. Bastion requires a public IP and the Standard SKU
+    for native SSH client support.
+  EOT
   type        = string
   default     = null
 }

@@ -1,4 +1,5 @@
 module "atlas_azure" {
+  # update to use source version once CLOUDP-365414 is done:
   source = "github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-azure?ref=main"
 
   project_id = module.atlas_project.id
@@ -15,7 +16,6 @@ module "atlas_azure" {
   #   service_principal_id     = "<existing-service-principal-object-id>"
   #
   # The service_principal_id must be the Azure AD Object ID.
-  atlas_azure_app_id = "6f2deb0d-be72-4524-a403-df531868bac0"
   create_service_principal = true
 
   # ---------------------------------------------------------------------------

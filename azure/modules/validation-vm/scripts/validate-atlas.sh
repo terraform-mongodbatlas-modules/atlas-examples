@@ -12,21 +12,12 @@
 # Connection string is pre-configured in ~/.atlas-connection
 # Run: ./validate-atlas
 # Or ./validate-atlas [--strict] [connection-string]
-#
-# 
 # ==========================================================================
 
 set -uo pipefail
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
 CONFIG_FILE="$HOME/.atlas-connection"
 ATLAS_CONFIG_FILE="$HOME/.atlas-config"
-
-# ---------------------------------------------------------------------------
-# Parse Arguments
-# ---------------------------------------------------------------------------
 STRICT_MODE=false
 CONNECTION_STRING=""
 PUBLIC_URI=""
@@ -67,9 +58,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# ---------------------------------------------------------------------------
 # Load connection string from config file if not provided
-# ---------------------------------------------------------------------------
 if [ -z "$CONNECTION_STRING" ]; then
   if [ -f "$CONFIG_FILE" ]; then
     CONNECTION_STRING=$(cat "$CONFIG_FILE" | tr -d '\n')
@@ -85,11 +74,8 @@ if [ -z "$CONNECTION_STRING" ]; then
   fi
 fi
 
-# ---------------------------------------------------------------------------
 # Prerequisites Check
-# ---------------------------------------------------------------------------
 # Verify required tools are installed (cloud-init may still be running)
-# ---------------------------------------------------------------------------
 check_prerequisites() {
   local missing=false
   
@@ -116,9 +102,6 @@ check_prerequisites() {
 
 check_prerequisites
 
-# ---------------------------------------------------------------------------
-# Helper Functions
-# ---------------------------------------------------------------------------
 PASSED_TESTS=0
 FAILED_TESTS=0
 SKIPPED_TESTS=0
@@ -178,9 +161,6 @@ print_final_summary() {
   echo "═══════════════════════════════════════════════════════════════════════"
 }
 
-# ---------------------------------------------------------------------------
-# Main Script
-# ---------------------------------------------------------------------------
 print_header "Atlas PrivateLink Validation"
 
 echo "Mode: $([ "$STRICT_MODE" = true ] && echo "STRICT (fail fast)" || echo "PERMISSIVE (run all tests)")"
@@ -219,15 +199,17 @@ if [ "$IS_SRV" = true ]; then
     TARGETS="$HOST_PORTION"
     TARGET_COUNT=1
   else
-    TARGETS=$(echo "$SRV_RECORDS" | awk '{print $4}' | sed 's/\.$//')
+    # Deduplicate targets (SRV may return same host multiple times via private endpoint)
+    TARGETS=$(echo "$SRV_RECORDS" | awk '{print $4}' | sed 's/\.$//' | sort -u)
     TARGET_COUNT=$(echo "$TARGETS" | wc -l | tr -d ' ')
   fi
 else
-  TARGETS=$(echo "$HOST_PORTION" | tr ',' '\n' | sed 's/:[0-9]*$//')
+  # Deduplicate standard connection string hosts
+  TARGETS=$(echo "$HOST_PORTION" | tr ',' '\n' | sed 's/:[0-9]*$//' | sort -u)
   TARGET_COUNT=$(echo "$TARGETS" | wc -l | tr -d ' ')
 fi
 
-echo "  Found $TARGET_COUNT target(s)"
+echo "  Found $TARGET_COUNT unique target(s)"
 echo ""
 echo "Resolving each target:"
 echo ""
@@ -378,12 +360,8 @@ if [ -f "$ATLAS_CONFIG_FILE" ]; then
 fi
 
 # Check if Atlas CLI credentials are available via environment variables
-# Supports both API keys and Service Account credentials
 # Using ${var:-} syntax to handle unset variables with set -u
-HAVE_API_KEYS=$([ -n "${MONGODB_ATLAS_PUBLIC_API_KEY:-}" ] && [ -n "${MONGODB_ATLAS_PRIVATE_API_KEY:-}" ] && echo "true" || echo "false")
-HAVE_SERVICE_ACCOUNT=$([ -n "${MONGODB_ATLAS_CLIENT_ID:-}" ] && [ -n "${MONGODB_ATLAS_CLIENT_SECRET:-}" ] && echo "true" || echo "false")
-
-if [ "$HAVE_API_KEYS" = "true" ] || [ "$HAVE_SERVICE_ACCOUNT" = "true" ]; then
+if [ -n "${MONGODB_ATLAS_PUBLIC_API_KEY:-}" ] && [ -n "${MONGODB_ATLAS_PRIVATE_API_KEY:-}" ]; then
   print_section "Test 5: Backup Validation (Atlas CLI)"
   
   if ! command -v atlas &> /dev/null; then
@@ -391,15 +369,17 @@ if [ "$HAVE_API_KEYS" = "true" ] || [ "$HAVE_SERVICE_ACCOUNT" = "true" ]; then
   elif [ -z "$ATLAS_PROJECT_ID" ] || [ -z "$ATLAS_CLUSTER_NAME" ]; then
     record_skip "Backup Validation: Project ID or cluster name not configured"
   else
-    echo "Querying backup snapshots via Atlas CLI..."
+    # Configure Atlas CLI with API keys from environment variables
+    atlas config set public_api_key "$MONGODB_ATLAS_PUBLIC_API_KEY" 2>/dev/null || true
+    atlas config set private_api_key "$MONGODB_ATLAS_PRIVATE_API_KEY" 2>/dev/null || true
     
-    # 1. We REMOVED 'atlas config set' entirely.
-    # 2. We add '--profile ""' to force Atlas CLI to ignore local config files
-    #    and strictly use the environment variables provided.
+    echo "Querying backup snapshots via Atlas CLI..."
+    echo "  Project:  $ATLAS_PROJECT_ID"
+    echo "  Cluster:  $ATLAS_CLUSTER_NAME"
+    echo ""
     
     SNAPSHOT_OUTPUT=$(atlas backups snapshots list "$ATLAS_CLUSTER_NAME" \
       --projectId "$ATLAS_PROJECT_ID" \
-      --profile "" \
       --output json 2>&1) || true
     
     # Check if API call succeeded (valid JSON response with totalCount)
@@ -445,11 +425,10 @@ if [ "$HAVE_API_KEYS" = "true" ] || [ "$HAVE_SERVICE_ACCOUNT" = "true" ]; then
   fi
 else
   print_section "Test 5: Backup Validation (Skipped)"
-  record_skip "Backup Validation: Atlas credentials not provided"
+  record_skip "Backup Validation: Atlas API keys not provided"
   echo ""
-  echo "  Set Atlas credentials (API keys or Service Account):"
+  echo "  To enable, set Atlas API keys:"
   echo "    export MONGODB_ATLAS_PUBLIC_API_KEY=\"key\" MONGODB_ATLAS_PRIVATE_API_KEY=\"secret\""
-  echo "    # or: export MONGODB_ATLAS_CLIENT_ID=\"id\" MONGODB_ATLAS_CLIENT_SECRET=\"secret\""
   echo ""
   echo "  Required permissions: Project Read Only (or higher)"
 fi

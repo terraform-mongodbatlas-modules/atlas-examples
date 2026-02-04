@@ -8,19 +8,13 @@ output "cluster_id" {
   value       = module.atlas_cluster.cluster_id
 }
 
-output "connection_string_private_srv" {
-  description = "Private endpoint SRV connection string"
-  value       = module.atlas_cluster.connection_strings.private_srv
-}
-
-output "connection_string_private_endpoint" {
-  description = "Private endpoint connection strings by region"
-  value       = module.atlas_cluster.connection_strings.private_endpoint
-}
-
-output "connection_string_standard_srv" {
-  description = "Standard SRV connection string"
-  value       = module.atlas_cluster.connection_strings.standard_srv
+output "connection_string" {
+  description = "Private endpoint SRV connection string (uses first region for sharded clusters)"
+  value = coalesce(
+    try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
+    try(module.atlas_cluster.connection_strings.private_srv, ""),
+    module.atlas_cluster.connection_strings.standard_srv
+  )
 }
 
 output "backup_export" {
@@ -28,18 +22,25 @@ output "backup_export" {
   value       = module.atlas_azure.backup_export
 }
 
+# ---------------------------------------------------------------------------
+# Validation VM
+# ---------------------------------------------------------------------------
 output "validation_vm" {
-  description = "Validation VM details (if enabled)"
+  description = "Validation VM details (if enabled). Run ./validate-atlas on the VM."
   value = var.enable_validation_vm ? {
-    vm_name                      = module.validation_vm[0].vm_name
-    private_ip                   = module.validation_vm[0].private_ip_address
-    admin_username               = module.validation_vm[0].admin_username
-    admin_password               = module.validation_vm[0].admin_password
-    console_access               = module.validation_vm[0].console_access
-    database_username            = module.validation_vm[0].database_username
-    validate_privatelink_command = module.validation_vm[0].validate_privatelink_command
-    validate_connection_command  = module.validation_vm[0].validate_connection_command
-    validate_crud_command        = module.validation_vm[0].validate_crud_command
+    vm_name           = module.validation_vm[0].vm_name
+    username          = module.validation_vm[0].admin_username
+    access            = module.validation_vm[0].access
+    backup_validation = <<-EOT
+      For backup validation (optional):
+        export MONGODB_ATLAS_PUBLIC_API_KEY="key" MONGODB_ATLAS_PRIVATE_API_KEY="secret"
+        ./validate-atlas
+    EOT
   } : null
-  sensitive = true
+}
+
+output "validation_vm_password" {
+  description = "VM password for Serial Console login (use with username from validation_vm output)"
+  value       = var.enable_validation_vm ? module.validation_vm[0].admin_password : null
+  sensitive   = true
 }

@@ -1,172 +1,226 @@
-# Atlas Validation VM Module
+# Atlas Validation VM (Azure)
 
-Terraform module that creates an Azure VM for validating MongoDB Atlas connectivity over PrivateLink.
+This Terraform module creates a small **Ubuntu VM inside your PrivateLink-enabled VNet** and pre-installs a validation runner (`validate-atlas`) to test that:
 
-## Features
+- All **unique** Atlas hosts **resolve to private IPs** (Private DNS is working)
+- `mongosh` can **connect via the Private Endpoint**
+- Basic **CRUD works over the private path**
+- Optionally, **backups can be queried** using Atlas CLI (requires Atlas API keys)
 
-- **Bastion/SSH access** - Connect via Azure Bastion or direct SSH (default)
-- **Temporary database user** - Auto-created for SCRAM authentication
-- **Pre-installed tools** - mongosh, validation scripts
-- **Private IP verification** - Confirms traffic uses PrivateLink
-- **Serial Console** - Optional alternative access method (no SSH port 22 required)
+Use it as a **“known-good client”** that lives in the same network as your Azure Private Endpoint, so troubleshooting is faster and repeatable.
+
+## Prerequisites
+
+- An Atlas cluster with an **Azure Private Endpoint** configured
+- **Private DNS** configured so the Private Endpoint hostname(s) resolve to private IPs from the VNet where this VM runs
+- Network routing/NSGs allow the VM subnet to reach the Private Endpoint
+
+## What gets created
+
+- **Azure Linux VM** (Ubuntu 22.04) with no public IP, in the subnet you provide
+- **Azure NIC** attached to that subnet
+- **Temporary Atlas database user** (SCRAM) with `readWriteAnyDatabase` on `admin` (for validation only)
+- **Cloud-init provisioning** that installs:
+  - `mongosh`
+  - Atlas CLI (for optional backup validation)
+  - `validate-atlas` script + a pre-configured connection string file
+
+## How it works
+
+1. Terraform creates a **temporary Atlas DB user** and generates a random password.
+2. Terraform builds a connection string by injecting those credentials into the `atlas_connection_string` host(s).
+3. The VM boots and cloud-init writes:
+   - `~/.atlas-connection` (the full connection string with credentials)
+   - `~/validate-atlas` (the validation script)
+4. You log into the VM and run `./validate-atlas`.
+
+The script validates DNS and connectivity from inside the VNet.
+
+## Access modes (important)
+
+This module supports two access patterns:
+
+- **Default: Serial Console (no SSH key required)**  
+  If `admin_ssh_public_key` is empty/null, the VM is configured for **password auth** and you access it via: Azure Portal → VM → **Serial console**. A random password is generated and exposed as a sensitive Terraform output.
+
+- **Optional: Azure Bastion + SSH**  
+  If `admin_ssh_public_key` is provided, the VM disables password auth and enables SSH key auth. The module will also create **Azure Bastion (Standard)** resources so you can SSH without opening inbound SSH from the internet.
+
+**Note on Bastion subnet**: this module creates an `AzureBastionSubnet` with CIDR `10.0.255.0/26`. If that conflicts with your VNet/subnet plan, you’ll need to adjust the module before using Bastion.
+
+### Connecting via Azure Bastion (when enabled)
+
+When Bastion mode is enabled, the VM still has **no public IP**. Typical access is:
+
+- Azure Portal → Virtual Machines → the validation VM → **Connect** → **Bastion**
+- Authenticate with username `azureuser` and your SSH private key that matches `admin_ssh_public_key`
 
 ## Usage
 
-This module can be invoked from `atlas-azure-module-complete` or any other Azure example in this repository.
-
-### From atlas-azure-module-complete
-
-Add the following to your example configuration:
+Minimal example:
 
 ```hcl
 module "validation_vm" {
   source = "../modules/validation-vm"
-  count  = var.enable_validation_vm ? 1 : 0
 
-  resource_group_name  = var.azure_resource_group_name
-  location             = var.regions[0].azure_location
-  subnet_id            = var.regions[0].subnet_id
-  admin_ssh_public_key = var.validation_vm_ssh_key
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  subnet_id            = azurerm_subnet.workload.id
 
-  atlas_project_id = module.atlas_project.id
+  # Leave empty to use Serial Console access (default)
+  # Set to a public key string to enable Bastion + SSH access.
+  admin_ssh_public_key = var.validation_vm_ssh_public_key
 
-  # Use the first region's private endpoint SRV connection string
-  # This works for both sharded clusters (where private_srv is empty) and replica sets
-  atlas_connection_string = try(
-    module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string,
-    module.atlas_cluster.connection_strings.private_srv
-  )
+  atlas_project_id        = mongodbatlas_project.this.id
+  atlas_connection_string = var.atlas_privatelink_connection_string
 
-  depends_on = [module.atlas_azure]
+  # Optional: enables backup validation if you also provide Atlas API keys at runtime
+  atlas_cluster_name = var.atlas_cluster_name
 }
 ```
 
-Add these variables to `variables.tf`:
+### Connection string input
 
-```hcl
-# Validation VM
-# ----------------------------------------------------
-variable "enable_validation_vm" {
-  description = "Deploy a validation VM to test Atlas deployment over PrivateLink"
-  type        = bool
-  default     = false
-}
+`atlas_connection_string` should be the **Private Endpoint** connection string. The module supports:
 
-variable "validation_vm_ssh_key" {
-  description = "SSH public key for validation VM access. Required if enable_validation_vm is true."
-  type        = string
-  default     = null
-}
+- SRV: `mongodb+srv://<host>` (with or without credentials)
+- Standard: `mongodb://<host1>:<port>,<host2>:<port>/?replicaSet=...`
+
+## Running the validation
+
+After you log into the VM:
+
+```bash
+cd ~
+./validate-atlas
 ```
 
-Add this output to `outputs.tf`:
+### Getting the Serial Console password
+
+If you’re using Serial Console mode, the password is exposed as a **sensitive** Terraform output:
+
+```bash
+terraform output -raw validation_vm_admin_password
+```
+
+If you don’t have a top-level output yet, add this to your root module:
 
 ```hcl
-output "validation_vm" {
-  description = "Validation VM details (if enabled)"
-  value = var.enable_validation_vm ? {
-    vm_name                      = module.validation_vm[0].vm_name
-    private_ip                   = module.validation_vm[0].private_ip_address
-    admin_username               = module.validation_vm[0].admin_username
-    ssh_access                   = module.validation_vm[0].ssh_access
-    database_username            = module.validation_vm[0].database_username
-    validate_privatelink_command = module.validation_vm[0].validate_privatelink_command
-    validate_connection_command  = module.validation_vm[0].validate_connection_command
-    validate_crud_command        = module.validation_vm[0].validate_crud_command
-  } : null
+output "validation_vm_admin_password" {
+  value     = module.validation_vm.admin_password
   sensitive = true
 }
 ```
 
+Useful options:
+
+```bash
+./validate-atlas --help
+
+# Fail fast (handy for CI/CD-style gating)
+./validate-atlas --strict
+
+# Override the connection string (otherwise it reads ~/.atlas-connection)
+./validate-atlas 'mongodb+srv://...'
+
+# Optional: also test that the public endpoint is blocked (network isolation)
+./validate-atlas 'mongodb+srv://PRIVATE-PL-URI' 'mongodb+srv://PUBLIC-URI'
+```
+
+### Optional: backup validation (Atlas CLI)
+
+If you want the script to query backups/snapshots, export Atlas API keys on the VM before running:
+
+```bash
+export MONGODB_ATLAS_PUBLIC_API_KEY="..."
+export MONGODB_ATLAS_PRIVATE_API_KEY="..."
+./validate-atlas
+```
+
+
+For deeper background on Atlas backups (what they are, restore behavior, and the exact permission model), see MongoDB’s docs:
+
+- [Back Up, Restore, and Archive Data (Atlas)](https://www.mongodb.com/docs/atlas/backup-restore-cluster/)
+
+Practical note for this VM:
+
+- **Listing snapshots / monitoring restore jobs** generally requires **Project Read Only** access (or higher) on the project.
+- **Managing backups / starting restores** requires elevated roles (see the doc above for the authoritative requirements).
+
 ## Inputs
 
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|----------|
-| `resource_group_name` | Azure Resource Group name | `string` | - | yes |
-| `location` | Azure region | `string` | - | yes |
-| `subnet_id` | Subnet ID (same VNet as Atlas PE) | `string` | - | yes |
-| `admin_ssh_public_key` | SSH public key for Bastion/SSH access | `string` | - | yes |
-| `atlas_project_id` | Atlas Project ID | `string` | - | yes |
-| `atlas_connection_string` | Atlas private endpoint SRV connection string (e.g., `mongodb+srv://cluster-pl-0.xxx.mongodb.net`) | `string` | - | yes |
-
-**Hardcoded defaults** (edit in `main.tf` if needed):
-- `name_prefix`: `atlas` (used for VM name: `atlas-validation-vm`, db user: `atlas-validation-user`)
-- `vm_size`: `Standard_B1s`
-- `admin_username`: `azureuser`
-- `tags`: `{ Purpose = "Atlas Connectivity Validation", ManagedBy = "Terraform" }`
+| Name | Description | Type | Default |
+|------|-------------|------|---------|
+| `resource_group_name` | Azure Resource Group name | `string` | (required) |
+| `location` | Azure region for the VM | `string` | (required) |
+| `subnet_id` | Subnet ID for the VM (must be in a VNet that can resolve Private DNS and route to the Private Endpoint) | `string` | (required) |
+| `admin_ssh_public_key` | If set, enables Bastion+SSH key auth; if empty, uses Serial Console + password auth | `string` | `""` |
+| `atlas_project_id` | Atlas Project ID (used to create the temporary DB user) | `string` | (required) |
+| `atlas_connection_string` | Atlas **Private Endpoint** connection string (SRV or standard) | `string` | (required) |
+| `atlas_cluster_name` | Cluster name (only needed for optional backup validation via Atlas CLI) | `string` | `""` |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| `vm_id` | VM resource ID |
-| `vm_name` | VM name |
-| `private_ip_address` | Private IP address |
-| `admin_username` | Admin username for SSH access |
-| `ssh_access` | Bastion/SSH access instructions |
-| `database_username` | Temporary database user username |
-| `database_password` | Temporary database user password (sensitive) |
-| `validate_privatelink_command` | Comprehensive PrivateLink validation (recommended) |
-| `validate_connection_command` | Connection test with private IP verification |
-| `validate_crud_command` | CRUD operations test |
+| `vm_name` | VM name (for Azure Portal navigation) |
+| `admin_username` | Login username (`azureuser`) |
+| `admin_password` | Password for Serial Console access (only when Serial Console mode is used) |
+| `access` | Human-readable hint: Serial Console vs Bastion+SSH |
 
-## Validation Scripts
+## Backup Restore Testing
 
-The VM comes with pre-installed validation scripts that verify connectivity is happening over PrivateLink (private network).
+The validation VM can verify connectivity & backup configuration, but backup restore testing requires additional steps.
 
-### Comprehensive PrivateLink Validation (Recommended)
+### Option 1: Restore via Atlas UI (Recommended for Manual Testing)
+
+See [Restore Your Cluster from a Snapshot](https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-snapshot/) in the Atlas documentation.
+
+### Option 2: Restore via Atlas CLI
 
 ```bash
-# Full PrivateLink validation: private DNS, private IP resolution, connection test
-./validate-privatelink 'mongodb+srv://user:pass@cluster-pl-0.xxxxx.mongodb.net'
+# List available snapshots
+atlas backups snapshots list \
+  --clusterName <cluster-name> \
+  --projectId <project-id>
 
-# Optional: Also verify public path is blocked (network isolation)
-./validate-privatelink 'mongodb+srv://user:pass@cluster-pl-0.xxxxx.mongodb.net' \
-                       'mongodb+srv://user:pass@cluster.xxxxx.mongodb.net'
+# Restore to a new cluster (CAUTION: creates billable resources)
+atlas backups restores start \
+  --clusterName <source-cluster> \
+  --snapshotId <snapshot-id> \
+  --targetClusterName <new-cluster-name> \
+  --targetProjectId <project-id>
+
+# Check restore job status
+atlas backups restores list \
+  --clusterName <cluster-name> \
+  --projectId <project-id>
 ```
 
-This script:
-1. Verifies DNS resolves to private IPs (10.x, 172.16-31.x, 192.168.x)
-2. Tests MongoDB connection succeeds
-3. Optionally verifies public connection is blocked
+### Option 3: Check Exported Snapshots in Azure Storage
 
-### Connection Test with Private IP Verification
+If backup export to Azure Blob Storage is configured in your Terraform, snapshots are automatically exported. Check them with:
 
 ```bash
-# Test connection and verify private IP resolution
-./validate-connection 'mongodb+srv://user:pass@cluster-pl-0.xxxxx.mongodb.net'
+# From any machine with Azure CLI access:
+az storage blob list \
+  --account-name <storage-account-name> \
+  --container-name atlas-backups \
+  --query "[].{Name:name, Size:properties.contentLength, Created:properties.createdOn}" \
+  --output table
 ```
 
-### CRUD Operations Test
+You can then download these exports for local restore testing if needed.
 
-```bash
-# Test CRUD operations over PrivateLink
-./validate-crud 'mongodb+srv://user:pass@cluster-pl-0.xxxxx.mongodb.net'
-```
+## Troubleshooting
 
-## Accessing the VM
-
-### Via Azure Bastion (Recommended)
-
-1. Azure Portal → Virtual Machines → `<vm_name>`
-2. Connect → Bastion
-3. Enter username `azureuser` and select SSH Private Key authentication
-4. Upload or paste your private key
-
-### Via Direct SSH
-
-If you have network access to the VM's private IP:
-
-```bash
-ssh -i ~/.ssh/your_private_key azureuser@<private_ip>
-```
-
-### Via Serial Console (Optional)
-
-To enable Serial Console access (no SSH port 22 required), see the inline comments in `main.tf` for instructions on enabling password authentication.
-
-## Notes
-
-- The VM is deployed in the same subnet as the Atlas Private Endpoint for connectivity
-- A temporary database user with `readWriteAnyDatabase` role is created for validation
-- Boot diagnostics are enabled for Serial Console access
+- **Cloud-init still running / tools missing**:
+  - `cloud-init status`
+  - `sudo tail -f /var/log/cloud-init-validation.log`
+- **DNS test fails (resolves to public IP or no records)**:
+  - Ensure the **Private DNS zone** for Atlas Private Endpoint is created and **linked to the VNet** where this VM lives.
+  - Ensure you used the **Private Endpoint connection string**.
+- **Connection test fails**:
+  - Confirm the Atlas cluster is up / not paused
+  - Confirm any Atlas access controls (IP access list / PE configuration) allow this path
+  - Validate the Private Endpoint is in `AVAILABLE` state and the VM subnet can route to it
