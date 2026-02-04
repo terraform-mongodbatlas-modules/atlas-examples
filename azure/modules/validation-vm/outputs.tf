@@ -1,7 +1,3 @@
-# ---------------------------------------------------------------------------
-# Validation VM Outputs
-# ---------------------------------------------------------------------------
-
 output "vm_name" {
   description = "VM name for Azure Portal navigation"
   value       = azurerm_linux_virtual_machine.validation.name

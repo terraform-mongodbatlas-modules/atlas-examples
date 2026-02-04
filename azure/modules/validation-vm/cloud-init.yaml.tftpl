@@ -23,7 +23,6 @@ packages:
 
 write_files:
   # Connection string config file (pre-configured by Terraform)
-  # defer: true ensures file is written after user creation
   - path: /home/${admin_username}/.atlas-connection
     owner: ${admin_username}:${admin_username}
     permissions: "0600"
@@ -40,7 +39,7 @@ write_files:
       ATLAS_PROJECT_ID="${atlas_project_id}"
       ATLAS_CLUSTER_NAME="${atlas_cluster_name}"
 
-  # Validation script (content loaded from scripts/validate-atlas.sh)
+  # Validation script (from scripts/validate-atlas.sh)
   - path: /home/${admin_username}/validate-atlas
     owner: ${admin_username}:${admin_username}
     permissions: "0755"
@@ -55,14 +54,14 @@ runcmd:
   - echo "" >> /var/log/cloud-init-validation.log
 
   # ---------------------------------------------------------------------------
-  # Install mongosh via MongoDB official apt repository (Ubuntu 22.04 Jammy)
+  # Install mongosh via MongoDB official apt repository
   # ---------------------------------------------------------------------------
   - echo "Installing mongosh from MongoDB apt repository..." >> /var/log/cloud-init-validation.log
   
   # Import MongoDB public GPG key
   - curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg 2>> /var/log/cloud-init-validation.log
   
-  # Add MongoDB repository for Ubuntu 22.04 (Jammy)
+  # Add MongoDB repository
   - echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" > /etc/apt/sources.list.d/mongodb-org-7.0.list
   
   # Update package list and install mongosh
