@@ -1,0 +1,208 @@
+#cloud-config
+# ---------------------------------------------------------------------------
+# Atlas Validation VM Cloud-Init Configuration
+# ---------------------------------------------------------------------------
+# This template configures the validation VM with tools and scripts to test
+# MongoDB Atlas connectivity over PrivateLink.
+# ---------------------------------------------------------------------------
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - curl
+  - dnsutils
+  - jq
+  - gnupg
+  - ca-certificates
+
+write_files:
+  # Atlas connection string (credentials injected by Terraform)
+  - path: /home/${admin_username}/.atlas-connection
+    permissions: "0600"
+    owner: ${admin_username}:${admin_username}
+    content: ${connection_string}
+
+  # Atlas configuration for CLI operations
+  - path: /home/${admin_username}/.atlas-config
+    permissions: "0600"
+    owner: ${admin_username}:${admin_username}
+    content: |
+      ATLAS_PROJECT_ID="${atlas_project_id}"
+      ATLAS_CLUSTER_NAME="${atlas_cluster_name}"
+
+  # Validation script
+  - path: /home/${admin_username}/validate-atlas
+    permissions: "0755"
+    owner: ${admin_username}:${admin_username}
+    content: |
+      #!/bin/bash
+      # ---------------------------------------------------------------------------
+      # Atlas PrivateLink Validation Script
+      # ---------------------------------------------------------------------------
+      # Tests: DNS resolution (private IPs), MongoDB connectivity, CRUD operations
+      # ---------------------------------------------------------------------------
+      set -uo pipefail
+
+      CS=$(cat ~/.atlas-connection 2>/dev/null || echo "")
+      if [[ -z "$CS" ]]; then
+        echo "ERROR: Connection string not found at ~/.atlas-connection"
+        exit 1
+      fi
+
+      echo "=== Atlas PrivateLink Validation ==="
+      echo "Timestamp: $(date -Iseconds)"
+      echo ""
+
+      # Extract host from connection string
+      if [[ "$CS" =~ @([^/?]+) ]]; then
+        H="$${BASH_REMATCH[1]}"
+      else
+        H=$(echo "$CS" | sed 's|.*://\([^@/?]*\).*|\1|')
+      fi
+      echo "Target Host: $H"
+
+      # ---------------------------------------------------------------------------
+      # DNS Resolution Test
+      # ---------------------------------------------------------------------------
+      echo -e "\n-- DNS Resolution --"
+
+      check_private_ip() {
+        local ip="$1"
+        local host="$2"
+        # Check if IP is in private ranges (10.x, 172.16-31.x, 192.168.x)
+        if [[ "$ip" =~ ^10\. ]] || [[ "$ip" =~ ^172\.(1[6-9]|2[0-9]|3[01])\. ]] || [[ "$ip" =~ ^192\.168\. ]]; then
+          echo "  OK: $host -> $ip (private)"
+          return 0
+        else
+          echo "  WARN: $host -> $ip (not in RFC1918 range)"
+          return 1
+        fi
+      }
+
+      dns_ok=true
+      if [[ "$CS" =~ ^mongodb\+srv:// ]]; then
+        echo "SRV lookup for: _mongodb._tcp.$H"
+        srv_records=$(dig +short SRV "_mongodb._tcp.$H" 2>/dev/null | awk '{print $4}' | sed 's/\.$//')
+        if [[ -z "$srv_records" ]]; then
+          echo "  FAIL: No SRV records found"
+          dns_ok=false
+        else
+          for target in $srv_records; do
+            ip=$(dig +short "$target" 2>/dev/null | grep -E '^[0-9]+\.' | head -1)
+            if [[ -z "$ip" ]]; then
+              echo "  FAIL: $target - no A record"
+              dns_ok=false
+            else
+              check_private_ip "$ip" "$target" || dns_ok=false
+            fi
+          done
+        fi
+      else
+        ip=$(dig +short "$H" 2>/dev/null | grep -E '^[0-9]+\.' | head -1)
+        if [[ -z "$ip" ]]; then
+          echo "  FAIL: $H - no A record"
+          dns_ok=false
+        else
+          check_private_ip "$ip" "$H" || dns_ok=false
+        fi
+      fi
+
+      # ---------------------------------------------------------------------------
+      # MongoDB Connection Test
+      # ---------------------------------------------------------------------------
+      echo -e "\n-- MongoDB Connection --"
+
+      if ! command -v mongosh &> /dev/null; then
+        echo "  SKIP: mongosh not installed"
+        echo ""
+        echo "  To install mongosh manually:"
+        echo "    curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg"
+        echo "    echo 'deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse' | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list"
+        echo "    sudo apt-get update && sudo apt-get install -y mongodb-mongosh"
+        conn_ok=false
+      else
+        echo "Testing connection (10s timeout)..."
+        if timeout 10 mongosh "$CS" --quiet --eval "db.adminCommand('ping')" 2>/dev/null; then
+          echo "  OK: Connected successfully"
+          conn_ok=true
+        else
+          echo "  FAIL: Connection failed"
+          conn_ok=false
+        fi
+      fi
+
+      # ---------------------------------------------------------------------------
+      # CRUD Operations Test
+      # ---------------------------------------------------------------------------
+      echo -e "\n-- CRUD Test --"
+
+      if ! command -v mongosh &> /dev/null; then
+        echo "  SKIP: mongosh not installed"
+        crud_ok=false
+      elif [[ "$conn_ok" != "true" ]]; then
+        echo "  SKIP: Connection failed"
+        crud_ok=false
+      else
+        if timeout 15 mongosh "$CS" --quiet --eval "
+          db = db.getSiblingDB('validation_test');
+          db.test_collection.insertOne({test: 'validation', ts: new Date()});
+          var doc = db.test_collection.findOne({test: 'validation'});
+          if (!doc) throw new Error('Document not found');
+          db.test_collection.deleteMany({test: 'validation'});
+          print('CRUD operations successful');
+        " 2>/dev/null; then
+          echo "  OK: Insert, Read, Delete successful"
+          crud_ok=true
+        else
+          echo "  FAIL: CRUD operations failed"
+          crud_ok=false
+        fi
+      fi
+
+      # ---------------------------------------------------------------------------
+      # Summary
+      # ---------------------------------------------------------------------------
+      echo -e "\n=== Summary ==="
+      [[ "$dns_ok" == "true" ]] && echo "DNS Resolution: PASS" || echo "DNS Resolution: FAIL"
+      [[ "$conn_ok" == "true" ]] && echo "Connection:     PASS" || echo "Connection:     FAIL/SKIP"
+      [[ "$crud_ok" == "true" ]] && echo "CRUD Test:      PASS" || echo "CRUD Test:      FAIL/SKIP"
+      echo ""
+
+      if [[ "$dns_ok" == "true" && "$conn_ok" == "true" && "$crud_ok" == "true" ]]; then
+        echo "Result: ALL TESTS PASSED - PrivateLink is working correctly!"
+        exit 0
+      else
+        echo "Result: Some tests failed or were skipped"
+        exit 1
+      fi
+
+  # Installation script (can be run manually if cloud-init fails)
+  - path: /home/${admin_username}/install-mongosh.sh
+    permissions: "0755"
+    owner: ${admin_username}:${admin_username}
+    content: |
+      #!/bin/bash
+      set -e
+      echo "Installing mongosh..."
+      curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+      echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+      sudo apt-get update
+      sudo apt-get install -y mongodb-mongosh
+      echo "Done! mongosh version: $(mongosh --version)"
+
+runcmd:
+  # Create .mongodb directory with correct permissions (prevents mongosh permission issues)
+  - mkdir -p /home/${admin_username}/.mongodb
+  - chown -R ${admin_username}:${admin_username} /home/${admin_username}/.mongodb
+  - chown ${admin_username}:${admin_username} /home/${admin_username}/.atlas-connection /home/${admin_username}/.atlas-config /home/${admin_username}/validate-atlas /home/${admin_username}/install-mongosh.sh
+
+  # Install mongosh (may fail if no internet - user can run install-mongosh.sh manually later)
+  - |
+    if curl -fsSL --connect-timeout 5 https://www.mongodb.org/static/pgp/server-7.0.asc > /dev/null 2>&1; then
+      curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+      echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" > /etc/apt/sources.list.d/mongodb-org-7.0.list
+      apt-get update && apt-get install -y mongodb-mongosh
+    else
+      echo "WARNING: No internet access - mongosh not installed. Run ~/install-mongosh.sh when network is available."
+    fi

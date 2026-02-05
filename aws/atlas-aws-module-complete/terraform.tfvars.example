@@ -1,0 +1,120 @@
+# =============================================================================
+# MongoDB Atlas AWS Landing Zone - Example Configuration
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values.
+#
+# Prerequisites:
+#   1. MongoDB Atlas Organization with API keys (set via environment variables)
+#   2. AWS VPC with private subnets for PrivateLink
+#   3. AWS credentials (set via environment variables or AWS profile)
+#
+# Environment variables:
+#   export MONGODB_ATLAS_PUBLIC_API_KEY="your-public-key"
+#   export MONGODB_ATLAS_PRIVATE_API_KEY="your-private-key"
+#   export AWS_PROFILE="your-profile"  # or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Atlas Configuration (Required)
+# -----------------------------------------------------------------------------
+atlas_org_id = "your-atlas-org-id"
+project_name = "my-atlas-project"
+cluster_name = "my-atlas-cluster"
+
+# -----------------------------------------------------------------------------
+# AWS Regions & Networking (Required)
+# -----------------------------------------------------------------------------
+# Configure one or more regions with PrivateLink connectivity.
+# Each region needs:
+#   - A VPC with DNS hostnames and DNS resolution enabled
+#   - Private subnets (at least 2 recommended for HA)
+#   - Private Hosted Zone for mongodb.net associated with the VPC
+
+regions = [
+  {
+    name       = "US_EAST_1"       # Atlas region name
+    aws_region = "us-east-1"      # AWS region code
+    vpc_id     = "vpc-xxxxxxxxx"  # Your VPC ID
+    subnet_ids = [                # Private subnets for PrivateLink endpoints
+      "subnet-aaaaaaaa",
+      "subnet-bbbbbbbb"
+    ]
+    # node_count = 2  # Optional: override default node distribution
+  },
+  # Add more regions for multi-region deployments:
+  # {
+  #   name       = "US_WEST_2"
+  #   aws_region = "us-west-2"
+  #   vpc_id     = "vpc-yyyyyyyyy"
+  #   subnet_ids = ["subnet-cccccccc", "subnet-dddddddd"]
+  # }
+]
+
+# -----------------------------------------------------------------------------
+# Encryption at Rest (Optional - enabled by default)
+# -----------------------------------------------------------------------------
+enable_encryption = true
+# kms_key_arn     = "arn:aws:kms:us-east-1:123456789:key/xxx"  # Use existing key
+# kms_region      = "us-east-1"  # Defaults to first region
+
+# -----------------------------------------------------------------------------
+# Backup Export to S3 (Optional - enabled by default)
+# -----------------------------------------------------------------------------
+backup_export_enabled = true
+# backup_bucket_name  = "my-existing-bucket"  # Use existing bucket
+
+# -----------------------------------------------------------------------------
+# Validation VM (Optional - enabled by default)
+# -----------------------------------------------------------------------------
+# The validation VM tests PrivateLink connectivity from within your VPC.
+# It's deployed in the first region's first subnet by default.
+
+enable_validation_vm = true
+
+# Instance configuration
+# validation_vm_instance_type = "t3.micro"
+# validation_vm_ssh_public_key = "ssh-rsa AAAA..."  # Optional: for key-based SSH
+
+# Override VM placement (defaults to first region's VPC/subnet)
+# validation_vm_vpc_id    = "vpc-xxxxxxxxx"
+# validation_vm_subnet_id = "subnet-aaaaaaaa"
+
+# -----------------------------------------------------------------------------
+# Validation VM - Network Infrastructure
+# -----------------------------------------------------------------------------
+# The validation VM needs internet access to install mongosh during cloud-init.
+# By default, a NAT Gateway is created. You can disable this if your subnet
+# already has internet access.
+
+# NAT Gateway (provides internet access for private subnet)
+validation_vm_create_nat_gateway = true
+
+# REQUIRED when create_nat_gateway = true:
+# Provide a PUBLIC subnet in the same VPC for NAT Gateway placement
+validation_vm_public_subnet_id = "subnet-public-xxxxxxxx"
+
+# Only set to true if your VPC doesn't have an Internet Gateway
+validation_vm_create_internet_gateway = false
+
+# Optional: specify the route table to update (auto-detected if not provided)
+# validation_vm_private_route_table_id = "rtb-xxxxxxxxx"
+
+# -----------------------------------------------------------------------------
+# Validation VM - Access Methods
+# -----------------------------------------------------------------------------
+# EC2 Instance Connect Endpoint (recommended for SSH access to private instances)
+# Allows: aws ec2-instance-connect ssh --instance-id <id> --os-user ubuntu
+validation_vm_create_ec2_instance_connect_endpoint = true
+
+# SSM VPC Endpoints (alternative to NAT for SSM Session Manager access)
+# Allows: aws ssm start-session --target <id>
+# Set to true if you want SSM access without NAT Gateway
+validation_vm_create_ssm_vpc_endpoints = false
+
+# -----------------------------------------------------------------------------
+# Tags (Optional)
+# -----------------------------------------------------------------------------
+# tags = {
+#   Environment = "development"
+#   Team        = "platform"
+# }
