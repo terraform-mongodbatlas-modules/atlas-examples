@@ -30,12 +30,17 @@ output "ssh_command" {
 }
 
 output "ssm_command" {
-  description = "Command to connect via SSM Session Manager"
+  description = "Command to connect via SSM Session Manager (then run: sudo su - ubuntu)"
   value       = "aws ssm start-session --target ${aws_instance.validation.id}"
 }
 
+output "ssm_validation_command" {
+  description = "Full SSM command including user switch and validation"
+  value       = "aws ssm start-session --target ${aws_instance.validation.id} --document-name AWS-StartInteractiveCommand --parameters command='sudo su - ${local.admin_username} -c ./validate-atlas'"
+}
+
 output "validation_command" {
-  description = "Command to run validation script on the VM"
+  description = "Command to run validation script on the VM (after connecting)"
   value       = "./validate-atlas"
 }
 

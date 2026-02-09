@@ -33,17 +33,6 @@ locals {
     }
   ]
 
-  kms_region = coalesce(var.kms_region, local.regions_with_inferred_node_count[0].aws_region)
-
-  encryption_config = {
-    enabled     = var.enable_encryption
-    region      = var.enable_encryption ? local.kms_region : null
-    kms_key_arn = var.enable_encryption ? var.kms_key_arn : null
-    create_kms_key = {
-      enabled = var.enable_encryption && var.kms_key_arn == null
-    }
-  }
-
   backup_export_config = {
     enabled     = var.backup_export_enabled
     bucket_name = var.backup_export_enabled ? var.backup_bucket_name : null
@@ -61,6 +50,4 @@ locals {
     var.validation_vm_vpc_id,
     local.regions_with_inferred_node_count[0].vpc_id
   )
-
-  encryption_at_rest_provider = var.enable_encryption ? "AWS" : "NONE"
 }

@@ -1,6 +1,5 @@
-# =============================================================================
-# Required Variables
-# =============================================================================
+# Required variables
+# ----------------------------------------------------
 variable "atlas_org_id" {
   description = "MongoDB Atlas Organization ID"
   type        = string
@@ -40,9 +39,8 @@ variable "regions" {
   }))
 }
 
-# =============================================================================
-# Optional Variables - Atlas Configuration
-# =============================================================================
+# Optional variables
+# ----------------------------------------------------
 variable "tags" {
   description = "Tags applied to all Atlas resources"
   type        = map(string)
@@ -79,30 +77,8 @@ variable "privatelink_security_group" {
   default = {}
 }
 
-# =============================================================================
-# Encryption at Rest (KMS)
-# =============================================================================
-variable "enable_encryption" {
-  description = "Enable Atlas encryption at rest with AWS KMS"
-  type        = bool
-  default     = true
-}
-
-variable "kms_key_arn" {
-  description = "Existing KMS key ARN (if not provided, module can create one)"
-  type        = string
-  default     = null
-}
-
-variable "kms_region" {
-  description = "KMS key region (defaults to first region aws_region)"
-  type        = string
-  default     = null
-}
-
-# =============================================================================
 # Backup Export (S3)
-# =============================================================================
+# ----------------------------------------------------
 variable "backup_export_enabled" {
   description = "Enable backup export to S3"
   type        = bool
@@ -115,9 +91,8 @@ variable "backup_bucket_name" {
   default     = null
 }
 
-# =============================================================================
-# Validation VM - Basic Configuration
-# =============================================================================
+# Validation VM
+# ----------------------------------------------------
 variable "enable_validation_vm" {
   description = "Deploy a validation VM to test Atlas deployment over PrivateLink"
   type        = bool
@@ -148,9 +123,8 @@ variable "validation_vm_vpc_id" {
   default     = null
 }
 
-# =============================================================================
 # Validation VM - Network Infrastructure
-# =============================================================================
+# ----------------------------------------------------
 variable "validation_vm_create_nat_gateway" {
   description = <<-EOT
     Create a NAT Gateway for the validation VM's private subnet.
@@ -199,9 +173,8 @@ variable "validation_vm_private_route_table_id" {
   default     = null
 }
 
-# =============================================================================
 # Validation VM - Access Methods
-# =============================================================================
+# ----------------------------------------------------
 variable "validation_vm_create_ec2_instance_connect_endpoint" {
   description = <<-EOT
     Create an EC2 Instance Connect Endpoint for SSH access to private instances.

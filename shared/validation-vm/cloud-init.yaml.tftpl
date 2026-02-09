@@ -4,6 +4,12 @@
 # ---------------------------------------------------------------------------
 # Installs mongosh and validation script for testing PrivateLink.
 # Connection string is pre-configured - just run: ./validate-atlas
+#
+# This template is shared between AWS and Azure validation VM modules.
+# Template variables:
+#   - admin_username:    VM admin user (ubuntu for AWS, azureuser for Azure)
+#   - connection_string: MongoDB connection string with credentials
+#   - validate_script:   Contents of validate-atlas.sh
 # ---------------------------------------------------------------------------
 
 package_update: true

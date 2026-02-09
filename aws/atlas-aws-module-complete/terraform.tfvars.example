@@ -51,13 +51,6 @@ regions = [
 ]
 
 # -----------------------------------------------------------------------------
-# Encryption at Rest (Optional - enabled by default)
-# -----------------------------------------------------------------------------
-enable_encryption = true
-# kms_key_arn     = "arn:aws:kms:us-east-1:123456789:key/xxx"  # Use existing key
-# kms_region      = "us-east-1"  # Defaults to first region
-
-# -----------------------------------------------------------------------------
 # Backup Export to S3 (Optional - enabled by default)
 # -----------------------------------------------------------------------------
 backup_export_enabled = true

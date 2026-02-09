@@ -11,8 +11,6 @@ module "atlas_cluster" {
 
   regions = local.cluster_regions
 
-  encryption_at_rest_provider = local.encryption_at_rest_provider
-
   tags = var.tags
 
   depends_on = [module.atlas_project, module.atlas_aws]

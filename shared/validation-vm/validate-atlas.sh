@@ -7,6 +7,8 @@
 #   2. CRUD Operations - Insert/read/update/delete
 #   3. Cluster Info - Version and topology
 #
+# This script is shared between AWS and Azure validation VM modules.
+#
 # Connection string is pre-configured in ~/.atlas-connection
 # Run: ./validate-atlas
 # Or ./validate-atlas [--strict] [connection-string]

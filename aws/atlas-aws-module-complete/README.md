@@ -4,7 +4,6 @@ This example deploys a complete MongoDB Atlas environment integrated with AWS, i
 
 - **Atlas Project & Cluster** with multi-region support
 - **AWS PrivateLink** endpoints for secure, private connectivity
-- **AWS KMS** encryption at rest
 - **S3 Backup Export** for disaster recovery
 - **Validation VM** to test PrivateLink connectivity
 
@@ -45,10 +44,10 @@ This example deploys a complete MongoDB Atlas environment integrated with AWS, i
 │   │   └─────────────────────────────────────────────────────────────┘ │     │
 │   └───────────────────────────────────────────────────────────────────┘     │
 │                                                                             │
-│   ┌─────────────────┐    ┌─────────────────┐                               │
-│   │  KMS Key        │    │  S3 Bucket      │                               │
-│   │  (Encryption)   │    │  (Backups)      │                               │
-│   └─────────────────┘    └─────────────────┘                               │
+│   ┌─────────────────┐                                                   │
+│   │  S3 Bucket      │                                                   │
+│   │  (Backups)      │                                                   │
+│   └─────────────────┘                                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -86,7 +85,6 @@ The AWS credentials need permissions for:
 
 - EC2 (VPC endpoints, security groups, instances)
 - IAM (roles, policies, instance profiles)
-- KMS (key creation, grants)
 - S3 (bucket creation, policies)
 - Route53 (private hosted zones - if not pre-created)
 
@@ -299,7 +297,6 @@ sudo cat /var/log/cloud-init-output.log
 | `cluster_id` | Atlas cluster ID |
 | `connection_string` | Private endpoint connection string |
 | `privatelink` | PrivateLink endpoint status per region |
-| `encryption` | KMS encryption configuration |
 | `backup_export` | S3 backup export configuration |
 | `validation_vm` | VM details and access commands |
 | `validation_vm_networking` | NAT Gateway, EIC Endpoint details |
