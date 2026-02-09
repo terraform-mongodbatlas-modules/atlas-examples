@@ -44,9 +44,9 @@ locals {
   validate_script = file("${path.module}/scripts/validate-atlas.sh")
 
   cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    admin_username     = local.admin_username
-    validate_script    = local.validate_script
-    connection_string  = local.connection_string_with_creds
+    admin_username    = local.admin_username
+    validate_script   = local.validate_script
+    connection_string = local.connection_string_with_creds
   })
 
   # ---------------------------------------------------------------------------
