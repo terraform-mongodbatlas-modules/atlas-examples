@@ -1,5 +1,11 @@
 # Required variables
 # ----------------------------------------------------
+variable "aws_region" {
+  description = "AWS region for the provider (must match the region of your VPC/subnets)"
+  type        = string
+  default     = "us-east-1"
+}
+
 variable "atlas_org_id" {
   description = "MongoDB Atlas Organization ID"
   type        = string
@@ -119,6 +125,22 @@ variable "validation_vm_subnet_id" {
 
 variable "validation_vm_vpc_id" {
   description = "VPC ID for the validation VM (defaults to first region VPC)"
+  type        = string
+  default     = null
+}
+
+variable "validation_vm_region" {
+  description = <<-EOT
+    AWS region where the validation VM is deployed.
+    Used to select the correct PrivateLink connection string.
+
+    If not set, the module auto-detects the region by matching
+    validation_vm_subnet_id against the regions list, falling back
+    to the first configured region.
+
+    Set this explicitly when overriding validation_vm_subnet_id /
+    validation_vm_vpc_id to a subnet outside the regions list.
+  EOT
   type        = string
   default     = null
 }

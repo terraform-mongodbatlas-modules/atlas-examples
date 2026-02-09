@@ -21,10 +21,11 @@ Example usage in a module:
 ```hcl
 locals {
   # Load shared validation script
-  validate_script = file("${path.module}/../../shared/validation-vm/validate-atlas.sh")
+  # path.module is <provider>/modules/validation-vm/, so ../../../ reaches the repo root
+  validate_script = file("${path.module}/../../../shared/validation-vm/validate-atlas.sh")
 
   # Render shared cloud-init template
-  cloud_init = templatefile("${path.module}/../../shared/validation-vm/cloud-init.yaml.tftpl", {
+  cloud_init = templatefile("${path.module}/../../../shared/validation-vm/cloud-init.yaml.tftpl", {
     admin_username    = local.admin_username  # "ubuntu" for AWS, "azureuser" for Azure
     validate_script   = local.validate_script
     connection_string = local.connection_string_with_creds

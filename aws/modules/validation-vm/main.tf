@@ -37,10 +37,18 @@ locals {
     : regex("^mongodb(?:\\+srv)?://([^@/?]+)", var.atlas_connection_string)[0]
   )
 
+  # Extract query parameters from a standard connection string (if present).
+  # e.g. "mongodb://host:port/?replicaSet=rs0&ssl=true" → "replicaSet=rs0&ssl=true"
+  connection_query_params = (
+    !local.is_srv_connection && can(regex("\\?(.+)$", var.atlas_connection_string))
+    ? regex("\\?(.+)$", var.atlas_connection_string)[0]
+    : ""
+  )
+
   connection_string_with_creds = local.is_srv_connection ? (
     "mongodb+srv://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}"
     ) : (
-    "mongodb://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}/?${regex("\\?(.+)$", var.atlas_connection_string)[0]}"
+    "mongodb://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}/${local.connection_query_params != "" ? "?${local.connection_query_params}" : ""}"
   )
 
   shared_scripts_path = "${path.module}/../../../shared/validation-vm"
@@ -66,11 +74,6 @@ data "aws_vpc" "this" {
 
 data "aws_subnet" "private" {
   id = var.subnet_id
-}
-
-data "aws_subnet" "public" {
-  count = var.create_nat_gateway && var.public_subnet_id != null ? 1 : 0
-  id    = var.public_subnet_id
 }
 
 # Find the route table associated with the private subnet
@@ -326,7 +329,7 @@ resource "aws_security_group" "validation" {
     }
   }
 
-  # SSH from EC2 Instance Connect Endpoint
+  # SSH from EC2 Instance Connect Endpoint (created by this module)
   dynamic "ingress" {
     for_each = var.create_ec2_instance_connect_endpoint ? [1] : []
     content {
@@ -338,15 +341,15 @@ resource "aws_security_group" "validation" {
     }
   }
 
-  # SSH from VPC CIDR (fallback for EIC when endpoint already exists)
+  # SSH from an existing EC2 Instance Connect Endpoint (not created by this module)
   dynamic "ingress" {
-    for_each = !var.create_ec2_instance_connect_endpoint ? [1] : []
+    for_each = var.existing_eic_endpoint_sg_id != null ? [1] : []
     content {
-      from_port   = 22
-      to_port     = 22
-      protocol    = "tcp"
-      cidr_blocks = [data.aws_vpc.this.cidr_block]
-      description = "SSH from VPC (for existing EIC endpoints)"
+      from_port       = 22
+      to_port         = 22
+      protocol        = "tcp"
+      security_groups = [var.existing_eic_endpoint_sg_id]
+      description     = "SSH from existing EC2 Instance Connect Endpoint"
     }
   }
 
@@ -382,6 +385,12 @@ resource "aws_instance" "validation" {
   iam_instance_profile   = local.instance_profile_name
 
   user_data_base64 = base64encode(local.cloud_init)
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   tags = merge(local.common_tags, {
     "Name" = local.instance_name

@@ -38,6 +38,6 @@ provider "mongodbatlas" {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = var.aws_region
   # Credentials from environment variables or AWS profile
 }

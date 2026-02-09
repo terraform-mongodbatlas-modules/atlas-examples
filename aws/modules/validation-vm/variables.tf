@@ -156,6 +156,19 @@ variable "create_ec2_instance_connect_endpoint" {
   default     = true
 }
 
+variable "existing_eic_endpoint_sg_id" {
+  description = <<-EOT
+    Security group ID of an existing EC2 Instance Connect Endpoint.
+    Use this when your VPC already has an EIC Endpoint (limit 1 per VPC)
+    and create_ec2_instance_connect_endpoint is false.
+
+    When provided, an ingress rule allowing SSH from this security group
+    is added to the validation VM's security group.
+  EOT
+  type        = string
+  default     = null
+}
+
 # ---------------------------------------------------------------------------
 # Route Table Configuration
 # ---------------------------------------------------------------------------

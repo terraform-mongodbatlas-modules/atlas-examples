@@ -15,9 +15,23 @@ data "mongodbatlas_advanced_cluster" "this" {
 }
 
 locals {
-  # Find the private endpoint connection string that matches the VM's region
-  # The validation VM should use the endpoint in its own region for connectivity
-  vm_region = local.regions_with_inferred_node_count[0].aws_region
+  # Find the private endpoint connection string that matches the VM's region.
+  # The validation VM should use the endpoint in its own region for connectivity.
+  #
+  # Region resolution order:
+  #   1. Explicit override via var.validation_vm_region
+  #   2. Auto-detect by matching validation_vm_subnet_id against the regions list
+  #   3. Default to the first configured region
+  vm_region = coalesce(
+    var.validation_vm_region,
+    try(
+      [for r in local.regions_with_inferred_node_count : r.aws_region
+        if var.validation_vm_subnet_id != null && contains(r.subnet_ids, var.validation_vm_subnet_id)
+      ][0],
+      null
+    ),
+    local.regions_with_inferred_node_count[0].aws_region
+  )
 
   # Find matching private endpoint connection string for the VM's region
   # Atlas returns endpoints keyed by region in the private_endpoint array
