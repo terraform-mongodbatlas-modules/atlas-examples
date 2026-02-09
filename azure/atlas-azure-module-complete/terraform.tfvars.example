@@ -12,11 +12,12 @@ azure_subscription_id     = "<YOUR_SUBSCRIPTION_ID>"
 # Regions with Private Link subnet IDs
 regions = [
   {
-    name      = "US_EAST_2"
-    subnet_id = "<YOUR_SUBNET_ID>"
+    name           = "US_EAST_2"
+    azure_location = "eastus2"
+    subnet_id      = "<YOUR_SUBNET_ID>"
   },
   {
-    name      = "US_WEST_2"
-    subnet_id = "<YOUR_SUBNET_ID>"
+    name           = "US_WEST_2"
+    subnet_id      = "<YOUR_SUBNET_ID>"
   }
 ]

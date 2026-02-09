@@ -28,14 +28,9 @@ output "backup_export" {
 output "validation_vm" {
   description = "Validation VM details (if enabled). Run ./validate-atlas on the VM."
   value = var.enable_validation_vm ? {
-    vm_name           = module.validation_vm[0].vm_name
-    username          = module.validation_vm[0].admin_username
-    access            = module.validation_vm[0].access
-    backup_validation = <<-EOT
-      For backup validation (optional):
-        export MONGODB_ATLAS_PUBLIC_API_KEY="key" MONGODB_ATLAS_PRIVATE_API_KEY="secret"
-        ./validate-atlas
-    EOT
+    vm_name  = module.validation_vm[0].vm_name
+    username = module.validation_vm[0].admin_username
+    access   = module.validation_vm[0].access
   } : null
 }
 

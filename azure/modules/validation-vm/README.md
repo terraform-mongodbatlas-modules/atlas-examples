@@ -43,7 +43,7 @@ This module supports two access patterns:
 - **Optional: Azure Bastion + SSH**  
   If `admin_ssh_public_key` is provided, the VM disables password auth and enables SSH key auth. The module will also create **Azure Bastion (Standard)** resources so you can SSH without opening inbound SSH from the internet.
 
-**Note on Bastion subnet**: this module creates an `AzureBastionSubnet` with CIDR `10.0.255.0/26`. If that conflicts with your VNet/subnet plan, you’ll need to adjust the module before using Bastion.
+**Note on Bastion subnet**: this module creates an `AzureBastionSubnet` with CIDR `10.0.255.0/26` by default. Override it with `bastion_subnet_cidr` if it conflicts with your VNet/subnet plan.
 
 ### Connecting via Azure Bastion (when enabled)
 
@@ -129,6 +129,7 @@ Useful options:
 | `admin_ssh_public_key` | If set, enables Bastion+SSH key auth; if empty, uses Serial Console + password auth | `string` | `""` |
 | `atlas_project_id` | Atlas Project ID (used to create the temporary DB user) | `string` | (required) |
 | `atlas_connection_string` | Atlas **Private Endpoint** connection string (SRV or standard) | `string` | (required) |
+| `bastion_subnet_cidr` | CIDR range for the Azure Bastion subnet (must be /26 or larger) | `string` | `"10.0.255.0/26"` |
 
 ## Outputs
 

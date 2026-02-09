@@ -1,7 +1,7 @@
 module "atlas_azure" {
   # update to use source version once CLOUDP-365414 is done:
-  source = "github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-azure?ref=main"
-
+  source     = "terraform-mongodbatlas-modules/atlas-azure/mongodbatlas"
+  version    = "~> 0.1.0"
   project_id = module.atlas_project.id
 
   # ---------------------------------------------------------------------------

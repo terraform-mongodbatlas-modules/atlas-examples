@@ -42,3 +42,8 @@ variable "atlas_connection_string" {
   type        = string
 }
 
+variable "bastion_subnet_cidr" {
+  description = "CIDR range for the Azure Bastion subnet (must be /26 or larger)."
+  type        = string
+  default     = "10.0.255.0/26"
+}
