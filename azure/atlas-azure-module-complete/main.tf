@@ -27,8 +27,8 @@ locals {
 
   privatelink_endpoints = [
     for r in local.regions_with_inferred_node_count : {
-      azure_location = r.azure_location
-      subnet_id      = r.subnet_id
+      region    = r.name
+      subnet_id = r.subnet_id
     }
   ]
 

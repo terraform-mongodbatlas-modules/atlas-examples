@@ -44,11 +44,9 @@ locals {
   validate_script = file("${path.module}/scripts/validate-atlas.sh")
 
   cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    admin_username     = local.admin_username
-    validate_script    = local.validate_script
-    connection_string  = local.connection_string_with_creds
-    atlas_project_id   = var.atlas_project_id
-    atlas_cluster_name = var.atlas_cluster_name
+    admin_username    = local.admin_username
+    validate_script   = local.validate_script
+    connection_string = local.connection_string_with_creds
   })
 
   # ---------------------------------------------------------------------------
@@ -192,10 +190,9 @@ resource "azurerm_subnet" "bastion" {
   name                 = "AzureBastionSubnet"
   resource_group_name  = var.resource_group_name
   virtual_network_name = element(split("/", local.vnet_id), length(split("/", local.vnet_id)) - 1)
-  address_prefixes     = ["10.0.255.0/26"] # Reserved range for Bastion
+  address_prefixes     = [var.bastion_subnet_cidr]
 
-  # Note: If this CIDR conflicts with existing subnets, you may need to adjust
-  # the address_prefixes or provide the Bastion subnet via a variable.
+  # Note: Azure requires a /26 or larger range for Bastion.
 }
 
 # Azure Bastion Host (Standard SKU for native SSH client support)

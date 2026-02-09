@@ -42,8 +42,8 @@ variable "atlas_connection_string" {
   type        = string
 }
 
-variable "atlas_cluster_name" {
-  description = "MongoDB Atlas cluster name. Required for backup validation via Atlas CLI."
+variable "bastion_subnet_cidr" {
+  description = "CIDR range for the Azure Bastion subnet (must be /26 or larger)."
   type        = string
-  default     = ""
+  default     = "10.0.255.0/26"
 }
