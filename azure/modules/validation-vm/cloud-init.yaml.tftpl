@@ -1,0 +1,85 @@
+#cloud-config
+# ---------------------------------------------------------------------------
+# Atlas Validation VM Cloud-Init Configuration
+# ---------------------------------------------------------------------------
+# Installs mongosh and validation script for testing PrivateLink.
+# Connection string is pre-configured - just run: ./validate-atlas
+# ---------------------------------------------------------------------------
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - curl
+  - wget
+  - netcat-openbsd
+  - ca-certificates
+  - gnupg
+
+write_files:
+  # Connection string config file (pre-configured by Terraform)
+  - path: /home/${admin_username}/.atlas-connection
+    owner: ${admin_username}:${admin_username}
+    permissions: "0600"
+    defer: true
+    content: |
+      ${connection_string}
+
+  # Validation script (from scripts/validate-atlas.sh)
+  - path: /home/${admin_username}/validate-atlas
+    owner: ${admin_username}:${admin_username}
+    permissions: "0755"
+    defer: true
+    content: |
+      ${indent(6, validate_script)}
+
+runcmd:
+  # Log file for debugging cloud-init
+  - echo "=== Atlas Validation VM Setup ===" >> /var/log/cloud-init-validation.log
+  - echo "Started at $(date)" >> /var/log/cloud-init-validation.log
+  - echo "" >> /var/log/cloud-init-validation.log
+
+  # ---------------------------------------------------------------------------
+  # Install mongosh via MongoDB official apt repository
+  # ---------------------------------------------------------------------------
+  - echo "Installing mongosh from MongoDB apt repository..." >> /var/log/cloud-init-validation.log
+  
+  # Import MongoDB public GPG key
+  - curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg 2>> /var/log/cloud-init-validation.log
+  
+  # Add MongoDB repository
+  - echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" > /etc/apt/sources.list.d/mongodb-org-7.0.list
+  
+  # Update package list and install mongosh
+  - apt-get update >> /var/log/cloud-init-validation.log 2>&1
+  - apt-get install -y mongodb-mongosh >> /var/log/cloud-init-validation.log 2>&1
+  
+  # Verify mongosh installation
+  - echo "mongosh version:" >> /var/log/cloud-init-validation.log
+  - mongosh --version >> /var/log/cloud-init-validation.log 2>&1 || echo "mongosh installation may have failed" >> /var/log/cloud-init-validation.log
+
+  # Set ownership of files
+  - chown ${admin_username}:${admin_username} /home/${admin_username}/validate-atlas
+  - chown ${admin_username}:${admin_username} /home/${admin_username}/.atlas-connection
+
+  - echo "" >> /var/log/cloud-init-validation.log
+  - echo "Completed at $(date)" >> /var/log/cloud-init-validation.log
+  - echo "=== Setup Complete ===" >> /var/log/cloud-init-validation.log
+
+final_message: |
+  ===========================================
+  Atlas Validation VM is ready!
+  ===========================================
+  
+  Run: ./validate-atlas
+  
+  Options:
+    --strict  Exit on first failure (for CI/CD)
+    --help    Show all options
+  
+  What it validates:
+    1. MongoDB Connection - mongosh can connect
+    2. CRUD Operations - Insert/Read/Update/Delete works
+    3. Cluster Info - Displays version and topology
+  
+  Check /var/log/cloud-init-validation.log for setup details.
