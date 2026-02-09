@@ -2,11 +2,8 @@
 # ---------------------------------------------------------------------------
 # Atlas Validation VM Cloud-Init Configuration
 # ---------------------------------------------------------------------------
-# Installs mongosh, Atlas CLI, and validation script for testing PrivateLink.
+# Installs mongosh and validation script for testing PrivateLink.
 # Connection string is pre-configured - just run: ./validate-atlas
-#
-# For backup validation (optional):
-#   export MONGODB_ATLAS_PUBLIC_API_KEY="key" MONGODB_ATLAS_PRIVATE_API_KEY="secret"
 # ---------------------------------------------------------------------------
 
 package_update: true
@@ -16,8 +13,6 @@ packages:
   - curl
   - wget
   - netcat-openbsd
-  - dnsutils
-  - jq
   - ca-certificates
   - gnupg
 
@@ -29,15 +24,6 @@ write_files:
     defer: true
     content: |
       ${connection_string}
-
-  # Atlas project/cluster config for backup validation
-  - path: /home/${admin_username}/.atlas-config
-    owner: ${admin_username}:${admin_username}
-    permissions: "0600"
-    defer: true
-    content: |
-      ATLAS_PROJECT_ID="${atlas_project_id}"
-      ATLAS_CLUSTER_NAME="${atlas_cluster_name}"
 
   # Validation script (from scripts/validate-atlas.sh)
   - path: /home/${admin_username}/validate-atlas
@@ -72,25 +58,9 @@ runcmd:
   - echo "mongosh version:" >> /var/log/cloud-init-validation.log
   - mongosh --version >> /var/log/cloud-init-validation.log 2>&1 || echo "mongosh installation may have failed" >> /var/log/cloud-init-validation.log
 
-  # ---------------------------------------------------------------------------
-  # Install Atlas CLI for backup validation
-  # ---------------------------------------------------------------------------
-  - echo "" >> /var/log/cloud-init-validation.log
-  - echo "Installing Atlas CLI..." >> /var/log/cloud-init-validation.log
-  
-  # Download and install Atlas CLI
-  - curl -fsSL https://fastdl.mongodb.org/mongocli/mongodb-atlas-cli_1.14.0_linux_x86_64.deb -o /tmp/mongodb-atlas-cli.deb >> /var/log/cloud-init-validation.log 2>&1
-  - dpkg -i /tmp/mongodb-atlas-cli.deb >> /var/log/cloud-init-validation.log 2>&1 || apt-get install -f -y >> /var/log/cloud-init-validation.log 2>&1
-  - rm -f /tmp/mongodb-atlas-cli.deb
-  
-  # Verify Atlas CLI installation
-  - echo "Atlas CLI version:" >> /var/log/cloud-init-validation.log
-  - atlas --version >> /var/log/cloud-init-validation.log 2>&1 || echo "Atlas CLI installation may have failed" >> /var/log/cloud-init-validation.log
-
   # Set ownership of files
   - chown ${admin_username}:${admin_username} /home/${admin_username}/validate-atlas
   - chown ${admin_username}:${admin_username} /home/${admin_username}/.atlas-connection
-  - chown ${admin_username}:${admin_username} /home/${admin_username}/.atlas-config
 
   - echo "" >> /var/log/cloud-init-validation.log
   - echo "Completed at $(date)" >> /var/log/cloud-init-validation.log
@@ -103,20 +73,14 @@ final_message: |
   
   Run: ./validate-atlas
   
-  For backup validation (optional):
-    export MONGODB_ATLAS_PUBLIC_API_KEY="key" MONGODB_ATLAS_PRIVATE_API_KEY="secret"
-    ./validate-atlas
-  
   Options:
     --strict  Exit on first failure (for CI/CD)
     --help    Show all options
   
   What it validates:
-    1. DNS Resolution - All targets resolve to private IPs
-    2. MongoDB Connection - mongosh can connect
-    3. CRUD Operations - Insert/Read/Update/Delete works
-    4. Backup Validation - Lists recent snapshots (requires API keys)
-    5. Cluster Info - Displays version and topology
+    1. MongoDB Connection - mongosh can connect
+    2. CRUD Operations - Insert/Read/Update/Delete works
+    3. Cluster Info - Displays version and topology
   
   For backup validation, set Atlas credentials (API keys or Service Account):
     export MONGODB_ATLAS_PUBLIC_API_KEY="key"

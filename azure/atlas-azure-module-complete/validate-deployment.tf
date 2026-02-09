@@ -26,8 +26,7 @@ module "validation_vm" {
   # If empty/null (default), VM uses Serial Console with password auth
   admin_ssh_public_key = var.validation_vm_ssh_key
 
-  atlas_project_id   = module.atlas_project.id
-  atlas_cluster_name = var.cluster_name
+  atlas_project_id = module.atlas_project.id
 
   # Connection string falls back to private_endpoint → private_srv → standard_srv
   # All types validate PrivateLink via DNS resolution test (private IPs)

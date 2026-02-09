@@ -42,8 +42,3 @@ variable "atlas_connection_string" {
   type        = string
 }
 
-variable "atlas_cluster_name" {
-  description = "MongoDB Atlas cluster name. Required for backup validation via Atlas CLI."
-  type        = string
-  default     = ""
-}

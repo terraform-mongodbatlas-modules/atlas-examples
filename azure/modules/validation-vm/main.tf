@@ -47,8 +47,6 @@ locals {
     admin_username     = local.admin_username
     validate_script    = local.validate_script
     connection_string  = local.connection_string_with_creds
-    atlas_project_id   = var.atlas_project_id
-    atlas_cluster_name = var.atlas_cluster_name
   })
 
   # ---------------------------------------------------------------------------
