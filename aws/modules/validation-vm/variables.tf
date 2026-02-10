@@ -61,13 +61,11 @@ variable "create_ec2_instance_connect_endpoint" {
     Create an EC2 Instance Connect Endpoint for SSH access to private instances.
     This allows `aws ec2-instance-connect ssh` without a bastion host.
 
-    Set to false if:
-    - An EIC endpoint already exists in the VPC (limit: 1 per VPC)
-    - You only need SSM Session Manager access
-
+    Set to true only if no EIC endpoint exists in the VPC (limit: 1 per VPC).
+    Alternatively, use SSM Session Manager.
   EOT
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "instance_profile_name" {
