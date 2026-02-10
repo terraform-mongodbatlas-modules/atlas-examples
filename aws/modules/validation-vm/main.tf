@@ -4,8 +4,8 @@
 # Creates an EC2 instance to validate MongoDB Atlas connectivity over PrivateLink.
 #
 # Features:
-#   - Default: SSM Session Manager access (no public IP)
-#   - Optional: SSH via EC2 Instance Connect Endpoint
+#   - Primary access: EC2 Instance Connect Endpoint
+#   - Alternative access: SSM Session Manager (browser or CLI)
 #   - Optional: NAT Gateway for private subnet internet access
 #   - Pre-installed mongosh, Atlas CLI, and validation scripts
 #   - Validates DNS resolution, connectivity, and CRUD operations
@@ -21,10 +21,11 @@ locals {
     "ManagedBy" = "Terraform"
   })
 
-  use_ssh = var.admin_ssh_public_key != null && trimspace(var.admin_ssh_public_key) != ""
+  create_instance_profile = var.instance_profile_name == null
 
-  use_existing_instance_profile = var.ssm_instance_profile_name != null && trimspace(var.ssm_instance_profile_name) != ""
-  create_instance_profile       = var.create_ssm_instance_profile && !local.use_existing_instance_profile
+  # NAT Gateway is created when public_subnet_id is provided (signals the private
+  # subnet lacks internet access and needs a NAT for cloud-init package downloads).
+  create_nat_gateway = var.public_subnet_id != null
 
   # Supports both SRV and standard connection string formats:
   #   - SRV: mongodb+srv://[user:pass@]host/...
@@ -59,41 +60,14 @@ locals {
     validate_script   = local.validate_script
     connection_string = local.connection_string_with_creds
   })
-
-  instance_profile_name = local.use_existing_instance_profile ? var.ssm_instance_profile_name : (
-    local.create_instance_profile ? aws_iam_instance_profile.ssm[0].name : null
-  )
 }
 
-# ---------------------------------------------------------------------------
-# Data Sources
-# ---------------------------------------------------------------------------
 data "aws_vpc" "this" {
   id = var.vpc_id
 }
 
 data "aws_subnet" "private" {
   id = var.subnet_id
-}
-
-# Find the route table associated with the private subnet
-data "aws_route_tables" "private" {
-  vpc_id = var.vpc_id
-
-  filter {
-    name   = "association.subnet-id"
-    values = [var.subnet_id]
-  }
-}
-
-# Fallback to main route table if no explicit association
-data "aws_route_table" "main" {
-  vpc_id = var.vpc_id
-
-  filter {
-    name   = "association.main"
-    values = ["true"]
-  }
 }
 
 resource "random_password" "db_user" {
@@ -138,106 +112,37 @@ data "aws_ami" "ubuntu" {
 }
 
 # ---------------------------------------------------------------------------
-# Internet Gateway (optional - usually VPC already has one)
-# ---------------------------------------------------------------------------
-resource "aws_internet_gateway" "this" {
-  count  = var.create_internet_gateway ? 1 : 0
-  vpc_id = var.vpc_id
-  tags   = merge(local.common_tags, { Name = "atlas-validation-igw" })
-}
-
-# ---------------------------------------------------------------------------
 # NAT Gateway (optional - for private subnet internet access)
 # ---------------------------------------------------------------------------
+# Created only when the private subnet lacks a 0.0.0.0/0 route AND
+# public_subnet_id is provided. The public subnet must already have
+# a route to an Internet Gateway (standard AWS "public subnet" requirement).
+# ---------------------------------------------------------------------------
 resource "aws_eip" "nat" {
-  count  = var.create_nat_gateway ? 1 : 0
+  count  = local.create_nat_gateway ? 1 : 0
   domain = "vpc"
   tags   = merge(local.common_tags, { Name = "atlas-validation-nat-eip" })
-
-  depends_on = [aws_internet_gateway.this]
 }
 
 resource "aws_nat_gateway" "this" {
-  count         = var.create_nat_gateway ? 1 : 0
+  count         = local.create_nat_gateway ? 1 : 0
   allocation_id = aws_eip.nat[0].id
   subnet_id     = var.public_subnet_id
 
   tags = merge(local.common_tags, { Name = "atlas-validation-nat" })
-
-  depends_on = [aws_internet_gateway.this]
 }
 
 # Add route to NAT Gateway in the private subnet's route table
 resource "aws_route" "nat_gateway" {
-  count = var.create_nat_gateway ? 1 : 0
+  count = local.create_nat_gateway ? 1 : 0
 
-  route_table_id         = coalesce(var.private_route_table_id, try(data.aws_route_tables.private.ids[0], data.aws_route_table.main.id))
+  route_table_id         = var.private_route_table_id
   destination_cidr_block = "0.0.0.0/0"
   nat_gateway_id         = aws_nat_gateway.this[0].id
 }
 
 # ---------------------------------------------------------------------------
-# VPC Endpoints for SSM (optional - alternative to NAT for SSM access)
-# ---------------------------------------------------------------------------
-resource "aws_security_group" "vpc_endpoints" {
-  count       = var.create_ssm_vpc_endpoints ? 1 : 0
-  name        = "${local.instance_name}-vpc-endpoints-sg"
-  description = "Security group for VPC endpoints"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [data.aws_vpc.this.cidr_block]
-    description = "HTTPS from VPC"
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = local.common_tags
-}
-
-resource "aws_vpc_endpoint" "ssm" {
-  count               = var.create_ssm_vpc_endpoints ? 1 : 0
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.${data.aws_subnet.private.availability_zone_id != null ? regex("^[a-z]+-[a-z]+-[0-9]+", data.aws_subnet.private.availability_zone) : "us-east-1"}.ssm"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = [var.subnet_id]
-  security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
-  private_dns_enabled = true
-  tags                = merge(local.common_tags, { Name = "atlas-validation-ssm-endpoint" })
-}
-
-resource "aws_vpc_endpoint" "ssmmessages" {
-  count               = var.create_ssm_vpc_endpoints ? 1 : 0
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.${data.aws_subnet.private.availability_zone_id != null ? regex("^[a-z]+-[a-z]+-[0-9]+", data.aws_subnet.private.availability_zone) : "us-east-1"}.ssmmessages"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = [var.subnet_id]
-  security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
-  private_dns_enabled = true
-  tags                = merge(local.common_tags, { Name = "atlas-validation-ssmmessages-endpoint" })
-}
-
-resource "aws_vpc_endpoint" "ec2messages" {
-  count               = var.create_ssm_vpc_endpoints ? 1 : 0
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.${data.aws_subnet.private.availability_zone_id != null ? regex("^[a-z]+-[a-z]+-[0-9]+", data.aws_subnet.private.availability_zone) : "us-east-1"}.ec2messages"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = [var.subnet_id]
-  security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
-  private_dns_enabled = true
-  tags                = merge(local.common_tags, { Name = "atlas-validation-ec2messages-endpoint" })
-}
-
-# ---------------------------------------------------------------------------
-# EC2 Instance Connect Endpoint (optional - for SSH without bastion)
+# EC2 Instance Connect Endpoint
 # ---------------------------------------------------------------------------
 resource "aws_security_group" "eic_endpoint" {
   count       = var.create_ec2_instance_connect_endpoint ? 1 : 0
@@ -266,7 +171,7 @@ resource "aws_ec2_instance_connect_endpoint" "this" {
 }
 
 # ---------------------------------------------------------------------------
-# SSM Instance Profile (optional)
+# SSM Instance Profile
 # ---------------------------------------------------------------------------
 resource "aws_iam_role" "ssm" {
   count = local.create_instance_profile ? 1 : 0
@@ -305,31 +210,7 @@ resource "aws_security_group" "validation" {
   description = "Security group for Atlas validation VM"
   vpc_id      = var.vpc_id
 
-  # SSH from CIDR (if SSH key provided)
-  dynamic "ingress" {
-    for_each = local.use_ssh && length(var.ssh_allowed_cidr_blocks) > 0 ? [1] : []
-    content {
-      from_port   = 22
-      to_port     = 22
-      protocol    = "tcp"
-      cidr_blocks = var.ssh_allowed_cidr_blocks
-      description = "SSH access (CIDR)"
-    }
-  }
-
-  # SSH from Security Groups (if SSH key provided)
-  dynamic "ingress" {
-    for_each = local.use_ssh && length(var.ssh_source_security_group_ids) > 0 ? [1] : []
-    content {
-      from_port       = 22
-      to_port         = 22
-      protocol        = "tcp"
-      security_groups = tolist(var.ssh_source_security_group_ids)
-      description     = "SSH access (SG)"
-    }
-  }
-
-  # SSH from EC2 Instance Connect Endpoint (created by this module)
+  # SSH from EC2 Instance Connect Endpoint
   dynamic "ingress" {
     for_each = var.create_ec2_instance_connect_endpoint ? [1] : []
     content {
@@ -338,18 +219,6 @@ resource "aws_security_group" "validation" {
       protocol        = "tcp"
       security_groups = [aws_security_group.eic_endpoint[0].id]
       description     = "SSH from EC2 Instance Connect Endpoint"
-    }
-  }
-
-  # SSH from an existing EC2 Instance Connect Endpoint (not created by this module)
-  dynamic "ingress" {
-    for_each = var.existing_eic_endpoint_sg_id != null ? [1] : []
-    content {
-      from_port       = 22
-      to_port         = 22
-      protocol        = "tcp"
-      security_groups = [var.existing_eic_endpoint_sg_id]
-      description     = "SSH from existing EC2 Instance Connect Endpoint"
     }
   }
 
@@ -364,15 +233,6 @@ resource "aws_security_group" "validation" {
 }
 
 # ---------------------------------------------------------------------------
-# Key Pair (optional)
-# ---------------------------------------------------------------------------
-resource "aws_key_pair" "validation" {
-  count      = local.use_ssh ? 1 : 0
-  key_name   = "${local.instance_name}-key"
-  public_key = var.admin_ssh_public_key
-}
-
-# ---------------------------------------------------------------------------
 # EC2 Instance
 # ---------------------------------------------------------------------------
 resource "aws_instance" "validation" {
@@ -381,8 +241,7 @@ resource "aws_instance" "validation" {
   subnet_id     = var.subnet_id
 
   vpc_security_group_ids = [aws_security_group.validation.id]
-  key_name               = local.use_ssh ? aws_key_pair.validation[0].key_name : null
-  iam_instance_profile   = local.instance_profile_name
+  iam_instance_profile   = local.create_instance_profile ? aws_iam_instance_profile.ssm[0].name : var.instance_profile_name
 
   user_data_base64 = base64encode(local.cloud_init)
 

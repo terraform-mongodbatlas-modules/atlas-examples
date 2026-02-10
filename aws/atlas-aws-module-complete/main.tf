@@ -25,29 +25,25 @@ locals {
     }
   ]
 
+  # To customize or BYO SG, modify the security_group block below.
   privatelink_endpoints = [
     for r in local.regions_with_inferred_node_count : {
-      region         = r.aws_region
+      region         = r.name
       subnet_ids     = r.subnet_ids
-      security_group = var.privatelink_security_group
+      security_group = {}
     }
   ]
 
+  # To use an existing bucket, see inline BYO comments in atlas-aws.tf.
   backup_export_config = {
-    enabled     = var.backup_export_enabled
-    bucket_name = var.backup_export_enabled ? var.backup_bucket_name : null
+    enabled = true
     create_s3_bucket = {
-      enabled = var.backup_export_enabled && var.backup_bucket_name == null
+      enabled = true
     }
   }
 
-  validation_vm_subnet_id = coalesce(
-    var.validation_vm_subnet_id,
-    local.regions_with_inferred_node_count[0].subnet_ids[0]
-  )
-
-  validation_vm_vpc_id = coalesce(
-    var.validation_vm_vpc_id,
-    local.regions_with_inferred_node_count[0].vpc_id
-  )
+  # Validation VM is deployed in the first region.
+  # To override, modify the vpc_id / subnet_id in validate-deployment.tf directly.
+  validation_vm_vpc_id    = local.regions_with_inferred_node_count[0].vpc_id
+  validation_vm_subnet_id = local.regions_with_inferred_node_count[0].subnet_ids[0]
 }

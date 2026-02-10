@@ -16,21 +16,16 @@ output "admin_username" {
   value       = local.admin_username
 }
 
-output "access" {
-  description = "How to access the VM"
-  value       = local.use_ssh ? "SSH (key-based) or SSM Session Manager" : "SSM Session Manager or EC2 Instance Connect"
-}
-
 # ---------------------------------------------------------------------------
 # Access Commands
 # ---------------------------------------------------------------------------
 output "ssh_command" {
-  description = "Command to SSH into the VM via EC2 Instance Connect"
+  description = "Command to SSH into the VM via EC2 Instance Connect (primary access method)"
   value       = "aws ec2-instance-connect ssh --instance-id ${aws_instance.validation.id} --os-user ${local.admin_username}"
 }
 
 output "ssm_command" {
-  description = "Command to connect via SSM Session Manager (then run: sudo su - ubuntu)"
+  description = "Command to connect via SSM Session Manager (alternative access method)"
   value       = "aws ssm start-session --target ${aws_instance.validation.id}"
 }
 
@@ -49,26 +44,17 @@ output "validation_command" {
 # ---------------------------------------------------------------------------
 output "nat_gateway_id" {
   description = "NAT Gateway ID (if created)"
-  value       = var.create_nat_gateway ? aws_nat_gateway.this[0].id : null
+  value       = local.create_nat_gateway ? aws_nat_gateway.this[0].id : null
 }
 
 output "nat_gateway_public_ip" {
   description = "NAT Gateway public IP (if created)"
-  value       = var.create_nat_gateway ? aws_eip.nat[0].public_ip : null
+  value       = local.create_nat_gateway ? aws_eip.nat[0].public_ip : null
 }
 
 output "eic_endpoint_id" {
   description = "EC2 Instance Connect Endpoint ID (if created)"
   value       = var.create_ec2_instance_connect_endpoint ? aws_ec2_instance_connect_endpoint.this[0].id : null
-}
-
-output "ssm_vpc_endpoints" {
-  description = "SSM VPC Endpoint IDs (if created)"
-  value = var.create_ssm_vpc_endpoints ? {
-    ssm         = aws_vpc_endpoint.ssm[0].id
-    ssmmessages = aws_vpc_endpoint.ssmmessages[0].id
-    ec2messages = aws_vpc_endpoint.ec2messages[0].id
-  } : null
 }
 
 # ---------------------------------------------------------------------------

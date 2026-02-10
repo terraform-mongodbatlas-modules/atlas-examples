@@ -29,10 +29,9 @@ output "validation_vm" {
   description = "Validation VM details (if enabled). Run ./validate-atlas on the VM."
   value = var.enable_validation_vm ? {
     instance_id = module.validation_vm[0].instance_id
+    private_ip  = module.validation_vm[0].private_ip
     username    = module.validation_vm[0].admin_username
-    access = {
-      ec2_instance_connect = module.validation_vm[0].ssh_command
-      ssm_session_manager  = "${module.validation_vm[0].ssm_command}  # Then run: sudo su - ${module.validation_vm[0].admin_username}"
-    }
+    ssh_command = module.validation_vm[0].ssh_command
+    ssm_command = module.validation_vm[0].ssm_command
   } : null
 }
