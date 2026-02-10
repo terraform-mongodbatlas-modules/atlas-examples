@@ -9,7 +9,7 @@ data "mongodbatlas_advanced_cluster" "this" {
   count = var.enable_validation_vm ? 1 : 0
 
   project_id = module.atlas_project.id
-  name       = var.cluster_name
+  name       = var.atlas_cluster_name
 
   depends_on = [module.atlas_cluster, module.atlas_azure]
 }

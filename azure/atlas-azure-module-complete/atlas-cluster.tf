@@ -3,7 +3,7 @@ module "atlas_cluster" {
   version = "~> 0.3.0"
 
   project_id = module.atlas_project.id
-  name       = var.cluster_name
+  name       = var.atlas_cluster_name
 
   provider_name = "AZURE"
   cluster_type  = "SHARDED"
