@@ -38,5 +38,5 @@ locals {
 
 
   # Set storage account as per Atlas project name
-  storage_account_name = substr("atlasbackup${replace(lower(var.project_name), "/[^a-z0-9]/", "")}", 0, 24)
+  storage_account_name = substr("atlasbackup${replace(lower(var.atlas_project_name), "/[^a-z0-9]/", "")}", 0, 24)
 }

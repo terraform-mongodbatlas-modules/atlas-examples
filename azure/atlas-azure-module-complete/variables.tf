@@ -5,12 +5,12 @@ variable "atlas_org_id" {
   type        = string
 }
 
-variable "project_name" {
+variable "atlas_project_name" {
   description = "Name for the Atlas project"
   type        = string
 }
 
-variable "cluster_name" {
+variable "atlas_cluster_name" {
   description = "Name for the Atlas cluster"
   type        = string
 }

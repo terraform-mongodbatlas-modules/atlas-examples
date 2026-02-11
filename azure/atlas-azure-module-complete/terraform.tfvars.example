@@ -2,8 +2,8 @@
 
 # Atlas
 atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
-project_name = "<NAME_FOR_ATLAS_PROJECT>"
-cluster_name = "<NAME_FOR_ATLAS_CLUSTER>"
+atlas_project_name = "<NAME_FOR_ATLAS_PROJECT>"
+atlas_cluster_name = "<NAME_FOR_ATLAS_CLUSTER>"
 
 # Azure
 azure_resource_group_name = "<YOUR_RESOURCE_GROUP>"
