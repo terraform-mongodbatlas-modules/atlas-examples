@@ -158,21 +158,13 @@ The VM includes `~/validate-atlas` which tests:
 
 ### Manual mongosh Installation
 
-If cloud-init failed (no internet), install mongosh manually once the subnet has outbound access:
-
-```bash
-~/install-mongosh.sh
-```
+If cloud-init failed (no internet), install mongosh manually once the subnet has outbound access. See the [official mongosh installation guide](https://www.mongodb.com/docs/mongodb-shell/install/).
 
 ## Troubleshooting
 
 ### mongosh: command not found
 
-Cloud-init likely failed to download packages. Run the installer manually:
-
-```bash
-~/install-mongosh.sh
-```
+Cloud-init likely failed to download packages. Install mongosh manually once the subnet has outbound access. See the [official mongosh installation guide](https://www.mongodb.com/docs/mongodb-shell/install/).
 
 ### Connection timeout
 

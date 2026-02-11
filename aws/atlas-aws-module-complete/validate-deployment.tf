@@ -9,7 +9,7 @@ data "mongodbatlas_advanced_cluster" "this" {
   count = var.enable_validation_vm ? 1 : 0
 
   project_id = module.atlas_project.id
-  name       = var.cluster_name
+  name       = var.atlas_cluster_name
 
   depends_on = [module.atlas_cluster, module.atlas_aws]
 }
@@ -46,7 +46,7 @@ module "validation_vm" {
   instance_type = "t3.micro"
 
   atlas_project_id   = module.atlas_project.id
-  atlas_cluster_name = var.cluster_name
+  atlas_cluster_name = var.atlas_cluster_name
 
   # Connection string falls back to private_endpoint → private_srv → standard_srv
   atlas_connection_string = coalesce(

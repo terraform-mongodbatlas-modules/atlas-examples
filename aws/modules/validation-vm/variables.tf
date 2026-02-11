@@ -88,8 +88,8 @@ variable "public_subnet_id" {
     is created so cloud-init can download packages (mongosh, etc.).
 
     When null (default): No NAT Gateway is created. If the subnet already has
-    internet access, leave this null. Otherwise run ~/install-mongosh.sh
-    manually after deployment when network is available.
+    internet access, leave this null. Otherwise install mongosh manually
+    after deployment when network is available (see module README).
 
     The public subnet must:
     - Have a route to an Internet Gateway

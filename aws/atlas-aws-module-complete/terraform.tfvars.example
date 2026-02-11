@@ -1,9 +1,9 @@
 # Update the placeholder values below with your values
 
 # Atlas
-org_id       = "<YOUR_ATLAS_ORG_ID>"
-project_name = "<NAME_FOR_ATLAS_PROJECT>"
-cluster_name = "<NAME_FOR_ATLAS_CLUSTER>"
+atlas_org_id       = "<YOUR_ATLAS_ORG_ID>"
+atlas_project_name = "<NAME_FOR_ATLAS_PROJECT>"
+atlas_cluster_name = "<NAME_FOR_ATLAS_CLUSTER>"
 
 # AWS
 aws_region = "us-east-1"

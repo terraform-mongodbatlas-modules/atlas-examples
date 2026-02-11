@@ -15,8 +15,8 @@ This example creates the following resources:
 - **Private Endpoints** — One Azure Private Endpoint per region, wired to the Atlas PrivateLink service for secure, private connectivity.
 - **Storage Account & Container** — An Azure Storage Account and blob container for Atlas backup exports (configurable to bring your own).
 
-### Validation (Optional)
-- **Validation VM** — A Linux VM deployed into the first region's subnet to verify Atlas connectivity over PrivateLink. Accessible via Azure Serial Console (default) or Azure Bastion (if an SSH key is provided).
+### Validation (Optional, enabled by default)
+- **Validation VM** — A Linux VM deployed into the first region's subnet to verify Atlas connectivity over PrivateLink. Accessible via Azure Serial Console (default) or Azure Bastion (if an SSH key is provided). Set `enable_validation_vm = false` to skip. See [Validating the Deployment](#validating-the-deployment) for details.
 
 ## Prerequisites
 
