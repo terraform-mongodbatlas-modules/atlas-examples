@@ -16,8 +16,8 @@ data "mongodbatlas_advanced_cluster" "this" {
 
 locals {
   # VM is always deployed in the first region.
-  # Atlas connection strings contain the region code without separators (e.g., "useast1").
-  vm_region_key = lower(replace(local.regions_with_inferred_node_count[0].name, "_", ""))
+  # Atlas connection strings contain the region code with hyphens (e.g., "us-east-1").
+  vm_region_key = lower(replace(local.regions_with_inferred_node_count[0].name, "_", "-"))
 
   # Find matching private endpoint connection string for the VM's region.
   matching_pe_connection_string = var.enable_validation_vm ? try(
