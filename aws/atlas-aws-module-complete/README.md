@@ -16,7 +16,11 @@ This example creates the following resources:
 - **S3 Bucket** — An S3 bucket for Atlas backup exports (configurable to bring your own).
 
 ### Validation (Optional, enabled by default)
-- **Validation VM** — An EC2 instance deployed into the first region's private subnet to verify Atlas connectivity over PrivateLink. Accessible via SSM Session Manager (default) or EC2 Instance Connect Endpoint (if enabled). Set `enable_validation_vm = false` to skip. See [Validating the Deployment](#validating-the-deployment) and the [validation-vm module README](../modules/validation-vm/README.md) for full details.
+- **Validation VM** — An EC2 instance deployed into the first region's private subnet to verify Atlas connectivity over PrivateLink.
+  - **Default access**: SSM Session Manager
+  - **Optional access**: EC2 Instance Connect Endpoint (when enabled by setting `validation_vm_create_ec2_instance_connect_endpoint = true`)
+  - Set `enable_validation_vm = false` to skip VM deployment
+  - See [Validating the Deployment](#validating-the-deployment) and the [validation-vm module README](../modules/validation-vm/README.md) for full details
 
 ## Prerequisites
 
@@ -150,7 +154,7 @@ When `enable_validation_vm = true` (the default), an EC2 instance is deployed in
    ```
 4. Run `./validate-atlas` on the VM to verify connectivity to your Atlas cluster over PrivateLink.
 
-To enable automatic package installation (mongosh, Atlas CLI) on the VM via cloud-init, provide `validation_vm_public_subnet_id` and `validation_vm_private_route_table_id` so the module can create a NAT Gateway for outbound internet access.
+To enable automatic package installation (mongosh) on the VM via cloud-init, provide `validation_vm_public_subnet_id` and `validation_vm_private_route_table_id` so the module can create a NAT Gateway for outbound internet access.
 
 If cloud-init was unable to install packages (e.g. no NAT Gateway was configured), install mongosh manually once the subnet has outbound access. See the [official mongosh installation guide](https://www.mongodb.com/docs/mongodb-shell/install/).
 

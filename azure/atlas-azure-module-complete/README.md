@@ -16,7 +16,11 @@ This example creates the following resources:
 - **Storage Account & Container** — An Azure Storage Account and blob container for Atlas backup exports (configurable to bring your own).
 
 ### Validation (Optional, enabled by default)
-- **Validation VM** — A Linux VM deployed into the first region's subnet to verify Atlas connectivity over PrivateLink. Accessible via Azure Serial Console (default) or Azure Bastion (if an SSH key is provided). Set `enable_validation_vm = false` to skip. See [Validating the Deployment](#validating-the-deployment) for details.
+- **Validation VM** — A Linux VM deployed into the first region's subnet to verify Atlas connectivity over PrivateLink.
+  - **Default access**: Azure Serial Console
+  - **Optional access**: Azure Bastion (when enabled by setting `validation_vm_ssh_key`)
+  - Set `enable_validation_vm = false` to skip VM deployment
+  - See [Validating the Deployment](#validating-the-deployment) for details
 
 ## Prerequisites
 

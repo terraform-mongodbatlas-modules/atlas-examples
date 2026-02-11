@@ -16,7 +16,7 @@ Examples are organized by cloud provider - Azure, AWS & GCP (coming soon).
 
 Each example directory contains:
 - Terraform configurations
-- A `terraform.example.tfvars`
+- A `terraform.tfvars.example`
 - Inline documentation and guidance
 - A dedicated README with setup instructions
 
