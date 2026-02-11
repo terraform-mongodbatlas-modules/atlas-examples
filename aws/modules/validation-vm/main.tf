@@ -66,10 +66,6 @@ data "aws_vpc" "this" {
   id = var.vpc_id
 }
 
-data "aws_subnet" "private" {
-  id = var.subnet_id
-}
-
 resource "random_password" "db_user" {
   length  = 24
   special = false

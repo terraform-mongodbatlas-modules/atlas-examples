@@ -27,7 +27,7 @@ module "validation_vm" {
 }
 ```
 
-### With NAT Gateway Creation
+### With NAT Gateway and EC2 Instance Connect
 
 ```hcl
 module "validation_vm" {
@@ -43,6 +43,9 @@ module "validation_vm" {
   # Create NAT Gateway (private subnet lacks internet access)
   public_subnet_id       = "subnet-public-xxx"
   private_route_table_id = "rtb-xxx"
+
+  # Create EC2 Instance Connect Endpoint for SSH access
+  create_ec2_instance_connect_endpoint = true
 }
 ```
 
@@ -68,7 +71,7 @@ module "validation_vm" {
 
 | Name | Description | Type | Default |
 |------|-------------|------|---------|
-| `create_ec2_instance_connect_endpoint` | Create EIC endpoint for SSH | `bool` | `true` |
+| `create_ec2_instance_connect_endpoint` | Create EIC endpoint for SSH | `bool` | `false` |
 | `instance_profile_name` | Existing IAM instance profile with SSM permissions | `string` | `null` (auto-created) |
 
 ### Instance Configuration
@@ -88,29 +91,36 @@ module "validation_vm" {
 | `admin_username` | Username for login (`ubuntu`) |
 | `ssh_command` | Full SSH command via EC2 Instance Connect |
 | `ssm_command` | Full SSM Session Manager command |
+| `ssm_validation_command` | Full SSM command to run validation as the admin user |
+| `validation_command` | Command to run the validation script on the VM |
 | `nat_gateway_id` | NAT Gateway ID (if created) |
+| `nat_gateway_public_ip` | NAT Gateway public IP (if created) |
 | `eic_endpoint_id` | EC2 Instance Connect Endpoint ID (if created) |
+| `security_group_id` | Security group ID of the validation VM |
+| `eic_endpoint_security_group_id` | Security group ID of the EIC endpoint (if created) |
 
 ## What Gets Created
 
 ### Always Created
 
-- EC2 instance (Ubuntu 22.04)
-- Security group with egress rules
-- IAM role and instance profile for SSM
-- Temporary Atlas database user
+- EC2 instance (Ubuntu 22.04) with IMDSv2 enforced
+- Security group (egress-only; SSH ingress added only when EIC endpoint is created)
+- Temporary Atlas database user (SCRAM, `readWriteAnyDatabase`)
 
 ### Conditionally Created
 
 | Resource | Condition | Cost |
 |----------|-----------|------|
+| IAM role + instance profile (SSM) | `instance_profile_name` is `null` (default) | Free |
 | NAT Gateway + EIP | `public_subnet_id` provided | ~$0.045/hr |
-| NAT Gateway route | `public_subnet_id` provided | Free |
-| EC2 Instance Connect Endpoint | `create_ec2_instance_connect_endpoint = true` | Free |
+| NAT Gateway route (0.0.0.0/0) | `public_subnet_id` provided | Free |
+| EC2 Instance Connect Endpoint + SG | `create_ec2_instance_connect_endpoint = true` | Free |
 
 ## Accessing the VM
 
 ### EC2 Instance Connect (Primary)
+
+Requires `create_ec2_instance_connect_endpoint = true` (or an existing EIC endpoint in the VPC).
 
 ```bash
 aws ec2-instance-connect ssh \
@@ -120,8 +130,16 @@ aws ec2-instance-connect ssh \
 
 ### SSM Session Manager (Alternative)
 
+Always available (IAM instance profile with SSM permissions is attached by default).
+
 ```bash
+# Interactive shell (starts as ssm-user)
 aws ssm start-session --target <instance-id>
+
+# Run validation directly as the admin user
+aws ssm start-session --target <instance-id> \
+  --document-name AWS-StartInteractiveCommand \
+  --parameters command='sudo su - ubuntu -c ./validate-atlas'
 ```
 
 **Note:** Requires NAT Gateway or existing internet access for SSM agent connectivity.
@@ -140,29 +158,29 @@ The VM includes `~/validate-atlas` which tests:
 
 ### Manual mongosh Installation
 
-If cloud-init failed (no internet), install mongosh manually:
+If cloud-init failed (no internet), install mongosh manually once the subnet has outbound access:
 
 ```bash
-./install-mongosh.sh
+~/install-mongosh.sh
 ```
 
 ## Troubleshooting
 
 ### mongosh: command not found
 
+Cloud-init likely failed to download packages. Run the installer manually:
+
 ```bash
-./install-mongosh.sh
+~/install-mongosh.sh
 ```
 
 ### Connection timeout
 
-Check Private Hosted Zone and security groups:
+Check PrivateLink DNS resolution and security groups:
 
 ```bash
-# Test DNS
+# Test DNS - should return private IPs (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
 dig +short cluster0.xxx.mongodb.net
-
-# Should return private IPs (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
 ```
 
 ### SSM TargetNotConnected
