@@ -7,6 +7,8 @@
 #   2. CRUD Operations - Insert/read/update/delete
 #   3. Cluster Info - Version and topology
 #
+# This script is shared between AWS and Azure validation VM modules.
+#
 # Connection string is pre-configured in ~/.atlas-connection
 # Run: ./validate-atlas
 # Or ./validate-atlas [--strict] [connection-string]
@@ -130,12 +132,6 @@ record_fail() {
     print_final_summary
     exit 1
   fi
-}
-
-record_skip() {
-  SKIPPED_TESTS=$((SKIPPED_TESTS + 1))
-  TEST_RESULTS="${TEST_RESULTS}○ $1 (skipped)\n"
-  echo "  ○ $1 (skipped)"
 }
 
 print_final_summary() {

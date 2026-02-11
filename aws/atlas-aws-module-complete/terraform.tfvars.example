@@ -1,0 +1,23 @@
+# Update the placeholder values below with your values
+
+# Atlas
+org_id       = "<YOUR_ATLAS_ORG_ID>"
+project_name = "<NAME_FOR_ATLAS_PROJECT>"
+cluster_name = "<NAME_FOR_ATLAS_CLUSTER>"
+
+# AWS
+aws_region = "us-east-1"
+
+# Regions with PrivateLink subnet IDs
+regions = [
+  {
+    name       = "US_EAST_1"
+    vpc_id     = "<YOUR_VPC_ID>"
+    subnet_ids = ["<YOUR_SUBNET_ID>", "<YOUR_SUBNET_ID>"]
+  },
+  {
+    name       = "US_WEST_2"
+    vpc_id     = "<YOUR_VPC_ID>"
+    subnet_ids = ["<YOUR_SUBNET_ID>", "<YOUR_SUBNET_ID>"]
+  }
+]

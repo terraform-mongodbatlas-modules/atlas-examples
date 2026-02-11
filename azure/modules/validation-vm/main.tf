@@ -41,9 +41,10 @@ locals {
     "mongodb://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}/?${regex("\\?(.+)$", var.atlas_connection_string)[0]}"
   )
 
-  validate_script = file("${path.module}/scripts/validate-atlas.sh")
+  shared_scripts_path = "${path.module}/../../../shared/validation-vm"
+  validate_script     = file("${local.shared_scripts_path}/validate-atlas.sh")
 
-  cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
+  cloud_init = templatefile("${local.shared_scripts_path}/cloud-init.yaml.tftpl", {
     admin_username    = local.admin_username
     validate_script   = local.validate_script
     connection_string = local.connection_string_with_creds
