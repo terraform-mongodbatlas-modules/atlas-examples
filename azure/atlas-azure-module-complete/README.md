@@ -31,7 +31,7 @@ This example creates the following resources:
 
 ## Configuration
 
-Copy the example variables file and fill in your values:
+Copy the example tfvars to `terraform.tfvars` and fill in your values:
 
 ```sh
 cp terraform.tfvars.example terraform.tfvars
