@@ -5,9 +5,9 @@ This module creates an EC2 instance to validate MongoDB Atlas connectivity over 
 ## Features
 
 - **Validation Script**: Pre-installed script to test DNS, connection, and CRUD operations
-- **Primary Access**: EC2 Instance Connect Endpoint (SSH without bastion)
-- **Alternative Access**: SSM Session Manager (browser or CLI)
-- **Optional NAT Gateway**: For private subnets without internet access
+- **Default Access**: SSM Session Manager (browser or CLI, always available)
+- **Optional Access**: EC2 Instance Connect Endpoint (SSH without bastion, when enabled by setting `create_ec2_instance_connect_endpoint = true`)
+- **Optional NAT Gateway**: For private subnets without internet access (when enabled by setting `public_subnet_id`)
 - **Temporary Credentials**: Creates a temporary database user for validation
 
 ## Usage
@@ -118,17 +118,7 @@ module "validation_vm" {
 
 ## Accessing the VM
 
-### EC2 Instance Connect (Primary)
-
-Requires `create_ec2_instance_connect_endpoint = true` (or an existing EIC endpoint in the VPC).
-
-```bash
-aws ec2-instance-connect ssh \
-  --instance-id <instance-id> \
-  --os-user ubuntu
-```
-
-### SSM Session Manager (Alternative)
+### SSM Session Manager (Default)
 
 Always available (IAM instance profile with SSM permissions is attached by default).
 
@@ -144,13 +134,23 @@ aws ssm start-session --target <instance-id> \
 
 **Note:** Requires NAT Gateway or existing internet access for SSM agent connectivity.
 
+### EC2 Instance Connect (Optional)
+
+Requires `create_ec2_instance_connect_endpoint = true` (or an existing EIC endpoint in the VPC).
+
+```bash
+aws ec2-instance-connect ssh \
+  --instance-id <instance-id> \
+  --os-user ubuntu
+```
+
 ## Validation Script
 
 The VM includes `~/validate-atlas` which tests:
 
-1. **DNS Resolution**: Verifies PrivateLink endpoints resolve to private IPs
-2. **MongoDB Connection**: Tests connectivity with 10s timeout
-3. **CRUD Operations**: Insert, read, delete test document
+1. **MongoDB Connection**: Verifies mongosh can connect via PrivateLink
+2. **CRUD Operations**: Insert, read, update, delete test document
+3. **Cluster Info**: Displays MongoDB version and topology
 
 ```bash
 ./validate-atlas
@@ -158,21 +158,13 @@ The VM includes `~/validate-atlas` which tests:
 
 ### Manual mongosh Installation
 
-If cloud-init failed (no internet), install mongosh manually once the subnet has outbound access:
-
-```bash
-~/install-mongosh.sh
-```
+If cloud-init failed (no internet), install mongosh manually once the subnet has outbound access. See the [official mongosh installation guide](https://www.mongodb.com/docs/mongodb-shell/install/).
 
 ## Troubleshooting
 
 ### mongosh: command not found
 
-Cloud-init likely failed to download packages. Run the installer manually:
-
-```bash
-~/install-mongosh.sh
-```
+Cloud-init likely failed to download packages. Install mongosh manually once the subnet has outbound access. See the [official mongosh installation guide](https://www.mongodb.com/docs/mongodb-shell/install/).
 
 ### Connection timeout
 

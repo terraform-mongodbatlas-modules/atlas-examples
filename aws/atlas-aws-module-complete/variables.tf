@@ -6,17 +6,17 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "org_id" {
+variable "atlas_org_id" {
   description = "MongoDB Atlas Organization ID"
   type        = string
 }
 
-variable "project_name" {
+variable "atlas_project_name" {
   description = "Name for the Atlas project"
   type        = string
 }
 
-variable "cluster_name" {
+variable "atlas_cluster_name" {
   description = "Name for the Atlas cluster"
   type        = string
 }

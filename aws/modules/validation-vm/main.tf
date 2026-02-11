@@ -7,7 +7,7 @@
 #   - Primary access: EC2 Instance Connect Endpoint
 #   - Alternative access: SSM Session Manager (browser or CLI)
 #   - Optional: NAT Gateway for private subnet internet access
-#   - Pre-installed mongosh, Atlas CLI, and validation scripts
+#   - Pre-installed mongosh and validation scripts
 #   - Validates DNS resolution, connectivity, and CRUD operations
 # ---------------------------------------------------------------------------
 

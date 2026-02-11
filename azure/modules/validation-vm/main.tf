@@ -6,7 +6,7 @@
 # Features:
 #   - Default: Serial Console access (password auth, no public IP)
 #   - Optional: SSH via Azure Bastion (when admin_ssh_public_key provided)
-#   - Pre-installed mongosh, Atlas CLI, and validation scripts
+#   - Pre-installed mongosh and validation scripts
 #   - Validates DNS resolution, connectivity, and CRUD operations
 # ---------------------------------------------------------------------------
 
