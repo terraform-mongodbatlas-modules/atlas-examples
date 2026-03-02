@@ -69,3 +69,9 @@ variable "ip_access_list" {
 
   default = []
 }
+
+variable "service_account_email" {
+  type        = string
+  description = "Service account email to impersonate"
+  default     = null
+}

@@ -17,4 +17,5 @@ provider "mongodbatlas" {}
 
 provider "google" {
   project = var.gcp_project_id
+  impersonate_service_account = var.service_account_email
 }
