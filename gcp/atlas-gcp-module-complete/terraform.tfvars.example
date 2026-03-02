@@ -13,11 +13,11 @@ gcp_project_id = "<YOUR_GCP_PROJECT_ID>"
 # or the full URL: https://www.googleapis.com/compute/v1/projects/<PROJECT>/regions/<REGION>/subnetworks/<NAME>
 regions = [
   {
-    name       = "US_EAST_4"
+    name       = "<REGION>"
     subnetwork = "<YOUR_SUBNETWORK_SELF_LINK>"
   },
   {
-    name       = "US_WEST_2"
+    name       = "<REGION>"
     subnetwork = "<YOUR_SUBNETWORK_SELF_LINK>"
   }
 ]

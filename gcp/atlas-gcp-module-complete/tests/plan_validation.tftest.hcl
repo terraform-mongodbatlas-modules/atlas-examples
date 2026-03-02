@@ -9,7 +9,7 @@ variables {
   regions = [
     {
       name       = "US_EAST_4"
-      subnetwork = "projects/test/regions/us-east4/subnetworks/default"
+      subnetwork = "https://www.googleapis.com/compute/v1/projects/test-project/regions/us-east4/subnetworks/default"
     }
   ]
 }
@@ -24,7 +24,7 @@ run "single_region_infers_3_nodes" {
 
   assert {
     condition     = local.cluster_regions[0].name == "US_EAST_4"
-    error_message = "Region name should be preserved"
+    error_message = "Region name should be preserved in Atlas format"
   }
 }
 
@@ -42,7 +42,7 @@ run "single_region_privatelink" {
   }
 
   assert {
-    condition     = local.privatelink_endpoints[0].subnetwork == "projects/test/regions/us-east4/subnetworks/default"
+    condition     = local.privatelink_endpoints[0].subnetwork == "https://www.googleapis.com/compute/v1/projects/test-project/regions/us-east4/subnetworks/default"
     error_message = "Privatelink subnetwork should match input"
   }
 }
@@ -57,7 +57,40 @@ run "backup_uses_first_region" {
 
   assert {
     condition     = local.backup_export_config.create_bucket.location == "US_EAST_4"
-    error_message = "Backup location should use first region"
+    error_message = "Backup location should pass region name to module (module normalizes internally)"
+  }
+}
+
+run "gcp_format_region_normalizes_to_atlas" {
+  command = plan
+
+  variables {
+    regions = [
+      {
+        name       = "us-east4"
+        subnetwork = "https://www.googleapis.com/compute/v1/projects/test-project/regions/us-east4/subnetworks/default"
+      }
+    ]
+  }
+
+  assert {
+    condition     = local.cluster_regions[0].name == "US_EAST_4"
+    error_message = "GCP format region should normalize to Atlas format for cluster"
+  }
+
+  assert {
+    condition     = local.cluster_regions[0].node_count == 3
+    error_message = "Single region should infer 3 nodes regardless of input format"
+  }
+
+  assert {
+    condition     = local.privatelink_endpoints[0].region == "us-east4"
+    error_message = "Privatelink region should pass original input (module normalizes)"
+  }
+
+  assert {
+    condition     = local.backup_export_config.create_bucket.location == "us-east4"
+    error_message = "Backup location should pass original input (module normalizes)"
   }
 }
 
@@ -68,11 +101,11 @@ run "two_regions_even_node_inference" {
     regions = [
       {
         name       = "US_EAST_4"
-        subnetwork = "projects/test/regions/us-east4/subnetworks/default"
+        subnetwork = "https://www.googleapis.com/compute/v1/projects/test-project/regions/us-east4/subnetworks/default"
       },
       {
         name       = "US_WEST_2"
-        subnetwork = "projects/test/regions/us-west2/subnetworks/default"
+        subnetwork = "https://www.googleapis.com/compute/v1/projects/test-project/regions/us-west2/subnetworks/default"
       }
     ]
   }
@@ -95,15 +128,15 @@ run "three_regions_odd_node_inference" {
     regions = [
       {
         name       = "US_EAST_4"
-        subnetwork = "projects/test/regions/us-east4/subnetworks/a"
+        subnetwork = "https://www.googleapis.com/compute/v1/projects/test-project/regions/us-east4/subnetworks/a"
       },
       {
         name       = "US_WEST_2"
-        subnetwork = "projects/test/regions/us-west2/subnetworks/b"
+        subnetwork = "https://www.googleapis.com/compute/v1/projects/test-project/regions/us-west2/subnetworks/b"
       },
       {
         name       = "CENTRAL_US"
-        subnetwork = "projects/test/regions/us-central1/subnetworks/c"
+        subnetwork = "https://www.googleapis.com/compute/v1/projects/test-project/regions/us-central1/subnetworks/c"
       }
     ]
   }
@@ -131,7 +164,7 @@ run "explicit_node_count_override" {
     regions = [
       {
         name       = "US_EAST_4"
-        subnetwork = "projects/test/regions/us-east4/subnetworks/default"
+        subnetwork = "https://www.googleapis.com/compute/v1/projects/test-project/regions/us-east4/subnetworks/default"
         node_count = 5
       }
     ]

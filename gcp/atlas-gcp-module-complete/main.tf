@@ -1,5 +1,14 @@
 locals {
   region_count = length(var.regions)
+  gcp_to_atlas = { for k, v in var.atlas_to_gcp_region : v => k }
+
+  # Normalize region name to Atlas format (cluster module requires it).
+  # Accepts either "US_EAST_4" (pass-through) or "us-east4" (looked up).
+  regions_normalized = [
+    for r in var.regions : merge(r, {
+      atlas_region = lookup(local.gcp_to_atlas, r.name, r.name)
+    })
+  ]
 
   # Infer electable node_count per region (per shard) if not provided:
   # - 1 region  -> 3
@@ -8,7 +17,7 @@ locals {
   #
   # Atlas interprets this as "nodes per shard in that region".
   regions_with_inferred_node_count = [
-    for i, r in var.regions : merge(r, {
+    for i, r in local.regions_normalized : merge(r, {
       node_count = coalesce(
         try(r.node_count, null),
         local.region_count == 1 ? 3 :
@@ -20,7 +29,7 @@ locals {
 
   cluster_regions = [
     for r in local.regions_with_inferred_node_count : {
-      name       = r.name
+      name       = r.atlas_region
       node_count = r.node_count
     }
   ]
@@ -36,7 +45,7 @@ locals {
     enabled = true
     create_bucket = {
       enabled  = true
-      location = var.regions[0].name
+      location = local.regions_normalized[0].name
     }
   }
 }

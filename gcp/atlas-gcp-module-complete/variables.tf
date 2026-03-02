@@ -23,7 +23,8 @@ variable "regions" {
     Region configurations with GCP networking for PrivateLink (PSC).
     The VPC network is derived from the subnetwork — no separate network input needed.
 
-    - name: Atlas region name (e.g., "US_EAST_4"). Accepts GCP format too (e.g., "us-east4").
+    - name: Region name in Atlas (e.g., "US_EAST_4") or GCP (e.g., "us-east4") format.
+      Normalized to Atlas format for the cluster; the atlas-gcp module accepts either.
     - subnetwork: Subnetwork self_link for PSC endpoint placement
       (e.g., google_compute_subnetwork.atlas_psc.self_link).
     - node_count (optional): Override per-region electable node count.
