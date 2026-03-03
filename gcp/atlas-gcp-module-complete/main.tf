@@ -44,8 +44,8 @@ locals {
   backup_export_config = {
     enabled = true
     create_bucket = {
-      enabled  = true
-      location = local.regions_normalized[0].name
+      enabled       = true
+      location      = local.regions_normalized[0].name
       force_destroy = var.backup_export_force_destroy
     }
   }
