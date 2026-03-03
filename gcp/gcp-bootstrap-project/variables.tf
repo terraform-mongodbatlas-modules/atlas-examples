@@ -20,7 +20,7 @@ variable "create_project" {
   description = "Configuration for creating a new GCP project. Required if gcp_project_id is empty."
 
   validation {
-    condition     = var.create_project == null || (var.create_project.org_id != null || var.create_project.folder_id != null)
+    condition     = !var.create_project.enabled || (var.create_project.org_id != null || var.create_project.folder_id != null)
     error_message = "Either org_id or folder_id must be specified when creating a project."
   }
 }

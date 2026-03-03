@@ -1,6 +1,6 @@
-# For use with atlas-gcp module
+# For use with atlas-gcp-module-complete example
 output "privatelink_config" {
-  description = "Configuration for atlas-gcp privatelink_endpoints variable"
+  description = "Region configurations for atlas-gcp-module-complete regions variable"
   value = [
     {
       name       = google_compute_subnetwork.us_east.region

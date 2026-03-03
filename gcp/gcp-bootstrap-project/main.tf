@@ -27,12 +27,6 @@ resource "google_service_account" "this" {
   display_name = "Complete example terraform-mongodbatlas-modules/atlas-examples/gcp"
 }
 
-resource "google_project_iam_member" "ci_network_admin" {
-  project = local.project_id
-  role    = "roles/compute.networkAdmin"
-  member  = "serviceAccount:${google_service_account.this.email}"
-}
-
 resource "google_project_iam_member" "ci_compute_admin" {
   project = local.project_id
   role    = "roles/compute.admin"

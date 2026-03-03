@@ -1,6 +1,6 @@
 variable "gcp_project_id" {
   type        = string
-  description = "Existing GCP project ID. If empty, a new project will be created."
+  description = "GCP project ID where network resources are created."
 }
 
 variable "network_name" {

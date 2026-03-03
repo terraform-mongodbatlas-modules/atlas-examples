@@ -14,7 +14,6 @@ resource "google_compute_subnetwork" "us_east" {
 
   # Enable private Google access for GCP services
   private_ip_google_access = true
-
 }
 
 # Subnetwork in US West (us-west1)
@@ -36,7 +35,6 @@ resource "google_compute_firewall" "allow_internal" {
     protocol = "tcp"
     ports    = ["1024-65535"]
   }
-
 
   # Allow traffic from both subnetworks
   source_ranges = [
