@@ -7,13 +7,13 @@ This example deploys a fully configured MongoDB Atlas environment on GCP, includ
 This example creates the following resources:
 
 ### MongoDB Atlas Resources
-- **Atlas Project** - A new project in your Atlas organization with optional IP access list entries.
-- **Sharded Cluster** - A 2-shard cluster on GCP, distributed across the regions you specify. Electable node counts are automatically inferred based on the number of regions (or can be overridden per region).
+- **Atlas Project** — A new project in your Atlas organization with optional IP access list entries.
+- **Sharded Cluster** — A 2-shard cluster on GCP, distributed across the regions you specify. Electable node counts are automatically inferred based on the number of regions (or can be overridden per region).
 
 ### GCP Resources
-- **Cloud Provider Access** - An Atlas service account authorized to interact with your GCP project (auto-created by the module).
-- **PSC Forwarding Rules** - One GCP forwarding rule and compute address per region, wired to the Atlas PrivateLink service for secure, private connectivity.
-- **GCS Bucket** - A Google Cloud Storage bucket for Atlas backup exports (configurable to bring your own).
+- **Cloud Provider Access** — An Atlas service account authorized to interact with your GCP project (auto-created by the module).
+- **PSC Forwarding Rules** — One GCP forwarding rule and compute address per region, wired to the Atlas PrivateLink service for secure, private connectivity.
+- **GCS Bucket** — A Google Cloud Storage bucket for Atlas backup exports (configurable to bring your own).
 
 ## Prerequisites
 
@@ -23,8 +23,8 @@ This example creates the following resources:
 
    **NOTE**: Service Accounts (SA) are the preferred authentication method. See [Grant Programmatic Access to an Organization](https://www.mongodb.com/docs/atlas/configure-api-access/#grant-programmatic-access-to-an-organization) for detailed instructions.
 
-4. Authenticate your GCP CLI (`gcloud auth application-default login`) or configure a service account key (`GOOGLE_APPLICATION_CREDENTIALS`).
-5. Have a GCP project with at least one subnetwork per region where PSC endpoints will be created. The VPC is derived from the subnetwork - no separate network input is needed.
+4. Authenticate your GCP CLI (`gcloud auth application-default login`), configure a service account key (`GOOGLE_APPLICATION_CREDENTIALS`), or use service account impersonation (set `service_account_email`).
+5. Have a GCP project with at least one subnetwork per region where PSC endpoints will be created. The VPC is derived from the subnetwork — no separate network input is needed.
 
 ## Configuration
 
@@ -42,9 +42,9 @@ At a minimum, provide:
 | `atlas_org_id` | Your MongoDB Atlas Organization ID |
 | `atlas_project_name` | Name for the new Atlas project |
 | `atlas_cluster_name` | Name for the Atlas cluster |
-| `regions` | List of regions with Atlas region name and subnetwork self_link (see [terraform.tfvars.example](./terraform.tfvars.example)) |
+| `regions` | List of regions with region name and subnetwork self_link (see [terraform.tfvars.example](./terraform.tfvars.example)). Accepts Atlas format (`US_EAST_4`) or GCP format (`us-east4`); normalized internally. |
 
-Optional variables include `tags` and `ip_access_list`. See [variables.tf](./variables.tf) for full details.
+Optional variables include `tags`, `ip_access_list`, `service_account_email`, and `backup_export_force_destroy`. See [variables.tf](./variables.tf) for full details.
 
 ## Commands
 
