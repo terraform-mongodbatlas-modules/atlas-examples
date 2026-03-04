@@ -1,0 +1,23 @@
+# Update the placeholder values below with your values
+
+# Atlas
+atlas_org_id       = "<YOUR_ATLAS_ORG_ID>"
+atlas_project_name = "<NAME_FOR_ATLAS_PROJECT>"
+atlas_cluster_name = "<NAME_FOR_ATLAS_CLUSTER>"
+
+# GCP
+gcp_project_id = "<YOUR_GCP_PROJECT_ID>"
+
+# Regions with PSC subnetwork self_links
+# subnetwork must be a self_link, e.g. from google_compute_subnetwork.this.self_link
+# or the full URL: https://www.googleapis.com/compute/v1/projects/<PROJECT>/regions/<REGION>/subnetworks/<NAME>
+regions = [
+  {
+    name       = "<REGION>"
+    subnetwork = "<YOUR_SUBNETWORK_SELF_LINK>"
+  },
+  {
+    name       = "<REGION>"
+    subnetwork = "<YOUR_SUBNETWORK_SELF_LINK>"
+  }
+]
