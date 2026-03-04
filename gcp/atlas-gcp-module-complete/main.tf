@@ -10,19 +10,19 @@ locals {
     })
   ]
 
-  # Infer electable node_count per region (per shard) if not provided:
-  # - 1 region  -> 3
-  # - odd R>=3  -> 1 each
-  # - even R    -> 2 in first region, 1 in the rest
-  #
+  # Infer electable node_count per region (per shard) if not provided.
   # Atlas interprets this as "nodes per shard in that region".
+  # Non-first regions always get 1 node. First region:
+  #   - single region  -> 3 (HA)
+  #   - even R         -> 2 (need odd total)
+  #   - odd R >= 3     -> 1
   regions_with_inferred_node_count = [
     for i, r in local.regions_normalized : merge(r, {
       node_count = coalesce(
         try(r.node_count, null),
+        i > 0 ? 1 :
         local.region_count == 1 ? 3 :
-        local.region_count % 2 == 1 ? 1 :
-        (i == 0 ? 2 : 1)
+        local.region_count % 2 == 0 ? 2 : 1
       )
     })
   ]

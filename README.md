@@ -12,7 +12,11 @@ The examples in this repository demonstrate how to:
 These examples are designed to be simple starting points rather than production-ready templates.
 
 ## Repository Structure
-Examples are organized by cloud provider - Azure, AWS & GCP (coming soon).
+Examples are organized by cloud provider:
+
+- [AWS](./aws/atlas-aws-module-complete/)
+- [Azure](./azure/atlas-azure-module-complete/)
+- [GCP](./gcp/atlas-gcp-module-complete/)
 
 Each example directory contains:
 - Terraform configurations
