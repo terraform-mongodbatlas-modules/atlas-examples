@@ -56,6 +56,11 @@ variable "regions" {
   }))
 
   validation {
+    condition     = length(var.regions) > 0
+    error_message = "At least one region is required."
+  }
+
+  validation {
     condition     = try(trimspace(var.regions[0].azure_location), "") != ""
     error_message = "The first region must include azure_location (used for backup storage and validation VM deployment)."
   }
