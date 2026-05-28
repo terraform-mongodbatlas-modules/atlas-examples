@@ -1,6 +1,6 @@
 module "atlas_aws" {
   source  = "terraform-mongodbatlas-modules/atlas-aws/mongodbatlas"
-  version = "~> 0.1.0"
+  version = "~> 0.3"
 
   project_id = module.atlas_project.id
 
@@ -18,8 +18,11 @@ module "atlas_aws" {
   #
   # With:
   #   cloud_provider_access = {
-  #     create       = false
-  #     iam_role_arn = "arn:aws:iam::123456789012:role/your-atlas-role"
+  #     create = false
+  #     existing = {
+  #       role_id      = "<atlas-role-id>"
+  #       iam_role_arn = "arn:aws:iam::123456789012:role/your-atlas-role"
+  #     }
   #   }
   #
   # NOTE:
@@ -43,17 +46,19 @@ module "atlas_aws" {
   # With:
   #   privatelink_endpoints = []  # Disable module-managed endpoints
   #
-  #   privatelink_byoe = [
-  #     {
-  #       region      = "us-east-1"
-  #       endpoint_id = "vpce-0abc123def456789"
-  #     }
-  #   ]
+  #   privatelink_byo_endpoint = {
+  #     east = { region = "us-east-1" }
+  #   }
+  #   # After first apply, use privatelink_service_info to create aws_vpc_endpoint,
+  #   # then register:
+  #   privatelink_byo_service = {
+  #     east = { vpc_endpoint_id = aws_vpc_endpoint.custom.id }
+  #   }
   #
   # NOTE:
   # - Use module.atlas_aws.privatelink_service_info outputs
   #   to connect your VPC Endpoint to Atlas PrivateLink service.
-  # - Ensure your VPC Endpoint is connected to the correct Atlas service.
+  # - Output map keys use lowercase AWS format (us-east-1) in atlas-aws v0.3.0.
   # ---------------------------------------------------------------------------
   privatelink_endpoints = local.privatelink_endpoints
 

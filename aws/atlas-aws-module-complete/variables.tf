@@ -42,6 +42,11 @@ variable "regions" {
     subnet_ids = list(string)
     node_count = optional(number)
   }))
+
+  validation {
+    condition     = length(var.regions) > 0
+    error_message = "At least one region is required."
+  }
 }
 
 # Optional variables
