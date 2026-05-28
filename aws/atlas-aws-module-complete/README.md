@@ -96,7 +96,7 @@ The IAM role must have a trust policy allowing Atlas to assume it.
 
 By default, the module creates AWS VPC Endpoints in each region.
 
-For user-managed VPC endpoints, use the two-phase workflow in [atlas-aws.tf](./atlas-aws.tf) (see inline comments) and the module [privatelink_byoe example](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws/tree/main/examples/privatelink_byoe):
+For user-managed VPC endpoints, use the two-phase workflow in [atlas-aws.tf](./atlas-aws.tf) (see inline comments) and the module [BYO Endpoint example](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws/tree/main/examples/privatelink_byoe):
 
 1. Set `privatelink_endpoints = []` and configure `privatelink_byo_endpoint` (Atlas-side services). Apply.
 2. Create `aws_vpc_endpoint` resources using `module.atlas_aws.privatelink_service_info`.
@@ -130,7 +130,13 @@ Notes:
 ## Upgrading from atlas-aws 0.1.x
 
 - Pin `atlas-aws` to `~> 0.3`, `atlas-project` to `~> 0.2`, and `mongodbatlas` to `~> 2.11`.
-- Deployments that used this example on 0.1.x with Atlas-format regions need `moved` blocks for PrivateLink submodule keys. See the [v0.3.0 upgrade guide](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws/blob/main/docs/v0.3.0-upgrade-guide.md).
+- Deployments that used this example on 0.1.x with Atlas-format regions need `moved` blocks for PrivateLink submodule keys. See the [v0.3.0 upgrade guide](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws/blob/main/docs/v0.3.0-upgrade-guide.md). Minimal example (repeat per region):
+  ```hcl
+  moved {
+    from = module.atlas_aws.module.privatelink["US_EAST_1"]
+    to   = module.atlas_aws.module.privatelink["us-east-1"]
+  }
+  ```
 - For per-region SRV on multi-region sharded clusters, set `privatelink_regional_mode = "auto"` on the atlas-aws module (default is `"disabled"`). See the module [privatelink_multi_region example](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws/tree/main/examples/privatelink_multi_region).
 
 ## Validating the Deployment
