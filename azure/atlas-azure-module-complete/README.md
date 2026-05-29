@@ -75,11 +75,8 @@ By default, the module creates a new Azure AD Service Principal.
 To use an existing one, update `atlas-azure.tf`:
 
 ```hcl
-  # Replace:
-  #   create_service_principal = true
-  # With:
-  create_service_principal = false
-  service_principal_id     = "<existing-service-principal-object-id>"
+create_service_principal = false
+service_principal_id     = "<existing-service-principal-object-id>"
 ```
 
 The `service_principal_id` must be the Azure AD **Object ID** of the existing principal.
@@ -88,25 +85,13 @@ The `service_principal_id` must be the Azure AD **Object ID** of the existing pr
 
 By default, the module creates Azure Private Endpoints in each region.
 
-To use existing Private Endpoints, update `atlas-azure.tf`:
+For user-managed Private Endpoints, use the two-phase workflow in [atlas-azure.tf](./atlas-azure.tf) (see inline comments) and the module [BYO Endpoint example](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-azure/tree/main/examples/privatelink_byoe):
 
-```hcl
-  # Replace:
-  #   privatelink_endpoints = local.privatelink_endpoints
-  # With:
-  privatelink_byoe_locations = {
-    eastus2 = "eastus2"
-  }
+1. Set `privatelink_endpoints = []` and configure `privatelink_byo_endpoint` (Atlas-side services). Apply.
+2. Create `azurerm_private_endpoint` resources using `module.atlas_azure.privatelink_service_info`.
+3. Set `privatelink_byo_service` with `azure_private_endpoint_id` and `azure_private_endpoint_ip_address` per key. Apply again.
 
-  privatelink_byoe = {
-    eastus2 = {
-      azure_private_endpoint_id         = "<existing-private-endpoint-id>"
-      azure_private_endpoint_ip_address = "<private-ip>"
-    }
-  }
-```
-
-Use `module.atlas_azure.privatelink_service_info` outputs to get the Atlas PrivateLink service details needed to connect your own endpoint.
+`privatelink` and `privatelink_service_info` output map keys use normalized Azure format (`eastus2`) in atlas-azure v0.3.0, regardless of Atlas-format region inputs in this example.
 
 ### BYO Storage Account & Container
 
@@ -127,6 +112,18 @@ To use an existing Storage Account, update `atlas-azure.tf`:
 Notes:
 - `storage_account_id` must be the full Azure resource ID.
 - Set `create_container = true` only if the container does **not** already exist.
+
+## Upgrading from atlas-azure 0.1.x
+
+- Pin `atlas-azure` to `~> 0.3`, `atlas-project` to `~> 0.2`, and `mongodbatlas` to `~> 2.11`.
+- Deployments that used this example on 0.1.x with Atlas-format regions need `moved` blocks for PrivateLink submodule keys. See the [v0.3.0 upgrade guide](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-azure/blob/main/docs/v0.3.0-upgrade-guide.md). Minimal example (repeat per region):
+  ```hcl
+  moved {
+    from = module.atlas_azure.module.privatelink["US_EAST_2"]
+    to   = module.atlas_azure.module.privatelink["eastus2"]
+  }
+  ```
+- For per-region SRV on multi-region sharded clusters, set `privatelink_regional_mode = "auto"` on the atlas-azure module (default is `"disabled"`). See the module [privatelink_multi_region example](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-azure/tree/main/examples/privatelink_multi_region).
 
 ## Validating the Deployment
 

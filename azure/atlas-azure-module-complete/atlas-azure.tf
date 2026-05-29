@@ -1,6 +1,6 @@
 module "atlas_azure" {
   source     = "terraform-mongodbatlas-modules/atlas-azure/mongodbatlas"
-  version    = "~> 0.1.0"
+  version    = "~> 0.3"
   project_id = module.atlas_project.id
 
   # ---------------------------------------------------------------------------
@@ -28,13 +28,16 @@ module "atlas_azure" {
   #   privatelink_endpoints = local.privatelink_endpoints
   #
   # With:
-  #   privatelink_byoe_locations = {
-  #     eastus2 = "eastus2"
-  #   }
+  #   privatelink_endpoints = []  # Disable module-managed endpoints
   #
-  #   privatelink_byoe = {
-  #     eastus2 = {
-  #       azure_private_endpoint_id         = "<existing-private-endpoint-id>"
+  #   privatelink_byo_endpoint = {
+  #     east = { region = "eastus2" }
+  #   }
+  #   # After first apply, use privatelink_service_info to create azurerm_private_endpoint,
+  #   # then register:
+  #   privatelink_byo_service = {
+  #     east = {
+  #       azure_private_endpoint_id         = azurerm_private_endpoint.custom.id
   #       azure_private_endpoint_ip_address = "<private-ip>"
   #     }
   #   }
@@ -42,6 +45,7 @@ module "atlas_azure" {
   # NOTE:
   # - Use module.atlas_azure.privatelink_service_info outputs
   #   to connect your Private Endpoint to Atlas.
+  # - Output map keys use normalized Azure format (eastus2) in atlas-azure v0.3.0.
   privatelink_endpoints = local.privatelink_endpoints
 
   # ----------------------------------------------------------------------------------
