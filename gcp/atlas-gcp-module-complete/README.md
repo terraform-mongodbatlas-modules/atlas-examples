@@ -65,23 +65,13 @@ This example creates all required GCP resources by default. If your organization
 
 By default, the module creates PSC forwarding rules in each region.
 
-To use existing forwarding rules, update `atlas-gcp.tf` with the two-phase BYOE workflow:
+For user-managed forwarding rules, use the two-phase workflow in [atlas-gcp.tf](./atlas-gcp.tf) and the module [BYO Endpoint example](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-gcp/tree/main/examples/privatelink_byoe):
 
-```hcl
-  # Phase 1: declare regions for Atlas endpoint service creation
-  privatelink_byoe_regions = { east = "us-east4" }
+1. Set `privatelink_endpoints = []` and configure `privatelink_byo_endpoint` (Atlas-side services). Apply.
+2. Create `google_compute_address` and `google_compute_forwarding_rule` using `module.atlas_gcp.privatelink_service_info`.
+3. Set `privatelink_byo_service` with `ip_address` and `forwarding_rule_name` per key. Apply again.
 
-  # Phase 2: after first apply, use privatelink_service_info output
-  # to create your own forwarding rule, then complete the connection
-  privatelink_byoe = {
-    east = {
-      ip_address           = google_compute_address.psc.address
-      forwarding_rule_name = google_compute_forwarding_rule.psc.name
-    }
-  }
-```
-
-Use `module.atlas_gcp.privatelink_service_info` outputs to get the Atlas PrivateLink service details needed to connect your forwarding rule.
+`privatelink` and `privatelink_service_info` output map keys use lowercase GCP format (`us-east4`) in atlas-gcp v0.2.0, regardless of Atlas-format region inputs in this example.
 
 ### BYO GCS Bucket
 
@@ -98,6 +88,19 @@ To use an existing GCS bucket, update `atlas-gcp.tf`:
     bucket_name = "your-existing-bucket-name"
   }
 ```
+
+## Upgrading from atlas-gcp 0.1.x
+
+- Pin `atlas-gcp` to `~> 0.2`, `atlas-project` to `~> 0.2`, and `mongodbatlas` to `~> 2.8`.
+- Deployments that used this example on 0.1.x with Atlas-format regions need `moved` blocks for PrivateLink submodule keys. See the [v0.2.0 upgrade guide](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-gcp/blob/main/docs/v0.2.0-upgrade-guide.md). Minimal example (repeat per region):
+  ```hcl
+  moved {
+    from = module.atlas_gcp.module.privatelink["US_EAST_4"]
+    to   = module.atlas_gcp.module.privatelink["us-east4"]
+  }
+  ```
+- Rename `backup_export.create_bucket` to `create_gcs_bucket` in your root module. Upgrades may also show GCS lifecycle, versioning, and IAM role changes on the backup bucket (see upgrade guide).
+- For per-region SRV on multi-region sharded clusters, set `privatelink_regional_mode = "auto"` on the atlas-gcp module (default is `"disabled"`).
 
 ## Outputs
 

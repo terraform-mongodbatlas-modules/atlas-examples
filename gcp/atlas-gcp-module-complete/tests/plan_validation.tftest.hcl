@@ -24,7 +24,7 @@ run "single_region_infers_3_nodes" {
 
   assert {
     condition     = local.cluster_regions[0].name == "US_EAST_4"
-    error_message = "Region name should be preserved in Atlas format"
+    error_message = "Region name should stay in Atlas format for cluster module"
   }
 }
 
@@ -56,7 +56,7 @@ run "backup_uses_first_region" {
   }
 
   assert {
-    condition     = local.backup_export_config.create_bucket.location == "US_EAST_4"
+    condition     = local.backup_export_config.create_gcs_bucket.location == "US_EAST_4"
     error_message = "Backup location should pass region name to module (module normalizes internally)"
   }
 }
@@ -89,7 +89,7 @@ run "gcp_format_region_normalizes_to_atlas" {
   }
 
   assert {
-    condition     = local.backup_export_config.create_bucket.location == "us-east4"
+    condition     = local.backup_export_config.create_gcs_bucket.location == "us-east4"
     error_message = "Backup location should pass original input (module normalizes)"
   }
 }
