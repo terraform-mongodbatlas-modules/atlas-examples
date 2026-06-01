@@ -15,12 +15,15 @@ module "atlas_gcp" {
   #   privatelink_endpoints = local.privatelink_endpoints
   #
   # With (two-phase BYO Endpoint workflow):
-  #   privatelink_endpoints = []
   #
+  #   Phase 1: declare regions for Atlas PrivateLink service creation:
+  #   privatelink_endpoints    = []
   #   privatelink_byo_endpoint = { east = { region = "us-east4" } }
-  #   # After first apply, use privatelink_service_info output to create
-  #   # your own google_compute_address + google_compute_forwarding_rule,
-  #   # then complete the connection:
+  #
+  #   After the first apply, use privatelink_service_info output to create
+  #   your own google_compute_address + google_compute_forwarding_rule.
+  #
+  #   Phase 2: keep the phase 1 config, then add:
   #   privatelink_byo_service = {
   #     east = {
   #       ip_address           = google_compute_address.psc.address
