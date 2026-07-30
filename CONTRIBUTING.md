@@ -50,6 +50,7 @@ Common commands:
 ```bash
 just fmt            # Format all Terraform files
 just validate       # Initialize and validate all examples
+just test           # Run mocked plan tests (terraform test) for all examples
 just lint           # Run tflint and formatting checks
 just pre-commit     # Run all checks before committing
 just clean          # Clean Terraform cache files

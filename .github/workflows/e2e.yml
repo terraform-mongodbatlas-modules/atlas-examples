@@ -1,0 +1,233 @@
+name: E2E apply and destroy
+
+# End-to-end verification of the examples against real Atlas + cloud infrastructure.
+# Each job bootstraps the prerequisite networking (e2e/network-bootstrap/<cloud>,
+# see its README), applies the example from its original location with
+# enable_validation_vm = false, smoke-checks outputs, then destroys everything
+# (destroy steps run even on failure).
+#
+# Required GitHub secrets:
+#   Atlas: MONGODB_ATLAS_CLIENT_ID, MONGODB_ATLAS_CLIENT_SECRET (service account
+#          with ORG_OWNER), MONGODB_ATLAS_ORG_ID
+#          (optional) MONGODB_ATLAS_BASE_URL for non-production Atlas environments
+#   AWS:   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   Azure: ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID, ARM_SUBSCRIPTION_ID
+#   GCP:   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT_EMAIL, GCP_PROJECT_ID
+
+on:
+  workflow_dispatch:
+    inputs:
+      cloud:
+        description: Which example to run
+        type: choice
+        default: all
+        options:
+          - all
+          - aws
+          - azure
+          - gcp
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+
+permissions:
+  contents: read
+  id-token: write # required for GCP Workload Identity Federation
+
+env:
+  MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
+  MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
+  TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+
+jobs:
+  aws:
+    name: E2E AWS
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'aws'
+    concurrency:
+      group: e2e-aws
+      cancel-in-progress: false
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      TF_VAR_atlas_project_name: ci-aws-${{ github.run_id }}
+      TF_VAR_atlas_cluster_name: ci-aws-${{ github.run_id }}
+      TF_VAR_aws_region: us-east-1
+      TF_VAR_enable_validation_vm: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_wrapper: false
+      - name: Configure optional Atlas base URL
+        run: |
+          if [ -n "${{ secrets.MONGODB_ATLAS_BASE_URL }}" ]; then
+            echo "MONGODB_ATLAS_BASE_URL=${{ secrets.MONGODB_ATLAS_BASE_URL }}" >> "$GITHUB_ENV"
+          fi
+      - name: Apply networking
+        working-directory: e2e/network-bootstrap/aws
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false -var="name_suffix=${{ github.run_id }}"
+      - name: Map networking outputs to example variables
+        working-directory: e2e/network-bootstrap/aws
+        run: |
+          vpc_id=$(terraform output -raw vpc_id)
+          subnet_ids=$(terraform output -json private_subnet_ids | jq -c .)
+          regions=$(jq -nc --arg vpc "$vpc_id" --argjson subs "$subnet_ids" \
+            '[{name: "US_EAST_1", vpc_id: $vpc, subnet_ids: $subs}]')
+          echo "TF_VAR_regions=$regions" >> "$GITHUB_ENV"
+      - name: Apply example
+        working-directory: aws/atlas-aws-module-complete
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+      - name: Smoke check outputs
+        working-directory: aws/atlas-aws-module-complete
+        run: |
+          cluster_id=$(terraform output -raw cluster_id)
+          test -n "$cluster_id"
+          echo "Cluster deployed: $cluster_id"
+      - name: Destroy example
+        if: always()
+        working-directory: aws/atlas-aws-module-complete
+        run: |
+          terraform init -input=false
+          terraform destroy -auto-approve -input=false
+      - name: Destroy networking
+        if: always()
+        working-directory: e2e/network-bootstrap/aws
+        run: |
+          terraform init -input=false
+          terraform destroy -auto-approve -input=false -var="name_suffix=${{ github.run_id }}"
+
+  azure:
+    name: E2E Azure
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'azure'
+    concurrency:
+      group: e2e-azure
+      cancel-in-progress: false
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_atlas_project_name: ci-azure-${{ github.run_id }}
+      TF_VAR_atlas_cluster_name: ci-azure-${{ github.run_id }}
+      TF_VAR_azure_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_enable_validation_vm: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_wrapper: false
+      - name: Configure optional Atlas base URL
+        run: |
+          if [ -n "${{ secrets.MONGODB_ATLAS_BASE_URL }}" ]; then
+            echo "MONGODB_ATLAS_BASE_URL=${{ secrets.MONGODB_ATLAS_BASE_URL }}" >> "$GITHUB_ENV"
+          fi
+      - name: Apply networking
+        working-directory: e2e/network-bootstrap/azure
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false -var="name_suffix=${{ github.run_id }}"
+      - name: Map networking outputs to example variables
+        working-directory: e2e/network-bootstrap/azure
+        run: |
+          resource_group_name=$(terraform output -raw resource_group_name)
+          subnet_id=$(terraform output -raw subnet_id)
+          azure_location=$(terraform output -raw azure_location)
+          regions=$(jq -nc --arg subnet "$subnet_id" --arg loc "$azure_location" \
+            '[{name: "US_EAST_2", azure_location: $loc, subnet_id: $subnet}]')
+          {
+            echo "TF_VAR_azure_resource_group_name=$resource_group_name"
+            echo "TF_VAR_regions=$regions"
+          } >> "$GITHUB_ENV"
+      - name: Apply example
+        working-directory: azure/atlas-azure-module-complete
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+      - name: Smoke check outputs
+        working-directory: azure/atlas-azure-module-complete
+        run: |
+          cluster_id=$(terraform output -raw cluster_id)
+          test -n "$cluster_id"
+          echo "Cluster deployed: $cluster_id"
+      - name: Destroy example
+        if: always()
+        working-directory: azure/atlas-azure-module-complete
+        run: |
+          terraform init -input=false
+          terraform destroy -auto-approve -input=false
+      - name: Destroy networking
+        if: always()
+        working-directory: e2e/network-bootstrap/azure
+        run: |
+          terraform init -input=false
+          terraform destroy -auto-approve -input=false -var="name_suffix=${{ github.run_id }}"
+
+  gcp:
+    name: E2E GCP
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'gcp'
+    concurrency:
+      group: e2e-gcp
+      cancel-in-progress: false
+    env:
+      TF_VAR_atlas_project_name: ci-gcp-${{ github.run_id }}
+      TF_VAR_atlas_cluster_name: ci-gcp-${{ github.run_id }}
+      TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_wrapper: false
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+      - name: Configure optional Atlas base URL
+        run: |
+          if [ -n "${{ secrets.MONGODB_ATLAS_BASE_URL }}" ]; then
+            echo "MONGODB_ATLAS_BASE_URL=${{ secrets.MONGODB_ATLAS_BASE_URL }}" >> "$GITHUB_ENV"
+          fi
+      - name: Apply networking
+        working-directory: e2e/network-bootstrap/gcp
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false -var="name_suffix=${{ github.run_id }}"
+      - name: Map networking outputs to example variables
+        working-directory: e2e/network-bootstrap/gcp
+        run: |
+          subnetwork=$(terraform output -raw subnetwork_self_link)
+          regions=$(jq -nc --arg subnet "$subnetwork" \
+            '[{name: "US_EAST_4", subnetwork: $subnet}]')
+          echo "TF_VAR_regions=$regions" >> "$GITHUB_ENV"
+      - name: Apply example
+        working-directory: gcp/atlas-gcp-module-complete
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+      - name: Smoke check outputs
+        working-directory: gcp/atlas-gcp-module-complete
+        run: |
+          cluster_id=$(terraform output -raw cluster_id)
+          test -n "$cluster_id"
+          echo "Cluster deployed: $cluster_id"
+      - name: Destroy example
+        if: always()
+        working-directory: gcp/atlas-gcp-module-complete
+        run: |
+          terraform init -input=false
+          terraform destroy -auto-approve -input=false
+      - name: Destroy networking
+        if: always()
+        working-directory: e2e/network-bootstrap/gcp
+        run: |
+          terraform init -input=false
+          terraform destroy -auto-approve -input=false -var="name_suffix=${{ github.run_id }}"
