@@ -188,6 +188,11 @@ jobs:
       TF_VAR_atlas_project_name: ci-gcp-${{ github.run_id }}
       TF_VAR_atlas_cluster_name: ci-gcp-${{ github.run_id }}
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      # Single region (GCP format) for both the bootstrap subnetwork and Atlas
+      # cluster placement — the example normalizes it internally. Switch here if
+      # Atlas reports "No Capacity" for private endpoints in this region.
+      GCP_E2E_REGION: us-central1
+      TF_VAR_gcp_region: us-central1 # consumed by e2e/network-bootstrap/gcp
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
@@ -212,8 +217,8 @@ jobs:
         working-directory: e2e/network-bootstrap/gcp
         run: |
           subnetwork=$(terraform output -raw subnetwork_self_link)
-          regions=$(jq -nc --arg subnet "$subnetwork" \
-            '[{name: "US_EAST_4", subnetwork: $subnet}]')
+          regions=$(jq -nc --arg subnet "$subnetwork" --arg region "$GCP_E2E_REGION" \
+            '[{name: $region, subnetwork: $subnet}]')
           echo "TF_VAR_regions=$regions" >> "$GITHUB_ENV"
       - name: Apply example
         working-directory: gcp/atlas-gcp-module-complete

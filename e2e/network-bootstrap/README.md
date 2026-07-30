@@ -19,6 +19,6 @@ The only coupling between these configs and the examples is the **input contract
 | --- | --- | --- |
 | `aws/` | VPC + 2 private subnets in different AZs (`us-east-1`) | `regions[].vpc_id`, `regions[].subnet_ids` |
 | `azure/` | Resource group + VNet + subnet (`eastus2`) | `azure_resource_group_name`, `regions[].subnet_id`, `regions[].azure_location` |
-| `gcp/` | VPC + subnetwork (`us-east4`) | `regions[].subnetwork` (self link) |
+| `gcp/` | VPC + subnetwork (region set by the workflow, currently `us-central1`) | `regions[].subnetwork` (self link) |
 
 If an example's required inputs change, update the matching config here. The E2E run fails loudly if they drift apart, and these configs are covered by the same format/validate checks as the rest of the repository.
