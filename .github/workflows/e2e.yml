@@ -47,7 +47,8 @@ jobs:
     name: E2E AWS
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'aws'
+    # TEMPORARY: 'push' allowed for pre-merge testing, remove with the push trigger
+    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'aws'
     concurrency:
       group: e2e-aws
       cancel-in-progress: false
@@ -109,7 +110,8 @@ jobs:
     name: E2E Azure
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'azure'
+    # TEMPORARY: 'push' allowed for pre-merge testing, remove with the push trigger
+    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'azure'
     concurrency:
       group: e2e-azure
       cancel-in-progress: false
@@ -177,7 +179,8 @@ jobs:
     name: E2E GCP
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'gcp'
+    # TEMPORARY: 'push' allowed for pre-merge testing, remove with the push trigger
+    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'gcp'
     concurrency:
       group: e2e-gcp
       cancel-in-progress: false
