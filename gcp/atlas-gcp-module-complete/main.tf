@@ -49,4 +49,16 @@ locals {
       force_destroy = var.backup_export_force_destroy
     }
   }
+
+  # The validation VM uses the first PSC subnet and its normalized GCP region.
+  # Guarding the index keeps the regions variable validation as the only failure
+  # when an empty list is supplied.
+  validation_vm_first_region = try(local.regions_with_inferred_node_count[0], null)
+  validation_vm_region = local.validation_vm_first_region == null ? null : lookup(
+    var.atlas_to_gcp_region,
+    local.validation_vm_first_region.atlas_region,
+    local.validation_vm_first_region.name
+  )
+  validation_vm_subnetwork = local.validation_vm_first_region == null ? null : local.validation_vm_first_region.subnetwork
+  validation_vm_enabled    = var.enable_validation_vm && local.validation_vm_first_region != null
 }

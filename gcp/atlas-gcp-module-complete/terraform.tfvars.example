@@ -21,3 +21,20 @@ regions = [
     subnetwork = "<YOUR_SUBNETWORK_SELF_LINK>"
   }
 ]
+
+# Validation VM (optional, enabled by default)
+# Disable all validation resources:
+# enable_validation_vm = false
+#
+# Override the automatically selected first sorted zone in the first region:
+# validation_vm_zone = "us-east4-a"
+#
+# Override the default e2-micro machine type:
+# validation_vm_machine_type = "e2-small"
+#
+# Disable creation of the targeted IAP SSH firewall rule when an equivalent rule exists:
+# validation_vm_create_iap_ssh_firewall = false
+#
+# Create dedicated, subnet-scoped Cloud NAT only when the first subnet has no outbound internet access.
+# Cloud NAT can incur charges and conflict with an existing NAT that already covers the subnet:
+# validation_vm_enable_cloud_nat = true

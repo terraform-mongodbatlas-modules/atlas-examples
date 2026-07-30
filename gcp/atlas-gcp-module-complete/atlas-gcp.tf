@@ -17,6 +17,7 @@ module "atlas_gcp" {
   # With (two-phase BYO Endpoint workflow):
   #
   #   Phase 1: declare regions for Atlas PrivateLink service creation:
+  #   Set enable_validation_vm = false until the forwarding rule is registered.
   #   privatelink_endpoints    = []
   #   privatelink_byo_endpoint = { east = { region = "us-east4" } }
   #
@@ -24,6 +25,7 @@ module "atlas_gcp" {
   #   your own google_compute_address + google_compute_forwarding_rule.
   #
   #   Phase 2: keep the phase 1 config, then add:
+  #   Re-enable validation after adding the registered forwarding rule.
   #   privatelink_byo_service = {
   #     east = {
   #       ip_address           = google_compute_address.psc.address

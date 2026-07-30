@@ -82,3 +82,35 @@ variable "service_account_email" {
   description = "Service account email to impersonate"
   default     = null
 }
+
+# Validation VM
+# ----------------------------------------------------
+variable "enable_validation_vm" {
+  description = "Deploy a private validation VM and temporary Atlas database user."
+  type        = bool
+  default     = true
+}
+
+variable "validation_vm_zone" {
+  description = "GCP zone for the validation VM. When null, the first sorted available zone in the first subnet's region is selected."
+  type        = string
+  default     = null
+}
+
+variable "validation_vm_machine_type" {
+  description = "Compute Engine machine type for the validation VM."
+  type        = string
+  default     = "e2-micro"
+}
+
+variable "validation_vm_create_iap_ssh_firewall" {
+  description = "Create a VM-targeted firewall rule that permits SSH only from the IAP TCP forwarding range."
+  type        = bool
+  default     = true
+}
+
+variable "validation_vm_enable_cloud_nat" {
+  description = "Create a dedicated Cloud Router and subnet-scoped Cloud NAT for validation VM package installation."
+  type        = bool
+  default     = false
+}
