@@ -37,11 +37,6 @@ permissions:
   contents: read
   id-token: write # required for GCP Workload Identity Federation
 
-env:
-  MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
-  MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
-  TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
-
 jobs:
   aws:
     name: E2E AWS
@@ -52,6 +47,9 @@ jobs:
       group: e2e-aws
       cancel-in-progress: false
     env:
+      MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
+      MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
+      TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
       TF_VAR_atlas_project_name: ci-aws-${{ github.run_id }}
       TF_VAR_atlas_cluster_name: ci-aws-${{ github.run_id }}
       # Single region (AWS format) for the bootstrap VPC, provider, and Atlas
@@ -121,6 +119,9 @@ jobs:
       group: e2e-azure
       cancel-in-progress: false
     env:
+      MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
+      MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
+      TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
@@ -208,6 +209,9 @@ jobs:
       group: e2e-gcp
       cancel-in-progress: false
     env:
+      MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
+      MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
+      TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
       TF_VAR_atlas_project_name: ci-gcp-${{ github.run_id }}
       TF_VAR_atlas_cluster_name: ci-gcp-${{ github.run_id }}
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
