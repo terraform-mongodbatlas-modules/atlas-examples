@@ -17,7 +17,7 @@ The only coupling between these configs and the examples is the **input contract
 
 | Config | Provides | Consumed by |
 | --- | --- | --- |
-| `aws/` | VPC + 2 private subnets in different AZs (`us-east-1`) | `regions[].vpc_id`, `regions[].subnet_ids` |
+| `aws/` | VPC + 2 private subnets in different AZs (region set by the workflow, currently `us-east-2`) | `regions[].vpc_id`, `regions[].subnet_ids` |
 | `azure/` | Resource group + VNet + subnet (`eastus2`) | `azure_resource_group_name`, `regions[].subnet_id`, `regions[].azure_location` |
 | `gcp/` | VPC + subnetwork (region set by the workflow, currently `us-central1`) | `regions[].subnetwork` (self link) |
 

@@ -59,7 +59,10 @@ jobs:
     env:
       TF_VAR_atlas_project_name: ci-aws-${{ github.run_id }}
       TF_VAR_atlas_cluster_name: ci-aws-${{ github.run_id }}
-      TF_VAR_aws_region: us-east-1
+      # Single region (AWS format) for the bootstrap VPC, provider, and Atlas
+      # cluster placement (normalized to Atlas format in the map step below).
+      # Switch here if the account's VPC quota or Atlas capacity is exhausted.
+      TF_VAR_aws_region: us-east-2
       TF_VAR_enable_validation_vm: "false"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -70,7 +73,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@451ce2a72e8d729a59ebeaacab82dbce58e7af4c # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-region: us-east-2
       - name: Configure optional Atlas base URL
         run: |
           if [ -n "${{ secrets.MONGODB_ATLAS_BASE_URL }}" ]; then
@@ -86,8 +89,9 @@ jobs:
         run: |
           vpc_id=$(terraform output -raw vpc_id)
           subnet_ids=$(terraform output -json private_subnet_ids | jq -c .)
-          regions=$(jq -nc --arg vpc "$vpc_id" --argjson subs "$subnet_ids" \
-            '[{name: "US_EAST_1", vpc_id: $vpc, subnet_ids: $subs}]')
+          atlas_region=$(echo "$TF_VAR_aws_region" | tr 'a-z' 'A-Z' | tr '-' '_')
+          regions=$(jq -nc --arg vpc "$vpc_id" --argjson subs "$subnet_ids" --arg name "$atlas_region" \
+            '[{name: $name, vpc_id: $vpc, subnet_ids: $subs}]')
           echo "TF_VAR_regions=$regions" >> "$GITHUB_ENV"
       - name: Apply example
         working-directory: aws/atlas-aws-module-complete
