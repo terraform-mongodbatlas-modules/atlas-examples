@@ -10,7 +10,7 @@ name: E2E apply and destroy
 #   Atlas: MONGODB_ATLAS_CLIENT_ID, MONGODB_ATLAS_CLIENT_SECRET (service account
 #          with ORG_OWNER), MONGODB_ATLAS_ORG_ID
 #          (optional) MONGODB_ATLAS_BASE_URL for non-production Atlas environments
-#   AWS:   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   AWS:   AWS_ROLE_ARN (IAM role assumed via GitHub OIDC, no long-lived keys)
 #   Azure: ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID, ARM_SUBSCRIPTION_ID
 #          (optional) ATLAS_AZURE_APP_ID for non-production Atlas environments
 #          (defaults to the production Atlas Azure app when unset). If the Atlas
@@ -57,8 +57,6 @@ jobs:
       group: e2e-aws
       cancel-in-progress: false
     env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       TF_VAR_atlas_project_name: ci-aws-${{ github.run_id }}
       TF_VAR_atlas_cluster_name: ci-aws-${{ github.run_id }}
       TF_VAR_aws_region: us-east-1
@@ -68,6 +66,11 @@ jobs:
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
         with:
           terraform_wrapper: false
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@451ce2a72e8d729a59ebeaacab82dbce58e7af4c # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
       - name: Configure optional Atlas base URL
         run: |
           if [ -n "${{ secrets.MONGODB_ATLAS_BASE_URL }}" ]; then
