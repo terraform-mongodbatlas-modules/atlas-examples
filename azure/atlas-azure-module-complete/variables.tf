@@ -75,6 +75,16 @@ variable "azure_subscription_id" {
   default     = null # allows to use underlying subscription
 }
 
+variable "atlas_azure_app_id" {
+  description = <<-EOT
+    MongoDB Atlas Azure application ID used for cloud provider access.
+    Only set this when targeting a non-production Atlas environment (via
+    MONGODB_ATLAS_BASE_URL); when null, the module's default (production Atlas app) is used.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags applied to all Atlas resources"
   type        = map(string)

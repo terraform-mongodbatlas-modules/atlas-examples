@@ -17,6 +17,9 @@ module "atlas_azure" {
   # The service_principal_id must be the Azure AD Object ID.
   create_service_principal = true
 
+  # Only relevant for non-production Atlas environments (module default = production Atlas app).
+  atlas_azure_app_id = coalesce(var.atlas_azure_app_id, "9f2deb0d-be22-4524-a403-df531868bac0")
+
   # ---------------------------------------------------------------------------
   # PrivateLink (BYO Private Endpoint)
   # ---------------------------------------------------------------------------
