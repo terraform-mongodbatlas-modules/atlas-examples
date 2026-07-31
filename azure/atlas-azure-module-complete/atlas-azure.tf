@@ -15,8 +15,8 @@ module "atlas_azure" {
   create_service_principal = var.atlas_azure_service_principal_id == null
   service_principal_id     = var.atlas_azure_service_principal_id
 
-  # Only relevant for non-production Atlas environments (module default = production Atlas app).
-  atlas_azure_app_id = coalesce(var.atlas_azure_app_id, "9f2deb0d-be22-4524-a403-df531868bac0")
+  # Only relevant for non-production Atlas environments (see variables.tf).
+  atlas_azure_app_id = var.atlas_azure_app_id
 
   # ---------------------------------------------------------------------------
   # PrivateLink (BYO Private Endpoint)

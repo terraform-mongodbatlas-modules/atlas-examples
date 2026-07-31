@@ -78,11 +78,12 @@ variable "azure_subscription_id" {
 variable "atlas_azure_app_id" {
   description = <<-EOT
     MongoDB Atlas Azure application ID used for cloud provider access.
-    Only set this when targeting a non-production Atlas environment (via
-    MONGODB_ATLAS_BASE_URL); when null, the module's default (production Atlas app) is used.
+    Defaults to the production Atlas application (mirrors the module default).
+    Only override this when targeting a non-production Atlas environment
+    (via MONGODB_ATLAS_BASE_URL), which has its own application ID.
   EOT
   type        = string
-  default     = null
+  default     = "9f2deb0d-be22-4524-a403-df531868bac0" # production MongoDB Atlas application
 }
 
 variable "atlas_azure_service_principal_id" {
