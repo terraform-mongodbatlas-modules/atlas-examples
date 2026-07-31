@@ -13,7 +13,9 @@ name: E2E apply and destroy
 #   AWS:   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 #   Azure: ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID, ARM_SUBSCRIPTION_ID
 #          (optional) ATLAS_AZURE_APP_ID for non-production Atlas environments
-#          (defaults to the production Atlas Azure app when unset)
+#          (defaults to the production Atlas Azure app when unset). If the Atlas
+#          app's service principal already exists in the tenant it is reused
+#          (BYO mode) instead of being created/destroyed per run.
 #   GCP:   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT_EMAIL, GCP_PROJECT_ID
 
 on:
@@ -140,6 +142,20 @@ jobs:
         run: |
           if [ -n "${{ secrets.ATLAS_AZURE_APP_ID }}" ]; then
             echo "TF_VAR_atlas_azure_app_id=${{ secrets.ATLAS_AZURE_APP_ID }}" >> "$GITHUB_ENV"
+          fi
+      # If the Atlas Azure app's service principal already exists in the tenant
+      # (shared tenants), reuse it (BYO mode) so terraform never creates/deletes it.
+      - name: Detect existing Atlas Azure service principal
+        run: |
+          az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" \
+            --tenant "$ARM_TENANT_ID" --only-show-errors --output none
+          app_id="${{ secrets.ATLAS_AZURE_APP_ID }}"
+          app_id="${app_id:-9f2deb0d-be22-4524-a403-df531868bac0}" # production Atlas app fallback
+          if sp_id=$(az ad sp show --id "$app_id" --query id -o tsv --only-show-errors 2>/dev/null); then
+            echo "Existing service principal found for app $app_id ($sp_id) — using BYO mode"
+            echo "TF_VAR_atlas_azure_service_principal_id=$sp_id" >> "$GITHUB_ENV"
+          else
+            echo "No existing service principal for app $app_id — module will create one"
           fi
       - name: Apply networking
         working-directory: e2e/network-bootstrap/azure

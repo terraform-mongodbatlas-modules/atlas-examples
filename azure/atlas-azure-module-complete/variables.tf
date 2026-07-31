@@ -85,6 +85,17 @@ variable "atlas_azure_app_id" {
   default     = null
 }
 
+variable "atlas_azure_service_principal_id" {
+  description = <<-EOT
+    Azure AD Object ID of an existing service principal for the Atlas Azure app.
+    Set this when the service principal already exists in your tenant (e.g. shared
+    tenants where it must not be deleted); when null, the module creates (and later
+    destroys) the service principal itself.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags applied to all Atlas resources"
   type        = map(string)

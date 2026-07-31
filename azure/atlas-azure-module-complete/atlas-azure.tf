@@ -6,16 +6,14 @@ module "atlas_azure" {
   # ---------------------------------------------------------------------------
   # Service Principal (BYO)
   # ---------------------------------------------------------------------------
-  # To use an existing Azure Service Principal instead of letting the module create one:
-  # Replace:
-  #   create_service_principal = true
+  # By default the module creates (and on destroy, deletes) the service principal
+  # for the Atlas Azure app in your tenant.
   #
-  # With:
-  #   create_service_principal = false
-  #   service_principal_id     = "<existing-service-principal-object-id>"
-  #
-  # The service_principal_id must be the Azure AD Object ID.
-  create_service_principal = true
+  # To use an existing service principal instead — e.g. a shared tenant where it
+  # already exists and must not be deleted — set var.atlas_azure_service_principal_id
+  # to the service principal's Azure AD Object ID.
+  create_service_principal = var.atlas_azure_service_principal_id == null
+  service_principal_id     = var.atlas_azure_service_principal_id
 
   # Only relevant for non-production Atlas environments (module default = production Atlas app).
   atlas_azure_app_id = coalesce(var.atlas_azure_app_id, "9f2deb0d-be22-4524-a403-df531868bac0")
