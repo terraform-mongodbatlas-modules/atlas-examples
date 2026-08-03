@@ -22,6 +22,7 @@ EXAMPLE="$ROOT/gcp/atlas-gcp-module-complete"
 export TF_VAR_gcp_project_id="$GCP_PROJECT_ID"
 export TF_VAR_atlas_project_name="ci-gcp-$RUN_ID"
 export TF_VAR_atlas_cluster_name="ci-gcp-$RUN_ID"
+export TF_VAR_enable_validation_vm=false
 # Single region (GCP format) for both the bootstrap subnetwork and Atlas cluster
 # placement — the example normalizes it internally.
 export TF_VAR_gcp_region="${GCP_E2E_REGION:-us-central1}"
