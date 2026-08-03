@@ -57,6 +57,12 @@ variable "tags" {
   default     = {}
 }
 
+variable "backup_export_force_destroy" {
+  type        = bool
+  description = "Force destroy the backup export bucket even when it contains exported snapshots. Disabled by default (safe); enable only for ephemeral/test deployments where cleanup matters more than retaining exports."
+  default     = false
+}
+
 variable "ip_access_list" {
   description = <<-EOT
     Optional IP access list entries for Atlas.

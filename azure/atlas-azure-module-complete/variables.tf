@@ -75,6 +75,28 @@ variable "azure_subscription_id" {
   default     = null # allows to use underlying subscription
 }
 
+variable "atlas_azure_app_id" {
+  description = <<-EOT
+    MongoDB Atlas Azure application ID used for cloud provider access.
+    Defaults to the production Atlas application (mirrors the module default).
+    Only override this when targeting a non-production Atlas environment
+    (via MONGODB_ATLAS_BASE_URL), which has its own application ID.
+  EOT
+  type        = string
+  default     = "9f2deb0d-be22-4524-a403-df531868bac0" # production MongoDB Atlas application
+}
+
+variable "atlas_azure_service_principal_id" {
+  description = <<-EOT
+    Azure AD Object ID of an existing service principal for the Atlas Azure app.
+    Set this when the service principal already exists in your tenant (e.g. shared
+    tenants where it must not be deleted); when null, the module creates (and later
+    destroys) the service principal itself.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags applied to all Atlas resources"
   type        = map(string)
