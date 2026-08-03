@@ -2,6 +2,8 @@
 
 These Terraform configs create **only the prerequisite cloud networking** that the examples require as inputs — they are **not** copies of the examples.
 
+They are intentionally minimal (single region, no NAT, no hardening) and meant **only for CI testing** — not recommended as customer references. Users should provision networking following the prerequisites in each example's README.
+
 ## Why this exists
 
 Each example deliberately expects networking to pre-exist (see the "Prerequisites" section of each example README) and consumes it via the `regions` variable (VPC/subnet IDs). The [E2E workflow](../../.github/workflows/e2e.yml) needs that infrastructure to be disposable, so it:

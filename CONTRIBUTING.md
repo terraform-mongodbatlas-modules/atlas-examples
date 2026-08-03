@@ -57,6 +57,13 @@ just clean          # Clean Terraform cache files
 ```
 These checks help ensure consistency and reduce CI failures.
 
+## CI & Testing
+
+This repository verifies the examples at two levels:
+
+- **Pull requests** ([terraform-code-lint.yml](./.github/workflows/terraform-code-lint.yml)): format check, `terraform validate`, and mocked plan tests (`terraform test`) for every example. No credentials required. Run the same checks locally with `just lint validate test`.
+- **End-to-end** ([e2e.yml](./.github/workflows/e2e.yml)): a weekly scheduled (and manually dispatchable) workflow that provisions real infrastructure for each example — it bootstraps the prerequisite cloud networking ([`e2e/network-bootstrap/`](./e2e/network-bootstrap/)), applies the example, smoke-checks the outputs, and destroys everything. Requires repository secrets for Atlas and each cloud provider (see the workflow header for the full list).
+
 ## Questions
 
 For questions related to:

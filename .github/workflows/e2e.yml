@@ -57,6 +57,7 @@ jobs:
       # Switch here if the account's VPC quota or Atlas capacity is exhausted.
       TF_VAR_aws_region: us-east-2
       TF_VAR_enable_validation_vm: "false"
+      TF_VAR_backup_export_force_destroy: "true" # ephemeral CI run: allow bucket deletion with exports
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
@@ -220,6 +221,7 @@ jobs:
       # Atlas reports "No Capacity" for private endpoints in this region.
       GCP_E2E_REGION: us-central1
       TF_VAR_gcp_region: us-central1 # consumed by e2e/network-bootstrap/gcp
+      TF_VAR_backup_export_force_destroy: "true" # ephemeral CI run: allow bucket deletion with exports
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4

@@ -19,17 +19,6 @@ jobs:
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
         with:
           terraform_wrapper: false
-      - run: terraform fmt -check -recursive
-      - name: Validate Examples
-        run: |
-          for dir in $(find . -type f -name "main.tf" -exec dirname {} \;); do
-            echo "Validating $dir..."
-            (cd "$dir" && terraform init -backend=false -input=false && terraform validate)
-          done
-      - name: Test Examples
-        run: |
-          for tests_dir in $(find . -type f -name "*.tftest.hcl" -not -path "*/.terraform/*" -exec dirname {} \; | sort -u); do
-            dir=$(dirname "$tests_dir")
-            echo "Testing $dir..."
-            (cd "$dir" && terraform init -backend=false -input=false && terraform test)
-          done
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - name: Lint, Validate, and Test Examples
+        run: just lint validate test

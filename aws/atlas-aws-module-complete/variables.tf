@@ -59,8 +59,8 @@ variable "tags" {
 
 variable "backup_export_force_destroy" {
   type        = bool
-  description = "Force destroy the backup export bucket even when it contains exported snapshots. This is set to true for the example to make cleanup easier, but in production you should set this to false."
-  default     = true
+  description = "Force destroy the backup export bucket even when it contains exported snapshots. Disabled by default (safe); enable only for ephemeral/test deployments where cleanup matters more than retaining exports."
+  default     = false
 }
 
 variable "ip_access_list" {
