@@ -25,7 +25,7 @@ export TF_VAR_atlas_cluster_name="ci-azure-$RUN_ID"
 export TF_VAR_azure_subscription_id="$ARM_SUBSCRIPTION_ID"
 # The validation VM is intentionally out of scope for the E2E: scripted access
 # requires an SSH key + Bastion Standard (extra cost); Serial Console is
-# manual-only. Tracked as a follow-up.
+# manual-only.
 export TF_VAR_enable_validation_vm=false
 
 app_id="${ATLAS_AZURE_APP_ID:-9f2deb0d-be22-4524-a403-df531868bac0}" # production Atlas app fallback
