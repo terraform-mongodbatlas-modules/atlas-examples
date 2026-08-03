@@ -15,14 +15,10 @@ jobs:
     name: Lint and Validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
-      - uses: hashicorp/setup-terraform@651471c36a6092792c552e8b1bef71e592b462d8
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
         with:
           terraform_wrapper: false
-      - run: terraform fmt -check -recursive
-      - name: Validate Examples
-        run: |
-          for dir in $(find . -type f -name "main.tf" -exec dirname {} \;); do
-            echo "Validating $dir..."
-            (cd "$dir" && terraform init -backend=false -input=false && terraform validate)
-          done
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - name: Lint, Validate, and Test Examples
+        run: just lint validate test
