@@ -20,10 +20,6 @@ name: E2E apply and destroy
 #   GCP:   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT_EMAIL, GCP_PROJECT_ID
 
 on:
-  # TEMPORARY (testing before merge): run E2E on pushes to this branch. Remove before merging.
-  push:
-    branches:
-      - CLOUDP-428615
   workflow_dispatch:
     inputs:
       cloud:
@@ -47,8 +43,7 @@ jobs:
     name: E2E AWS
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    # TEMPORARY: 'push' allowed for pre-merge testing, remove with the push trigger
-    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'aws'
+    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'aws'
     concurrency:
       group: e2e-aws
       cancel-in-progress: false
@@ -80,7 +75,6 @@ jobs:
     name: E2E Azure
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    # TEMPORARY: 'push' allowed for pre-merge testing, remove with the push trigger
     if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'azure'
     concurrency:
       group: e2e-azure
@@ -113,7 +107,6 @@ jobs:
     name: E2E GCP
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    # TEMPORARY: 'push' allowed for pre-merge testing, remove with the push trigger
     if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'gcp'
     concurrency:
       group: e2e-gcp
