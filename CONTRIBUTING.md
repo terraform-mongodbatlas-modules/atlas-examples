@@ -74,7 +74,7 @@ The workflow jobs are thin wrappers around [`e2e/scripts/`](./e2e/scripts/) (`aw
 e2e/scripts/aws.sh    # or azure.sh / gcp.sh
 ```
 
-Each script applies the networking bootstrap + example, smoke-checks, and destroys everything (cleanup runs even on failure). See the header comment in each script for the required environment variables.
+Each script applies the networking bootstrap + example, smoke-checks, and destroys everything (cleanup runs even on failure). See the header comment in each script for the required environment variables. To keep the environment alive for debugging, run with `SKIP_DESTROY=true` — the script prints the manual destroy commands instead of running them.
 
 ## Questions
 
