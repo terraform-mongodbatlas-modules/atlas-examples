@@ -12,3 +12,12 @@ output "azure_location" {
   description = "Azure location of the networking resources"
   value       = azurerm_resource_group.this.location
 }
+
+output "regions" {
+  description = "Ready-to-consume value for the example's regions variable"
+  value = [{
+    name           = var.atlas_region
+    azure_location = azurerm_resource_group.this.location
+    subnet_id      = azurerm_subnet.private_endpoint.id
+  }]
+}

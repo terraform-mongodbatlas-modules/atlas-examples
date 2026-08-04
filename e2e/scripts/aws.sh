@@ -4,12 +4,12 @@
 #
 # Required in env:
 #   AWS credentials (via aws-actions/configure-aws-credentials in CI, or any local AWS auth)
-#   MONGODB_ATLAS_CLIENT_ID, MONGODB_ATLAS_CLIENT_SECRET, TF_VAR_atlas_org_id
+#   MONGODB_ATLAS_CLIENT_ID, MONGODB_ATLAS_CLIENT_SECRET, MONGODB_ATLAS_ORG_ID
 # Optional:
 #   RUN_ID (default: current timestamp), AWS_E2E_REGION (default: us-east-2),
 #   MONGODB_ATLAS_BASE_URL (non-production Atlas environments),
-#   SKIP_DESTROY=true to keep resources after the run (for debugging; prints manual
-#   destroy commands instead of running them)
+#   SKIP_DESTROY=true to keep resources after the run (for debugging; the per-run
+#   tfvars files are kept and working manual destroy commands are printed)
 set -euo pipefail
 
 RUN_ID="${RUN_ID:-$(date +%s)}"
@@ -17,43 +17,73 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BOOTSTRAP="$ROOT/e2e/network-bootstrap/aws"
 EXAMPLE="$ROOT/aws/atlas-aws-module-complete"
 
-export TF_VAR_atlas_project_name="ci-aws-$RUN_ID"
-export TF_VAR_atlas_cluster_name="ci-aws-$RUN_ID"
-export TF_VAR_aws_region="${AWS_E2E_REGION:-us-east-2}"
-# The validation VM is intentionally out of scope for the E2E: verifying it
-# meaningfully requires extra networking (public subnet/NAT) and SSM access.
-export TF_VAR_enable_validation_vm=false
-export TF_VAR_backup_export_force_destroy=true # ephemeral run: allow bucket deletion with exports
+: "${MONGODB_ATLAS_ORG_ID:?set MONGODB_ATLAS_ORG_ID}"
+
+AWS_REGION="${AWS_E2E_REGION:-us-east-2}"
+# Effective inputs are persisted in per-run tfvars files (gitignored) so applies,
+# destroys, and any manual cleanup all use exactly the same values.
+BOOTSTRAP_TFVARS="$BOOTSTRAP/e2e-$RUN_ID.tfvars.json"
+EXAMPLE_TFVARS="$EXAMPLE/e2e-$RUN_ID.tfvars.json"
+
+jq -n --arg suffix "$RUN_ID" --arg region "$AWS_REGION" \
+  '{name_suffix: $suffix, aws_region: $region}' > "$BOOTSTRAP_TFVARS"
 
 cleanup() {
   if [[ "${SKIP_DESTROY:-false}" == "true" ]]; then
-    echo "--- SKIP_DESTROY=true: leaving resources in place (run $RUN_ID). Destroy manually when done:"
-    echo "    (cd $EXAMPLE && terraform destroy -auto-approve -input=false)"
-    echo "    (cd $BOOTSTRAP && terraform destroy -auto-approve -input=false -var=\"name_suffix=$RUN_ID\")"
+    echo "--- SKIP_DESTROY=true: leaving resources in place (run $RUN_ID)."
+    echo "    Effective inputs are persisted in:"
+    echo "      $EXAMPLE_TFVARS"
+    echo "      $BOOTSTRAP_TFVARS"
+    echo "    With Atlas + AWS credentials in the environment, destroy manually when done:"
+    echo "    (cd $EXAMPLE && terraform init -input=false && terraform destroy -auto-approve -input=false -var-file=$EXAMPLE_TFVARS)"
+    echo "    (cd $BOOTSTRAP && terraform init -input=false && terraform destroy -auto-approve -input=false -var-file=$BOOTSTRAP_TFVARS)"
     return
   fi
   echo "--- Cleanup: destroying example and networking (run $RUN_ID)"
-  (cd "$EXAMPLE" && terraform init -input=false && terraform destroy -auto-approve -input=false) || true
-  (cd "$BOOTSTRAP" && terraform init -input=false && terraform destroy -auto-approve -input=false -var="name_suffix=$RUN_ID") || true
+  failed=0
+  if [[ -f "$EXAMPLE_TFVARS" ]]; then
+    (cd "$EXAMPLE" && terraform init -input=false && terraform destroy -auto-approve -input=false -var-file="$EXAMPLE_TFVARS") || failed=1
+  fi
+  (cd "$BOOTSTRAP" && terraform init -input=false && terraform destroy -auto-approve -input=false -var-file="$BOOTSTRAP_TFVARS") || failed=1
+  if [[ $failed -eq 0 ]]; then
+    rm -f "$EXAMPLE_TFVARS" "$BOOTSTRAP_TFVARS"
+  else
+    echo "--- WARNING: destroy incomplete; tfvars files kept for manual retry"
+  fi
 }
 trap cleanup EXIT
 
 echo "--- Applying networking ($BOOTSTRAP)"
 cd "$BOOTSTRAP"
 terraform init -input=false
-terraform apply -auto-approve -input=false -var="name_suffix=$RUN_ID"
+terraform apply -auto-approve -input=false -var-file="$BOOTSTRAP_TFVARS"
 
-vpc_id=$(terraform output -raw vpc_id)
-subnet_ids=$(terraform output -json private_subnet_ids | jq -c .)
-atlas_region=$(echo "$TF_VAR_aws_region" | tr 'a-z' 'A-Z' | tr '-' '_')
-TF_VAR_regions=$(jq -nc --arg vpc "$vpc_id" --argjson subs "$subnet_ids" --arg name "$atlas_region" \
-  '[{name: $name, vpc_id: $vpc, subnet_ids: $subs}]')
-export TF_VAR_regions
+# The bootstrap provides a ready-made value for the example's regions variable.
+# The validation VM is intentionally out of scope for the E2E: verifying it
+# meaningfully requires extra networking (public subnet/NAT) and SSM access.
+# backup_export: ephemeral run — allow bucket deletion with exports, and set an
+# explicit bucket name attributable to this repo in the shared AWS account.
+jq -n \
+  --arg org "$MONGODB_ATLAS_ORG_ID" \
+  --arg name "atlas-examples-e2e-aws-$RUN_ID" \
+  --arg region "$AWS_REGION" \
+  --arg bucket "atlas-examples-e2e-backup-$RUN_ID" \
+  --argjson regions "$(terraform output -json regions)" \
+  '{
+    atlas_org_id: $org,
+    atlas_project_name: $name,
+    atlas_cluster_name: $name,
+    aws_region: $region,
+    enable_validation_vm: false,
+    backup_export_force_destroy: true,
+    backup_export_bucket_name: $bucket,
+    regions: $regions
+  }' > "$EXAMPLE_TFVARS"
 
 echo "--- Applying example ($EXAMPLE)"
 cd "$EXAMPLE"
 terraform init -input=false
-terraform apply -auto-approve -input=false
+terraform apply -auto-approve -input=false -var-file="$EXAMPLE_TFVARS"
 
 cluster_id=$(terraform output -raw cluster_id)
 test -n "$cluster_id"

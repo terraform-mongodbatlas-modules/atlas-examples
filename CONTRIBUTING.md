@@ -63,18 +63,21 @@ This repository verifies the examples at two levels:
 
 - **Pull requests** ([terraform-code-lint.yml](./.github/workflows/terraform-code-lint.yml)): format check, `terraform validate`, and mocked plan tests (`terraform test`) for every example. No credentials required. Run the same checks locally with `just lint validate test`.
 - **End-to-end** ([e2e.yml](./.github/workflows/e2e.yml)): a weekly scheduled (and manually dispatchable) workflow that provisions real infrastructure for each example — it bootstraps the prerequisite cloud networking ([`e2e/network-bootstrap/`](./e2e/network-bootstrap/)), applies the example, smoke-checks the outputs, and destroys everything. Requires repository secrets for Atlas and each cloud provider (see the workflow header for the full list).
+- **Cleanup** ([cleanup-test-env.yml](./.github/workflows/cleanup-test-env.yml)): a weekly scheduled (and manually dispatchable) workflow that deletes stale `atlas-examples-e2e-*` Atlas projects left behind when a run is killed before its cleanup trap runs. A 24h grace period protects in-flight runs, and manual dispatches default to dry-run. All E2E-created resources use the `atlas-examples-e2e-` naming prefix so they are attributable to this repository in the shared Atlas org and cloud accounts.
 
 ### Running E2E locally
 
 The workflow jobs are thin wrappers around [`e2e/scripts/`](./e2e/scripts/) (`aws.sh`, `azure.sh`, `gcp.sh`), so you can run the same end-to-end flow locally — useful for debugging without pushing:
 
 ```bash
-# Export Atlas credentials and TF_VAR_atlas_org_id, authenticate to the cloud
-# (AWS SSO/profile, az login, or gcloud application-default credentials), then:
+# Export Atlas credentials (MONGODB_ATLAS_CLIENT_ID, MONGODB_ATLAS_CLIENT_SECRET,
+# MONGODB_ATLAS_ORG_ID) and authenticate to the cloud — AWS SSO/profile,
+# az login (or ARM_* service-principal variables), or gcloud application-default
+# credentials — then:
 e2e/scripts/aws.sh    # or azure.sh / gcp.sh
 ```
 
-Each script applies the networking bootstrap + example, smoke-checks, and destroys everything (cleanup runs even on failure). See the header comment in each script for the required environment variables. To keep the environment alive for debugging, run with `SKIP_DESTROY=true` — the script prints the manual destroy commands instead of running them.
+Each script applies the networking bootstrap + example, smoke-checks, and destroys everything (cleanup runs even on failure). Effective inputs are persisted in per-run `e2e-<run-id>.tfvars.json` files (gitignored, deleted after a successful run). See the header comment in each script for the required environment variables. To keep the environment alive for debugging, run with `SKIP_DESTROY=true` — the tfvars files are kept and the script prints working manual destroy commands instead of running them.
 
 ## Questions
 

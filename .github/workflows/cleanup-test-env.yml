@@ -1,0 +1,52 @@
+name: Cleanup test env
+
+# Deletes stale Atlas projects left behind by E2E runs (e.g. when a runner is
+# killed before the e2e/scripts/<cloud>.sh trap cleanup runs). Only projects
+# named atlas-examples-e2e-* older than the grace period (24h) are touched, so
+# in-flight runs are never affected; failed deletions are retried on the next
+# run. Modeled on mongodb/terraform-provider-mongodbatlas cleanup-test-env.yml.
+#
+# The scheduled run deletes for real; manual dispatches default to dry-run.
+#
+# Required GitHub secrets:
+#   MONGODB_ATLAS_CLIENT_ID, MONGODB_ATLAS_CLIENT_SECRET (service account with
+#   ORG_OWNER), MONGODB_ATLAS_ORG_ID
+#   (optional) MONGODB_ATLAS_BASE_URL for non-production Atlas environments
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only list stale projects without deleting them
+        type: boolean
+        default: true
+      skip_grace_period:
+        description: Delete all matching projects regardless of creation time (never use while E2E runs are in flight)
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 6 * * 0' # Sundays 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup-test-env:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
+      MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
+      MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+      # Scheduled runs delete for real; manual dispatches honor the dry_run input
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+      GRACE_PERIOD_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_grace_period && '0' || '24' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Configure optional Atlas base URL
+        run: |
+          if [ -n "${{ secrets.MONGODB_ATLAS_BASE_URL }}" ]; then
+            echo "MONGODB_ATLAS_BASE_URL=${{ secrets.MONGODB_ATLAS_BASE_URL }}" >> "$GITHUB_ENV"
+          fi
+      - name: Run cleanup
+        run: e2e/scripts/cleanup-test-env.sh

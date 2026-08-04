@@ -15,12 +15,16 @@ Each example deliberately expects networking to pre-exist (see the "Prerequisite
 
 ## Keeping it in sync
 
-The only coupling between these configs and the examples is the **input contract** — what each example's `regions` variable expects:
+The only coupling between these configs and the examples is the **input contract** — each config exposes a ready-made `regions` output shaped exactly like the matching example's `regions` variable, which the E2E script passes through verbatim (`TF_VAR_regions=$(terraform output -json regions)`):
 
 | Config | Provides | Consumed by |
 | --- | --- | --- |
-| `aws/` | VPC + 2 private subnets in different AZs (region set by the workflow, currently `us-east-2`) | `regions[].vpc_id`, `regions[].subnet_ids` |
-| `azure/` | Resource group + VNet + subnet (`eastus2`) | `azure_resource_group_name`, `regions[].subnet_id`, `regions[].azure_location` |
-| `gcp/` | VPC + subnetwork (region set by the workflow, currently `us-central1`) | `regions[].subnetwork` (self link) |
+| `aws/` | VPC + 2 private subnets in different AZs (region set by the workflow, currently `us-east-2`); `regions` output with `name` (Atlas format, derived from `var.aws_region`), `vpc_id`, `subnet_ids` | `regions` variable |
+| `azure/` | Resource group + VNet + subnet (`eastus2`); `regions` output with `name` (`var.atlas_region`, default `US_EAST_2`), `azure_location`, `subnet_id`; plus a `resource_group_name` output | `regions` variable, `azure_resource_group_name` |
+| `gcp/` | VPC + subnetwork (region set by the workflow, currently `us-central1`); `regions` output with `name` (`var.gcp_region`), `subnetwork` (self link) | `regions` variable |
 
-If an example's required inputs change, update the matching config here. The E2E run fails loudly if they drift apart, and these configs are covered by the same format/validate checks as the rest of the repository.
+If an example's required inputs change, update the matching config's `regions` output here. The E2E run fails loudly if they drift apart, and these configs are covered by the same format/validate checks as the rest of the repository.
+
+## Naming
+
+All resources created by the E2E runs (here, in the scripts, and in the module-managed backup buckets) use the `atlas-examples-e2e-` prefix so they are clearly attributable to this repository in the shared Atlas org and cloud accounts — and so the [cleanup-test-env workflow](../../.github/workflows/cleanup-test-env.yml) can safely identify stale leftovers.

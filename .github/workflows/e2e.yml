@@ -50,7 +50,7 @@ jobs:
     env:
       MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
       MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
-      TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+      MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
@@ -75,14 +75,14 @@ jobs:
     name: E2E Azure
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'azure'
+    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'azure'
     concurrency:
       group: e2e-azure
       cancel-in-progress: false
     env:
       MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
       MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
-      TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+      MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
@@ -107,14 +107,14 @@ jobs:
     name: E2E GCP
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'gcp'
+    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'gcp'
     concurrency:
       group: e2e-gcp
       cancel-in-progress: false
     env:
       MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
       MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
-      TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+      MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
