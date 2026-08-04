@@ -15,7 +15,7 @@ Each example deliberately expects networking to pre-exist (see the "Prerequisite
 
 ## Keeping it in sync
 
-The only coupling between these configs and the examples is the **input contract** — each config exposes a ready-made `regions` output shaped exactly like the matching example's `regions` variable, which the E2E script passes through verbatim (`TF_VAR_regions=$(terraform output -json regions)`):
+The only coupling between these configs and the examples is the **input contract** — each config exposes a ready-made `regions` output shaped exactly like the matching example's `regions` variable, which the E2E scripts pass through verbatim (merged from `terraform output -json regions` into the per-run tfvars file):
 
 | Config | Provides | Consumed by |
 | --- | --- | --- |
