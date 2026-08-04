@@ -1,5 +1,6 @@
 mock_provider "mongodbatlas" {}
 mock_provider "aws" {}
+mock_provider "local" {}
 
 variables {
   atlas_org_id = "org123"
@@ -40,6 +41,16 @@ run "defaults" {
     ]) == 1 && length(mongodbatlas_database_user.lambda.roles) == 1
     error_message = "IAM DB user should be readWrite on test only"
   }
+
+  assert {
+    condition     = length(local_file.app_tfvars) == 1
+    error_message = "Handoff writer should be enabled by default"
+  }
+
+  assert {
+    condition     = local_file.app_tfvars[0].filename == "../02_app_lambda/infra.auto.tfvars"
+    error_message = "Default handoff path should target 02_app_lambda"
+  }
 }
 
 run "name_prefix_override" {
@@ -59,5 +70,19 @@ run "name_prefix_override" {
   assert {
     condition     = output.atlas_cluster_name == "demo-app"
     error_message = "Cluster name should follow name_prefix"
+  }
+}
+
+run "app_tfvars_disabled" {
+  command = plan
+
+  variables {
+    atlas_org_id = "org123"
+    app_tfvars   = ""
+  }
+
+  assert {
+    condition     = length(local_file.app_tfvars) == 0
+    error_message = "Empty app_tfvars should disable the handoff writer"
   }
 }

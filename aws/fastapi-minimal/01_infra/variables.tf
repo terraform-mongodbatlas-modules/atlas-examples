@@ -26,3 +26,9 @@ variable "s3_force_destroy" {
   type        = bool
   default     = true
 }
+
+variable "app_tfvars" {
+  description = "Relative path for the 02_app_lambda handoff tfvars. Empty string disables the writer."
+  type        = string
+  default     = "../02_app_lambda/infra.auto.tfvars"
+}

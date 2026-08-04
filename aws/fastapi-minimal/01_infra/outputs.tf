@@ -26,11 +26,7 @@ output "lambda_execution_role_arn" {
 output "mongo_private_connection_string" {
   description = "Private endpoint SRV connection string for the cluster"
   sensitive   = true
-  value = coalesce(
-    try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
-    try(module.atlas_cluster.connection_strings.private_srv, ""),
-    module.atlas_cluster.connection_strings.standard_srv
-  )
+  value       = local.mongo_private_connection_string
 }
 
 output "atlas_project_id" {
@@ -45,7 +41,7 @@ output "atlas_cluster_name" {
 
 output "app_database_name" {
   description = "Database granted to the Lambda IAM user (readWrite)"
-  value       = one([for r in mongodbatlas_database_user.lambda.roles : r.database_name])
+  value       = local.app_database_name
 }
 
 output "privatelink" {
@@ -62,3 +58,4 @@ output "backup_export_bucket_name" {
   description = "Backup export S3 bucket name"
   value       = try(module.atlas_aws.backup_export.bucket_name, null)
 }
+

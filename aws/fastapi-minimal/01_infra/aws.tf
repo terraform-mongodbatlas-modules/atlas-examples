@@ -1,5 +1,12 @@
 locals {
   aws_region = replace(lower(var.atlas_region), "_", "-")
+
+  mongo_private_connection_string = coalesce(
+    try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
+    try(module.atlas_cluster.connection_strings.private_srv, ""),
+    module.atlas_cluster.connection_strings.standard_srv
+  )
+  app_database_name = one([for r in mongodbatlas_database_user.lambda.roles : r.database_name])
 }
 
 module "vpc" {
@@ -136,4 +143,17 @@ resource "aws_iam_role_policy_attachment" "lambda_exec" {
 
   role       = aws_iam_role.lambda_exec.name
   policy_arn = each.value
+}
+
+resource "local_file" "app_tfvars" {
+  count    = var.app_tfvars != "" ? 1 : 0
+  filename = var.app_tfvars
+  content  = <<-EOT
+    aws_region                      = "${local.aws_region}"
+    private_subnet_ids              = ${jsonencode(module.vpc.private_subnets)}
+    lambda_security_group_id        = "${aws_security_group.lambda.id}"
+    lambda_execution_role_arn       = "${aws_iam_role.lambda_exec.arn}"
+    mongo_private_connection_string = "${local.mongo_private_connection_string}"
+    app_database_name               = "${local.app_database_name}"
+  EOT
 }
