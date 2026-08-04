@@ -11,7 +11,7 @@ Full SA apply/destroy guide is forthcoming (t16-03). `02_app_lambda` and `src/` 
 3. AWS credentials for the target account/region
 4. Copy [terraform.tfvars.example](./terraform.tfvars.example) to `terraform.tfvars` and set `atlas_org_id`
 
-Module inputs: [project](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/project/mongodbatlas/latest), [atlas-aws](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/atlas-aws/mongodbatlas/latest), [cluster](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest).
+Module inputs: [project](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/project/mongodbatlas/latest), [atlas-aws](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws/tree/main), [cluster](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest). The `atlas-aws` module temporarily tracks its `main` branch for the AWS provider 6 deprecation fix; switch back to the registry release once that fix is published.
 
 ## Networking
 

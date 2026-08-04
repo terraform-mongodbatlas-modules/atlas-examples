@@ -9,8 +9,8 @@ module "atlas_project" {
 }
 
 module "atlas_aws" {
-  source  = "terraform-mongodbatlas-modules/atlas-aws/mongodbatlas"
-  version = "~> 0.3"
+  # Temporary: use the upstream main branch until the AWS provider 6 deprecation fix is released.
+  source = "git::https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws.git?ref=main"
 
   project_id = module.atlas_project.id
 
