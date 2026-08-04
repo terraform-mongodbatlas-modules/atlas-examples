@@ -44,6 +44,11 @@ run "create_ecr_defaults" {
   }
 
   assert {
+    condition     = aws_lambda_function.app.tracing_config[0].mode == "Active"
+    error_message = "Lambda should enable active X-Ray tracing"
+  }
+
+  assert {
     condition     = aws_cloudwatch_log_group.lambda.name == "/aws/lambda/fastapi-minimal"
     error_message = "Log group should follow /aws/lambda/<function_name>"
   }

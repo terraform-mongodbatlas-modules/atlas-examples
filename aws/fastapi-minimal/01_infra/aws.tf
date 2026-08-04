@@ -139,6 +139,7 @@ resource "aws_iam_role_policy_attachment" "lambda_exec" {
     basic = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
     vpc   = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
     ecr   = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+    xray  = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
   }
 
   role       = aws_iam_role.lambda_exec.name

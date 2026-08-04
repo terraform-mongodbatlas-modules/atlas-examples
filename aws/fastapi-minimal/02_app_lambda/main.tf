@@ -52,6 +52,10 @@ resource "aws_lambda_function" "app" {
   timeout       = 30
   memory_size   = 512
 
+  tracing_config {
+    mode = "Active"
+  }
+
   environment {
     variables = {
       MONGO_URL    = var.mongo_private_connection_string
