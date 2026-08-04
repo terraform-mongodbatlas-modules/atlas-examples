@@ -1,0 +1,7 @@
+atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
+
+# Optional overrides:
+# atlas_region     = "US_EAST_1"
+# name_prefix      = "fastapi-minimal"
+# tags             = { Example = "aws-fastapi-minimal" }
+# s3_force_destroy = true  # false retains log/backup bucket objects on destroy
