@@ -6,7 +6,8 @@ name: Cleanup test env
 # in-flight runs are never affected; failed deletions are retried on the next
 # run. Modeled on mongodb/terraform-provider-mongodbatlas cleanup-test-env.yml.
 #
-# The scheduled run deletes for real; manual dispatches default to dry-run.
+# Runs after the E2E workflow's jobs (weekly schedule + manual dispatches, see
+# e2e.yml) and deletes for real; direct manual dispatches default to dry-run.
 #
 # Required GitHub secrets:
 #   MONGODB_ATLAS_CLIENT_ID, MONGODB_ATLAS_CLIENT_SECRET (service account with
@@ -14,6 +15,7 @@ name: Cleanup test env
 #   (optional) MONGODB_ATLAS_BASE_URL for non-production Atlas environments
 
 on:
+  workflow_call: # runs from the E2E workflow after its jobs complete
   workflow_dispatch:
     inputs:
       dry_run:
@@ -24,8 +26,6 @@ on:
         description: Delete all matching projects regardless of creation time (never use while E2E runs are in flight)
         type: boolean
         default: false
-  schedule:
-    - cron: '0 6 * * 0' # Sundays 06:00 UTC
 
 permissions:
   contents: read
@@ -34,6 +34,9 @@ jobs:
   cleanup-test-env:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    concurrency:
+      group: cleanup-test-env
+      cancel-in-progress: false
     env:
       MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
       MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}

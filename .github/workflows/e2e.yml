@@ -135,3 +135,13 @@ jobs:
         env:
           RUN_ID: ${{ github.run_id }}
         run: e2e/scripts/gcp.sh
+
+  # Sweeps stale atlas-examples-e2e-* Atlas projects after every E2E run —
+  # catches leftovers from killed runners (the 24h grace period protects
+  # in-flight runs, so anything from this run is swept on a later one).
+  cleanup:
+    name: Cleanup test env
+    needs: [aws, azure, gcp]
+    if: always()
+    uses: ./.github/workflows/cleanup-test-env.yml
+    secrets: inherit
