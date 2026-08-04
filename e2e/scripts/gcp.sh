@@ -27,8 +27,8 @@ GCP_REGION="${GCP_E2E_REGION:-us-central1}"
 BOOTSTRAP_TFVARS="$BOOTSTRAP/e2e-$RUN_ID.tfvars.json"
 EXAMPLE_TFVARS="$EXAMPLE/e2e-$RUN_ID.tfvars.json"
 
-jq -n --arg suffix "$RUN_ID" --arg region "$GCP_REGION" \
-  '{name_suffix: $suffix, gcp_region: $region}' > "$BOOTSTRAP_TFVARS"
+jq -n --arg suffix "$RUN_ID" --arg region "$GCP_REGION" --arg project "$GCP_PROJECT_ID" \
+  '{name_suffix: $suffix, gcp_region: $region, gcp_project_id: $project}' > "$BOOTSTRAP_TFVARS"
 
 cleanup() {
   if [[ "${SKIP_DESTROY:-false}" == "true" ]]; then
@@ -65,9 +65,13 @@ terraform apply -auto-approve -input=false -var-file="$BOOTSTRAP_TFVARS"
 # ready-made value for the example's regions variable.
 # backup_export: ephemeral run — allow bucket deletion with exports, and set an
 # explicit bucket name attributable to this repo in the shared GCP project.
+# Cluster names use a short prefix: Atlas validates an internal prefix derived
+# from the first 23 chars (CLUSTER_NAME_PREFIX_INVALID when char 23 is a
+# hyphen). Attribution comes from the containing project name.
 jq -n \
   --arg org "$MONGODB_ATLAS_ORG_ID" \
   --arg name "atlas-examples-e2e-gcp-$RUN_ID" \
+  --arg cluster "atlas-ex-e2e-gcp-$RUN_ID" \
   --arg project "$GCP_PROJECT_ID" \
   --arg region "$GCP_REGION" \
   --arg bucket "atlas-examples-e2e-backup-$RUN_ID" \
@@ -75,7 +79,7 @@ jq -n \
   '{
     atlas_org_id: $org,
     atlas_project_name: $name,
-    atlas_cluster_name: $name,
+    atlas_cluster_name: $cluster,
     gcp_project_id: $project,
     gcp_region: $region,
     backup_export_force_destroy: true,

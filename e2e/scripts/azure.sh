@@ -86,9 +86,13 @@ terraform apply -auto-approve -input=false -var-file="$BOOTSTRAP_TFVARS"
 # The validation VM is intentionally out of scope for the E2E: scripted access
 # requires an SSH key + Bastion Standard (extra cost); Serial Console is
 # manual-only.
+# Cluster names use a short prefix: Atlas validates an internal prefix derived
+# from the first 23 chars (CLUSTER_NAME_PREFIX_INVALID when char 23 is a
+# hyphen). Attribution comes from the containing project name.
 jq -n \
   --arg org "$MONGODB_ATLAS_ORG_ID" \
   --arg name "atlas-examples-e2e-azure-$RUN_ID" \
+  --arg cluster "atlas-ex-e2e-azure-$RUN_ID" \
   --arg sub "$subscription_id" \
   --arg rg "$(terraform output -raw resource_group_name)" \
   --argjson regions "$(terraform output -json regions)" \
@@ -96,7 +100,7 @@ jq -n \
   '{
     atlas_org_id: $org,
     atlas_project_name: $name,
-    atlas_cluster_name: $name,
+    atlas_cluster_name: $cluster,
     azure_subscription_id: $sub,
     enable_validation_vm: false,
     azure_resource_group_name: $rg,

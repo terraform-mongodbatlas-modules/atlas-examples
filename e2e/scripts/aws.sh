@@ -63,16 +63,20 @@ terraform apply -auto-approve -input=false -var-file="$BOOTSTRAP_TFVARS"
 # meaningfully requires extra networking (public subnet/NAT) and SSM access.
 # backup_export: ephemeral run — allow bucket deletion with exports, and set an
 # explicit bucket name attributable to this repo in the shared AWS account.
+# Cluster names use a short prefix: Atlas validates an internal prefix derived
+# from the first 23 chars (CLUSTER_NAME_PREFIX_INVALID when char 23 is a
+# hyphen). Attribution comes from the containing project name.
 jq -n \
   --arg org "$MONGODB_ATLAS_ORG_ID" \
   --arg name "atlas-examples-e2e-aws-$RUN_ID" \
+  --arg cluster "atlas-ex-e2e-aws-$RUN_ID" \
   --arg region "$AWS_REGION" \
   --arg bucket "atlas-examples-e2e-backup-$RUN_ID" \
   --argjson regions "$(terraform output -json regions)" \
   '{
     atlas_org_id: $org,
     atlas_project_name: $name,
-    atlas_cluster_name: $name,
+    atlas_cluster_name: $cluster,
     aws_region: $region,
     enable_validation_vm: false,
     backup_export_force_destroy: true,

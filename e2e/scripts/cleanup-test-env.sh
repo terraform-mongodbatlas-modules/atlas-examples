@@ -11,13 +11,13 @@
 #   MONGODB_ATLAS_CLIENT_ID, MONGODB_ATLAS_CLIENT_SECRET (service account with
 #   ORG_OWNER), MONGODB_ATLAS_ORG_ID
 # Optional:
-#   MONGODB_ATLAS_BASE_URL (default: https://cloud.mongodb.com),
+#   MONGODB_ATLAS_BASE_URL (default: https://cloud-dev.mongodb.com),
 #   PROJECT_PREFIX (default: atlas-examples-e2e-),
 #   GRACE_PERIOD_HOURS (default: 24),
 #   DRY_RUN=true to only list matching projects without deleting them
 set -euo pipefail
 
-BASE_URL="${MONGODB_ATLAS_BASE_URL:-https://cloud.mongodb.com}"
+BASE_URL="${MONGODB_ATLAS_BASE_URL:-https://cloud-dev.mongodb.com}"
 BASE_URL="${BASE_URL%/}" # tolerate a trailing slash
 PREFIX="${PROJECT_PREFIX:-atlas-examples-e2e-}"
 GRACE_HOURS="${GRACE_PERIOD_HOURS:-24}"
