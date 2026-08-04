@@ -79,8 +79,10 @@ module "atlas_cluster" {
     }
   ]
 
-  # Leave auto_scaling / backup_enabled / retain_backups_enabled at module defaults
-  # (compute autoscaling on, min M10, max M200, backups retained). Pin sizes via auto_scaling if needed.
+  # Optional: lower the autoscaling ceiling (module default max is M200).
+  # auto_scaling = {
+  #   compute_max_instance_size = "M30"
+  # }
 
   encryption_at_rest_provider = module.atlas_aws.encryption_at_rest_provider
   tags                        = var.tags
