@@ -144,4 +144,8 @@ jobs:
     needs: [aws, azure, gcp]
     if: always()
     uses: ./.github/workflows/cleanup-test-env.yml
-    secrets: inherit
+    secrets: # least privilege: only the Atlas credentials the cleanup needs
+      MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
+      MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
+      MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+      MONGODB_ATLAS_BASE_URL: ${{ secrets.MONGODB_ATLAS_BASE_URL }}

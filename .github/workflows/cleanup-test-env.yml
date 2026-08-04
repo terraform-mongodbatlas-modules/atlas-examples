@@ -16,6 +16,15 @@ name: Cleanup test env
 
 on:
   workflow_call: # runs from the E2E workflow after its jobs complete
+    secrets:
+      MONGODB_ATLAS_CLIENT_ID:
+        required: true
+      MONGODB_ATLAS_CLIENT_SECRET:
+        required: true
+      MONGODB_ATLAS_ORG_ID:
+        required: true
+      MONGODB_ATLAS_BASE_URL:
+        required: false
   workflow_dispatch:
     inputs:
       dry_run:
