@@ -60,5 +60,5 @@ locals {
     local.validation_vm_first_region.name
   )
   validation_vm_subnetwork = local.validation_vm_first_region == null ? null : local.validation_vm_first_region.subnetwork
-  validation_vm_enabled    = var.enable_validation_vm && local.validation_vm_first_region != null
+  validation_vm_enabled    = var.enable_validation_vm
 }
