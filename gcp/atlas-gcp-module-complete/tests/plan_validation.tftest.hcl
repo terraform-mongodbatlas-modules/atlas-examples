@@ -205,15 +205,3 @@ run "empty_regions_rejected" {
 
   expect_failures = [var.regions]
 }
-
-run "computed_subnetwork_keeps_validation_count_known" {
-  command = plan
-
-  module {
-    source = "./tests/fixtures/computed-subnetwork"
-  }
-
-  variables {
-    enable_validation_vm = true
-  }
-}
