@@ -9,8 +9,8 @@ name: Cleanup test env
 # next run. The atlas-examples-e2e- prefix is part of its built-in default
 # prefixes (mongodb/terraform-provider-mongodbatlas#4616).
 #
-# Runs after the E2E workflow's jobs (see e2e.yml) and deletes for real;
-# direct manual dispatches default to dry-run.
+# Runs after the E2E workflow's jobs (see e2e.yml) and can be run manually;
+# both delete for real (the 5h grace period protects anything recent).
 #
 # Required GitHub secrets:
 #   MONGODB_ATLAS_CLIENT_ID, MONGODB_ATLAS_CLIENT_SECRET (service account with
@@ -28,16 +28,7 @@ on:
         required: true
       MONGODB_ATLAS_BASE_URL:
         required: false
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: Only list stale projects without deleting them
-        type: boolean
-        default: true
-      skip_grace_period:
-        description: Delete all matching projects regardless of creation time (never use while E2E runs are in flight)
-        type: boolean
-        default: false
+  workflow_dispatch: {} # workflow can be run manually
 
 permissions:
   contents: read
@@ -63,9 +54,6 @@ jobs:
           fi
       - name: Clean Atlas org
         uses: ./.github/templates/clean-atlas-org
-        with:
-          # Chained runs delete for real; manual dispatches honor the dry_run input
-          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
         env:
           MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
           MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
@@ -73,4 +61,3 @@ jobs:
           MONGODB_ATLAS_BASE_URL: ${{ env.MONGODB_ATLAS_BASE_URL }}
           # Deleting clusters is slow; leftovers are retried on the next run instead of blocking
           MONGODB_ATLAS_CLEAN_RETRY_ATTEMPTS: "1"
-          MONGODB_ATLAS_CLEAN_SKIP_GRACE_PERIOD: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_grace_period || false }}
