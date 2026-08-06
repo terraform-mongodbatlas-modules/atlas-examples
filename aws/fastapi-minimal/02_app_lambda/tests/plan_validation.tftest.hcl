@@ -6,20 +6,11 @@ variables {
   lambda_security_group_id        = "sg-lambda"
   lambda_execution_role_arn       = "arn:aws:iam::123456789012:role/fastapi-minimal-lambda-exec"
   mongo_private_connection_string = "mongodb+srv://pl-0.example.mongodb.net"
+  ecr_repository_url              = "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-minimal"
 }
 
-run "create_ecr_defaults" {
+run "lambda_wiring" {
   command = plan
-
-  assert {
-    condition     = local.create_ecr == true && output.ecr_managed == true
-    error_message = "Should create ECR when ecr_repository_url is unset"
-  }
-
-  assert {
-    condition     = length(aws_ecr_repository.app) == 1 && length(aws_ecr_lifecycle_policy.app) == 1
-    error_message = "Should create ECR repository and lifecycle policy by default"
-  }
 
   assert {
     condition = alltrue([
@@ -35,7 +26,12 @@ run "create_ecr_defaults" {
       aws_lambda_function.app.vpc_config[0].security_group_ids == toset([var.lambda_security_group_id]),
       aws_lambda_function.app.vpc_config[0].subnet_ids == toset(var.private_subnet_ids),
     ])
-    error_message = "Lambda must reuse infra SG and subnets"
+    error_message = "Lambda must reuse LZ SG and subnets"
+  }
+
+  assert {
+    condition     = local.image_uri == "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-minimal:0.0.1"
+    error_message = "Image URI should use required ecr_repository_url + image_tag"
   }
 
   assert {
@@ -54,29 +50,19 @@ run "create_ecr_defaults" {
   }
 }
 
-run "byo_ecr" {
+run "overrides" {
   command = plan
 
   variables {
-    ecr_repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/existing-repo"
     image_tag          = "1.2.3"
     app_database_name  = "appdb"
     name_prefix        = "demo-app"
-  }
-
-  assert {
-    condition     = local.create_ecr == false && output.ecr_managed == false
-    error_message = "Should not create ECR when ecr_repository_url is set"
-  }
-
-  assert {
-    condition     = length(aws_ecr_repository.app) == 0
-    error_message = "No ECR repository resource when BYO"
+    ecr_repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/existing-repo"
   }
 
   assert {
     condition     = local.image_uri == "123456789012.dkr.ecr.us-east-1.amazonaws.com/existing-repo:1.2.3"
-    error_message = "Image URI should use BYO URL + image_tag"
+    error_message = "Image URI should follow overrides"
   }
 
   assert {

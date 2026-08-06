@@ -2,14 +2,14 @@ default:
     @just --list
 
 # ECR login, build linux/arm64 from src/, tag, and push.
-# Prefer terraform output from 02_app_lambda; else ECR_REPOSITORY_URL env.
+# Prefer terraform output from 01_lz; else ECR_REPOSITORY_URL env.
 build-push tag="0.0.1":
     #!/usr/bin/env bash
     set -euo pipefail
     root="$(cd "{{justfile_directory}}" && pwd)"
-    repo_url="$(terraform -chdir="${root}/02_app_lambda" output -raw ecr_repository_url 2>/dev/null || true)"
+    repo_url="$(terraform -chdir="${root}/01_lz" output -raw ecr_repository_url 2>/dev/null || true)"
     if [[ -z "${repo_url}" ]]; then
-      : "${ECR_REPOSITORY_URL:?Set ECR_REPOSITORY_URL or apply 02_app_lambda ECR first}"
+      : "${ECR_REPOSITORY_URL:?Set ECR_REPOSITORY_URL or apply 01_lz first}"
       repo_url="${ECR_REPOSITORY_URL}"
     fi
     region="$(echo "${repo_url}" | cut -d. -f4)"

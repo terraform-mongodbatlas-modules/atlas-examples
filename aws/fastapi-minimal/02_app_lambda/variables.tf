@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "AWS region (from 01_infra handoff)"
+  description = "AWS region (from 01_lz handoff)"
   type        = string
 }
 
@@ -9,12 +9,12 @@ variable "private_subnet_ids" {
 }
 
 variable "lambda_security_group_id" {
-  description = "Security group ID from 01_infra (restricted egress)"
+  description = "Security group ID from 01_lz (restricted egress)"
   type        = string
 }
 
 variable "lambda_execution_role_arn" {
-  description = "Lambda execution role ARN from 01_infra"
+  description = "Lambda execution role ARN from 01_lz"
   type        = string
 }
 
@@ -24,8 +24,13 @@ variable "mongo_private_connection_string" {
   sensitive   = true
 }
 
+variable "ecr_repository_url" {
+  description = "ECR repository URL from 01_lz (no tag). Required; LZ creates the repo."
+  type        = string
+}
+
 variable "name_prefix" {
-  description = "Prefix for ECR repository and Lambda function names"
+  description = "Prefix for the Lambda function name"
   type        = string
   default     = "fastapi-minimal"
 }
@@ -40,12 +45,6 @@ variable "app_database_name" {
   description = "Database name passed to the Lambda as DB_NAME"
   type        = string
   default     = "test"
-}
-
-variable "ecr_repository_url" {
-  description = "BYO ECR repository URL (no tag). Null/empty creates a repo in this stack. Cross-account BYO needs pull permissions on the Lambda role."
-  type        = string
-  default     = null
 }
 
 variable "tags" {

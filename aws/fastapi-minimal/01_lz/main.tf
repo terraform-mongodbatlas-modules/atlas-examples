@@ -1,3 +1,65 @@
+locals {
+  atlas_region_names = distinct([for r in var.regions : r.name])
+  aws_region         = replace(lower(var.regions[0].name), "_", "-")
+  aws_regions        = [for name in local.atlas_region_names : replace(lower(name), "_", "-")]
+
+  lambda_apps = {
+    for k, v in var.lambda_apps : k => {
+      name             = coalesce(v.name, k == "default" ? var.name_prefix : "${var.name_prefix}-${k}")
+      ecr_key          = v.ecr_key
+      primary_database = coalesce(v.primary_database, v.roles[0].database_name)
+      roles            = v.roles
+      tfvars_path      = v.tfvars_path != null && v.tfvars_path != "" ? v.tfvars_path : null
+      secret_name = (
+        v.secret == null
+        ? null
+        : coalesce(v.secret.name, "${coalesce(v.name, k == "default" ? var.name_prefix : "${var.name_prefix}-${k}")}-app")
+      )
+    }
+  }
+  primary_app_key = contains(keys(local.lambda_apps), "default") ? "default" : sort(keys(local.lambda_apps))[0]
+  primary_app     = local.lambda_apps[local.primary_app_key]
+  primary_ecr_url = aws_ecr_repository.this[local.primary_app.ecr_key].repository_url
+
+  lambda_tfvars  = { for k, v in local.lambda_apps : k => v if v.tfvars_path != null }
+  lambda_secrets = { for k, v in local.lambda_apps : k => v if v.secret_name != null }
+
+  ecr_repositories = {
+    for k, v in var.ecr_repositories : k => {
+      name                 = coalesce(v.name, k == "default" ? var.name_prefix : "${var.name_prefix}-${k}")
+      image_tag_mutability = v.image_tag_mutability
+      scan_on_push         = v.scan_on_push
+      force_delete         = v.force_delete
+      lifecycle_keep_count = v.lifecycle_keep_count
+    }
+  }
+  ecr_lifecycle_policies = {
+    for k, v in local.ecr_repositories : k => v.lifecycle_keep_count
+    if v.lifecycle_keep_count > 0
+  }
+
+  # Disk GB auto-scaling is always on. Compute auto-scales unless manual_scaling is set.
+  cluster_instance_size = try(var.manual_scaling.instance_size, null)
+  cluster_auto_scaling = {
+    compute_enabled = var.manual_scaling == null
+    disk_gb_enabled = true
+  }
+
+  lambda_managed_policies = {
+    basic = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+    vpc   = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+    ecr   = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+    xray  = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+  }
+  lambda_role_policy_attachments = {
+    for pair in setproduct(keys(local.lambda_apps), keys(local.lambda_managed_policies)) :
+    "${pair[0]}-${pair[1]}" => {
+      app_key    = pair[0]
+      policy_arn = local.lambda_managed_policies[pair[1]]
+    }
+  }
+}
+
 module "atlas_project" {
   source  = "terraform-mongodbatlas-modules/project/mongodbatlas"
   version = "~> 0.2"
@@ -14,13 +76,10 @@ module "atlas_aws" {
 
   project_id = module.atlas_project.id
 
-  # CPA: omit cloud_provider_access (module default create = true).
-  # To BYO: cloud_provider_access = { create = false, existing = { role_id = "...", iam_role_arn = "..." } }
-
   privatelink_endpoints = [
-    {
-      region     = var.atlas_region
-      subnet_ids = module.vpc.private_subnets
+    for name in local.atlas_region_names : {
+      region     = name
+      subnet_ids = local.private_subnet_ids
     }
   ]
 
@@ -31,7 +90,7 @@ module "atlas_aws" {
       enabled = true
       # For non-ephemeral accounts, raise deletion_window_in_days (max 30).
     }
-    private_endpoint_regions = [local.aws_region]
+    private_endpoint_regions = local.aws_regions
   }
 
   # Disable: log_integration = { enabled = false }
@@ -70,19 +129,12 @@ module "atlas_cluster" {
   project_id    = module.atlas_project.id
   name          = var.name_prefix
   provider_name = "AWS"
-  cluster_type  = "REPLICASET"
+  cluster_type  = var.cluster_type
+  shard_count   = var.cluster_type == "SHARDED" ? var.shard_count : null
 
-  regions = [
-    {
-      name       = var.atlas_region
-      node_count = 3
-    }
-  ]
-
-  # Optional: lower the autoscaling ceiling (module default max is M200).
-  # auto_scaling = {
-  #   compute_max_instance_size = "M30"
-  # }
+  regions       = var.regions
+  instance_size = local.cluster_instance_size
+  auto_scaling  = local.cluster_auto_scaling
 
   encryption_at_rest_provider = module.atlas_aws.encryption_at_rest_provider
   tags                        = var.tags
@@ -90,20 +142,22 @@ module "atlas_cluster" {
   depends_on = [module.atlas_aws]
 }
 
-/*
-  IAM DB user for the Lambda execution role.
-  Privilege: readWrite on `test` only (enough to create DB/collection + CRUD).
-  t16-02: do not use admin.command("ping"); ping the app DB or rely on find/upsert.
-*/
 resource "mongodbatlas_database_user" "lambda" {
+  for_each = local.lambda_apps
+
   project_id         = module.atlas_project.id
-  username           = aws_iam_role.lambda_exec.arn
+  username           = aws_iam_role.lambda_exec[each.key].arn
   auth_database_name = "$external"
   aws_iam_type       = "ROLE"
 
-  roles {
-    role_name     = "readWrite"
-    database_name = "test"
+  dynamic "roles" {
+    for_each = each.value.roles
+
+    content {
+      role_name       = roles.value.role_name
+      database_name   = roles.value.database_name
+      collection_name = roles.value.collection_name
+    }
   }
 
   depends_on = [module.atlas_cluster]

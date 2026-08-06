@@ -1,40 +1,7 @@
 locals {
-  function_name      = var.name_prefix
-  create_ecr         = var.ecr_repository_url == null || var.ecr_repository_url == ""
-  ecr_repository_url = local.create_ecr ? aws_ecr_repository.app[0].repository_url : var.ecr_repository_url
-  image_uri          = "${local.ecr_repository_url}:${var.image_tag}"
-  log_group_name     = "/aws/lambda/${local.function_name}"
-}
-
-resource "aws_ecr_repository" "app" {
-  count = local.create_ecr ? 1 : 0
-
-  name                 = var.name_prefix
-  image_tag_mutability = "MUTABLE"
-
-  encryption_configuration {
-    encryption_type = "AES256"
-  }
-
-  tags = var.tags
-}
-
-resource "aws_ecr_lifecycle_policy" "app" {
-  count = local.create_ecr ? 1 : 0
-
-  repository = aws_ecr_repository.app[0].name
-  policy = jsonencode({
-    rules = [{
-      rulePriority = 1
-      description  = "Keep last 10 images"
-      selection = {
-        tagStatus   = "any"
-        countType   = "imageCountMoreThan"
-        countNumber = 10
-      }
-      action = { type = "expire" }
-    }]
-  })
+  function_name  = var.name_prefix
+  image_uri      = "${var.ecr_repository_url}:${var.image_tag}"
+  log_group_name = "/aws/lambda/${local.function_name}"
 }
 
 resource "aws_cloudwatch_log_group" "lambda" {

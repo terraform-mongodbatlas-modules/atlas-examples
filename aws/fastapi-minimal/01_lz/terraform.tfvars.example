@@ -1,7 +1,52 @@
 atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 
 # Optional overrides:
-# atlas_region     = "US_EAST_1"
-# name_prefix      = "fastapi-minimal"
-# tags             = { Example = "aws-fastapi-minimal" }
+# regions = [{ name = "US_EAST_1", node_count = 3 }]
+# name_prefix = "fastapi-minimal"
+# tags = { Example = "aws-fastapi-minimal" }
 # s3_force_destroy = true  # false retains log/backup bucket objects on destroy
+#
+# # Cheap personal lab (before first apply):
+# cluster_type = "REPLICASET"
+# # shard_count is ignored for REPLICASET
+# # Pin compute (disk GB still auto-scales):
+# manual_scaling = { instance_size = "M10" }
+#
+# # ECR is independent of lambda_apps (survives Lambda -> ECS compute changes):
+# ecr_repositories = {
+#   api = {
+#     name                 = "fastapi-minimal-api"
+#     image_tag_mutability = "IMMUTABLE"  # default; use MUTABLE only to overwrite tags
+#     scan_on_push         = true
+#     lifecycle_keep_count = 10  # 0 disables lifecycle policy
+#     # force_delete = false    # block destroy while images remain
+#   }
+# }
+#
+# lambda_apps = {
+#   default = {
+#     ecr_key     = "api"
+#     roles       = [{ database_name = "test" }]
+#     tfvars_path = "../02_app_lambda/infra.auto.tfvars"
+#     # secret = { name = "fastapi-minimal-app" }  # null-gate; omit name to derive <app>-app
+#   }
+#   worker = {
+#     name        = "fastapi-minimal-worker"
+#     ecr_key     = "api"
+#     tfvars_path = "../02_app_worker/infra.auto.tfvars"
+#     secret      = {}
+#     roles = [
+#       { database_name = "jobs" },
+#       { database_name = "jobs_archive", role_name = "read" },
+#     ]
+#   }
+# }
+#
+# # BYO VPC (create = false requires all four fields):
+# vpc_config = {
+#   create                  = false
+#   vpc_id                  = "vpc-xxx"
+#   private_subnet_ids      = ["subnet-aaa", "subnet-bbb"]
+#   vpc_cidr_block          = "10.0.0.0/16"
+#   private_route_table_ids = ["rtb-aaa"]
+# }
