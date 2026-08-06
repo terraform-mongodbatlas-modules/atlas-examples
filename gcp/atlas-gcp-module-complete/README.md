@@ -56,7 +56,7 @@ At a minimum, provide:
 | `atlas_cluster_name` | Name for the Atlas cluster |
 | `regions` | List of regions with region name and subnetwork self_link (see [terraform.tfvars.example](./terraform.tfvars.example)). Accepts Atlas format (`US_EAST_4`) or GCP format (`us-east4`); normalized internally. |
 
-Optional variables include `tags`, `ip_access_list`, `service_account_email`, `backup_export_force_destroy`, and the validation settings:
+Optional variables include `tags`, `ip_access_list`, `service_account_email`, `backup_export_force_destroy`, `backup_export_bucket_name`, and the validation settings:
 
 | Variable | Default | Description |
 | --- | --- | --- |

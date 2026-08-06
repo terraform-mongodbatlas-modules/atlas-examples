@@ -45,6 +45,7 @@ locals {
     enabled = true
     create_gcs_bucket = {
       enabled       = true
+      name          = var.backup_export_bucket_name
       location      = local.regions_normalized[0].name
       force_destroy = var.backup_export_force_destroy
     }

@@ -11,7 +11,7 @@ resource "aws_vpc" "this" {
   enable_dns_support   = true
 
   tags = {
-    Name = "atlas-e2e-${var.name_suffix}"
+    Name = "atlas-examples-e2e-${var.name_suffix}"
   }
 }
 
@@ -24,6 +24,6 @@ resource "aws_subnet" "private" {
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name = "atlas-e2e-private-${count.index + 1}-${var.name_suffix}"
+    Name = "atlas-examples-e2e-private-${count.index + 1}-${var.name_suffix}"
   }
 }

@@ -12,3 +12,4 @@ override.tf.json
 terraform.rc
 .vscode
 *auto.tfvars
+*.tfvars.json

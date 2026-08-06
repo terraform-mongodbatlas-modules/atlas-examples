@@ -63,6 +63,12 @@ variable "backup_export_force_destroy" {
   default     = false
 }
 
+variable "backup_export_bucket_name" {
+  type        = string
+  description = "Exact name for the module-managed backup export bucket. Defaults to the module-generated name (atlas-backup-...); set only when the bucket must be identifiable by name (e.g. ephemeral CI runs). Must be globally unique."
+  default     = null
+}
+
 variable "ip_access_list" {
   description = <<-EOT
     Optional IP access list entries for Atlas.
