@@ -2,10 +2,11 @@ mock_provider "mongodbatlas" {}
 mock_provider "google" {}
 
 variables {
-  gcp_project_id     = "test-project"
-  atlas_org_id       = "org123"
-  atlas_project_name = "test-project"
-  atlas_cluster_name = "test-cluster"
+  gcp_project_id       = "test-project"
+  atlas_org_id         = "org123"
+  atlas_project_name   = "test-project"
+  atlas_cluster_name   = "test-cluster"
+  enable_validation_vm = false
   regions = [
     {
       name       = "US_EAST_4"
@@ -25,6 +26,11 @@ run "single_region_infers_3_nodes" {
   assert {
     condition     = local.cluster_regions[0].name == "US_EAST_4"
     error_message = "Region name must stay in Atlas format for cluster module"
+  }
+
+  assert {
+    condition     = local.validation_vm_region == "us-east4"
+    error_message = "Validation VM region must normalize the first Atlas region to GCP format"
   }
 }
 
@@ -91,6 +97,11 @@ run "gcp_format_region_normalizes_to_atlas" {
   assert {
     condition     = local.backup_export_config.create_gcs_bucket.location == "us-east4"
     error_message = "Backup location must pass original input (module normalizes)"
+  }
+
+  assert {
+    condition     = local.validation_vm_region == "us-east4"
+    error_message = "Validation VM region must preserve the first region when it is already in GCP format"
   }
 }
 

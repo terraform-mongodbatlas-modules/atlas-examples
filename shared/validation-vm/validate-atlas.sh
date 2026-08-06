@@ -1,13 +1,13 @@
 #!/bin/bash
 # ==========================================================================
-# Atlas PrivateLink Validation Script
+# Atlas Private Endpoint Validation Script
 # ==========================================================================
-# Validates Atlas connectivity over PrivateLink:
+# Validates Atlas connectivity over a cloud provider private endpoint:
 #   1. MongoDB Connection - mongosh can connect
 #   2. CRUD Operations - Insert/read/update/delete
 #   3. Cluster Info - Version and topology
 #
-# This script is shared between AWS and Azure validation VM modules.
+# This script is shared by AWS, Azure, and GCP validation VM modules.
 #
 # Connection string is pre-configured in ~/.atlas-connection
 # Run: ./validate-atlas

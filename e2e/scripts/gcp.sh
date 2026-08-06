@@ -84,6 +84,7 @@ jq -n \
     gcp_region: $region,
     backup_export_force_destroy: true,
     backup_export_bucket_name: $bucket,
+    enable_validation_vm: false,
     regions: $regions
   }' > "$EXAMPLE_TFVARS"
 

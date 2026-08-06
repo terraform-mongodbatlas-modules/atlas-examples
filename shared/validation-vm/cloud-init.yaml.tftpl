@@ -2,12 +2,12 @@
 # ---------------------------------------------------------------------------
 # Atlas Validation VM Cloud-Init Configuration
 # ---------------------------------------------------------------------------
-# Installs mongosh and validation script for testing PrivateLink.
-# Connection string is pre-configured - just run: ./validate-atlas
+# Installs mongosh and the validation script for testing private connectivity.
+# The connection string is pre-configured. Run: ./validate-atlas
 #
-# This template is shared between AWS and Azure validation VM modules.
+# This template is shared by AWS, Azure, and GCP validation VM modules.
 # Template variables:
-#   - admin_username:    VM admin user (ubuntu for AWS, azureuser for Azure)
+#   - admin_username:    VM admin user (ubuntu for AWS/GCP, azureuser for Azure)
 #   - connection_string: MongoDB connection string with credentials
 #   - validate_script:   Contents of validate-atlas.sh
 # ---------------------------------------------------------------------------
