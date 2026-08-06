@@ -24,7 +24,7 @@ output "backup_export" {
 
 output "validation_vm" {
   description = "Validation VM details when enabled. Run the validation command on the VM."
-  value = local.validation_vm_enabled ? {
+  value = var.enable_validation_vm ? {
     instance_id            = module.validation_vm[0].instance_id
     instance_name          = module.validation_vm[0].instance_name
     private_ip             = module.validation_vm[0].private_ip

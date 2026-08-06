@@ -6,7 +6,8 @@
 # and GCP Private Service Connect endpoints have been created.
 # ---------------------------------------------------------------------------
 data "mongodbatlas_advanced_cluster" "validation" {
-  count = local.validation_vm_enabled ? 1 : 0
+  # Keep resource counts independent of subnet values that may be unknown until apply.
+  count = var.enable_validation_vm ? 1 : 0
 
   project_id = module.atlas_project.id
   name       = var.atlas_cluster_name
@@ -17,7 +18,7 @@ data "mongodbatlas_advanced_cluster" "validation" {
 locals {
   # Match the first region's Atlas endpoint association by forwarding rule ID.
   # GCP private endpoint SRV hostnames do not reliably contain a region token.
-  validation_vm_endpoint_service_id = local.validation_vm_enabled ? try(
+  validation_vm_endpoint_service_id = var.enable_validation_vm ? try(
     module.atlas_gcp.privatelink[local.validation_vm_region].atlas_endpoint_service_name,
     [
       for endpoint in values(module.atlas_gcp.privatelink) :
@@ -27,15 +28,12 @@ locals {
     null
   ) : null
 
-  validation_vm_private_endpoints = local.validation_vm_enabled ? try(
-    flatten([
-      for connection_string in data.mongodbatlas_advanced_cluster.validation[0].connection_strings.private_endpoint :
-      connection_string
-    ]),
+  validation_vm_private_endpoints = var.enable_validation_vm ? try(
+    data.mongodbatlas_advanced_cluster.validation[0].connection_strings.private_endpoint,
     []
   ) : []
 
-  validation_vm_connection_strings = local.validation_vm_enabled ? [
+  validation_vm_connection_strings = var.enable_validation_vm ? [
     for private_endpoint in local.validation_vm_private_endpoints :
     private_endpoint.srv_connection_string
     if try(
@@ -47,7 +45,7 @@ locals {
     )
   ] : []
 
-  validation_vm_connection_string = local.validation_vm_enabled ? try(
+  validation_vm_connection_string = var.enable_validation_vm ? try(
     local.validation_vm_connection_strings[0],
     null
   ) : null
@@ -55,7 +53,7 @@ locals {
 
 module "validation_vm" {
   source = "../modules/validation-vm"
-  count  = local.validation_vm_enabled ? 1 : 0
+  count  = var.enable_validation_vm ? 1 : 0
 
   gcp_project_id = var.gcp_project_id
   subnetwork     = local.validation_vm_subnetwork
