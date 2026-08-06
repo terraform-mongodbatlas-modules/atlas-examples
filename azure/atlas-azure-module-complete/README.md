@@ -31,7 +31,7 @@ This example creates the following resources:
    **NOTE**: Service Accounts (SA) are the preferred authentication method. See [Grant Programmatic Access to an Organization](https://www.mongodb.com/docs/atlas/configure-api-access/#grant-programmatic-access-to-an-organization) for detailed instructions.
 
 4. Authenticate your Azure CLI (`az login`) or configure Azure service principal credentials (`ARM_*` environment variables).
-5. Have an existing Azure Resource Group and at least one subnet where Private Endpoints and the validation VM will be created.
+5. Have an existing Azure Resource Group and at least one subnet where Private Endpoints and the validation VM will be created. The subnet needs outbound internet access so cloud-init can install Ubuntu packages and `mongosh`.
 
 ## Configuration
 
@@ -133,6 +133,8 @@ When `enable_validation_vm = true` (the default), a Linux VM is deployed into th
 2. Retrieve the password: `terraform output -raw validation_vm_password`
 3. Connect via **Azure Serial Console** (default) or **Azure Bastion** (if `validation_vm_ssh_key` was provided).
 4. Run `./validate-atlas` on the VM to verify connectivity to your Atlas cluster over PrivateLink.
+
+The validation VM subnet needs outbound internet access during cloud-init. Azure Serial Console and Bastion provide access to the VM but do not provide package egress.
 
 Set `enable_validation_vm = false` to skip deploying the validation VM.
 

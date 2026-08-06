@@ -1,17 +1,9 @@
-# ---------------------------------------------------------------------------
-# Data source to fetch cluster with fresh connection strings
-# ---------------------------------------------------------------------------
-# Private endpoint connection strings may not be available immediately after
-# cluster creation. Using a data source with depends_on forces Terraform to
-# re-read the cluster after private endpoints are established.
-# ---------------------------------------------------------------------------
-data "mongodbatlas_advanced_cluster" "this" {
-  count = var.enable_validation_vm ? 1 : 0
-
-  project_id = module.atlas_project.id
-  name       = var.atlas_cluster_name
-
-  depends_on = [module.atlas_cluster, module.atlas_azure]
+locals {
+  connection_string = coalesce(
+    try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
+    try(module.atlas_cluster.connection_strings.private_srv, ""),
+    module.atlas_cluster.connection_strings.standard_srv
+  )
 }
 
 module "validation_vm" {
@@ -28,13 +20,7 @@ module "validation_vm" {
 
   atlas_project_id = module.atlas_project.id
 
-  # Connection string falls back to private_endpoint → private_srv → standard_srv
-  # All types validate PrivateLink via DNS resolution test (private IPs)
-  atlas_connection_string = coalesce(
-    try(data.mongodbatlas_advanced_cluster.this[0].connection_strings.private_endpoint[0].srv_connection_string, ""),
-    try(data.mongodbatlas_advanced_cluster.this[0].connection_strings.private_srv, ""),
-    data.mongodbatlas_advanced_cluster.this[0].connection_strings.standard_srv
-  )
-
-  depends_on = [module.atlas_azure]
+  # Connection string falls back to private_endpoint → private_srv → standard_srv.
+  # All types validate PrivateLink via DNS resolution tests for private IPs.
+  atlas_connection_string = local.connection_string
 }
