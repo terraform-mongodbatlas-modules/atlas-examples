@@ -27,4 +27,4 @@ If an example's required inputs change, update the matching config's `regions` o
 
 ## Naming
 
-All resources created by the E2E runs (here, in the scripts, and in the module-managed backup buckets) use the `atlas-examples-e2e-` prefix so they are clearly attributable to this repository in the shared Atlas org and cloud accounts — and so the [cleanup-test-env workflow](../../.github/workflows/cleanup-test-env.yml) can safely identify stale leftovers.
+All resources created by the E2E runs (here, in the scripts, and in the module-managed backup buckets) use the `atlas-examples-e2e-` prefix so they are clearly attributable to this repository in the shared Atlas org and cloud accounts, and so the cleanup job in the [E2E workflow](../../.github/workflows/e2e.yml) can safely identify stale leftovers.

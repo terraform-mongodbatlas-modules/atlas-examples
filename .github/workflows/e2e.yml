@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       cloud:
-        description: Which example to run
+        description: Which example to run (cleanup runs only the Atlas project cleanup)
         type: choice
         default: all
         options:
@@ -31,6 +31,7 @@ on:
           - aws
           - azure
           - gcp
+          - cleanup
   schedule:
     - cron: '0 6 * * 1' # Mondays 06:00 UTC
 
@@ -136,16 +137,33 @@ jobs:
           RUN_ID: ${{ github.run_id }}
         run: e2e/scripts/gcp.sh
 
-  # Sweeps stale atlas-examples-e2e-* Atlas projects after every E2E run —
-  # catches leftovers from killed runners (the 24h grace period protects
+  # Sweeps stale atlas-examples-e2e-* Atlas projects after every E2E run:
+  # catches leftovers from killed runners (the 5h grace period protects
   # in-flight runs, so anything from this run is swept on a later one).
+  # Uses the clean-atlas-org tooling from mongodb/terraform-provider-mongodbatlas
+  # (pinned ref, bump periodically); our prefix is in its built-in defaults (#4616).
+  # Dispatch with cloud = cleanup to run only this job.
   cleanup:
     name: Cleanup test env
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [aws, azure, gcp]
     if: always()
-    uses: ./.github/workflows/cleanup-test-env.yml
-    secrets: # least privilege: only the Atlas credentials the cleanup needs
-      MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
-      MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
-      MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
-      MONGODB_ATLAS_BASE_URL: ${{ secrets.MONGODB_ATLAS_BASE_URL }}
+    concurrency:
+      group: cleanup-test-env
+      cancel-in-progress: false
+    steps:
+      - name: Checkout terraform-provider-mongodbatlas
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: mongodb/terraform-provider-mongodbatlas
+          ref: f97f332befc6c4ea59599be5ddcbbfa0ab655068 # master incl. #4616, bump periodically
+      - name: Clean Atlas org
+        uses: ./.github/templates/clean-atlas-org
+        env: # least privilege: only the Atlas credentials the cleanup needs
+          MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
+          MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
+          MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+          MONGODB_ATLAS_BASE_URL: ${{ secrets.MONGODB_ATLAS_BASE_URL }}
+          # Deleting clusters is slow; leftovers are retried on the next run instead of blocking
+          MONGODB_ATLAS_CLEAN_RETRY_ATTEMPTS: "1"
