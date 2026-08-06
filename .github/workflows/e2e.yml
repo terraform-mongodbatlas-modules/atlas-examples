@@ -20,6 +20,7 @@ name: E2E apply and destroy
 #   GCP:   GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT_EMAIL, GCP_PROJECT_ID
 
 on:
+  push: # TEMPORARY: verification on branch pushes, removed before merge
   workflow_dispatch:
     inputs:
       cloud:
