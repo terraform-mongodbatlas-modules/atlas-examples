@@ -19,7 +19,15 @@ mock_provider "google" {
 }
 
 mock_provider "mongodbatlas" {}
-mock_provider "random" {}
+mock_provider "random" {
+  override_during = plan
+
+  mock_resource "random_password" {
+    defaults = {
+      result = "test-password"
+    }
+  }
+}
 
 variables {
   gcp_project_id          = "test-project"
@@ -166,4 +174,17 @@ run "missing_private_endpoint_connection_string_rejected" {
   }
 
   expect_failures = [terraform_data.connection_string]
+}
+
+run "srv_connection_options_are_preserved" {
+  command = plan
+
+  variables {
+    atlas_connection_string = "mongodb+srv://cluster0.example.mongodb.net/?retryWrites=true&w=majority"
+  }
+
+  assert {
+    condition     = nonsensitive(local.connection_string_with_creds) == "mongodb+srv://atlas-validation-user:test-password@cluster0.example.mongodb.net/?retryWrites=true&w=majority"
+    error_message = "SRV connection options must be preserved when credentials are injected"
+  }
 }

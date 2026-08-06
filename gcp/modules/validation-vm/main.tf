@@ -18,7 +18,7 @@ locals {
 
   connection_string_with_creds = local.connection_host == "" ? "" : (
     local.is_srv_connection
-    ? "mongodb+srv://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}"
+    ? "mongodb+srv://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}${local.connection_query_params != "" ? "/?${local.connection_query_params}" : ""}"
     : "mongodb://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}/${local.connection_query_params != "" ? "?${local.connection_query_params}" : ""}"
   )
 
