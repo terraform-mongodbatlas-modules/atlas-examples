@@ -39,6 +39,7 @@ locals {
     enabled = true
     create_s3_bucket = {
       enabled       = true
+      name          = var.backup_export_bucket_name
       force_destroy = var.backup_export_force_destroy
     }
   }

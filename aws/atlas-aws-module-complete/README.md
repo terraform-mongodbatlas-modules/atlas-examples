@@ -57,7 +57,7 @@ At a minimum, provide:
 | `atlas_cluster_name` | Name for the Atlas cluster |
 | `regions` | List of regions with Atlas region name, VPC ID, and private subnet IDs (see [terraform.tfvars.example](./terraform.tfvars.example)) |
 
-Optional variables include `aws_region`, `tags`, `ip_access_list`, `enable_validation_vm`, and validation VM networking/access variables. See [variables.tf](./variables.tf) for full details.
+Optional variables include `aws_region`, `tags`, `ip_access_list`, `backup_export_force_destroy`, `backup_export_bucket_name`, `enable_validation_vm`, and validation VM networking/access variables. See [variables.tf](./variables.tf) for full details.
 
 ## Commands
 

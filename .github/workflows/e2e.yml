@@ -22,8 +22,8 @@ name: E2E apply and destroy
 on:
   workflow_dispatch:
     inputs:
-      cloud:
-        description: Which example to run
+      target:
+        description: Which job to run (cleanup runs only the Atlas project cleanup)
         type: choice
         default: all
         options:
@@ -31,6 +31,7 @@ on:
           - aws
           - azure
           - gcp
+          - cleanup
   schedule:
     - cron: '0 6 * * 1' # Mondays 06:00 UTC
 
@@ -43,14 +44,14 @@ jobs:
     name: E2E AWS
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'aws'
+    if: github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'aws'
     concurrency:
       group: e2e-aws
       cancel-in-progress: false
     env:
       MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
       MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
-      TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+      MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
@@ -75,14 +76,14 @@ jobs:
     name: E2E Azure
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'azure'
+    if: github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'azure'
     concurrency:
       group: e2e-azure
       cancel-in-progress: false
     env:
       MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
       MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
-      TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+      MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
@@ -107,14 +108,14 @@ jobs:
     name: E2E GCP
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'gcp'
+    if: github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'gcp'
     concurrency:
       group: e2e-gcp
       cancel-in-progress: false
     env:
       MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
       MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
-      TF_VAR_atlas_org_id: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+      MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -135,3 +136,34 @@ jobs:
         env:
           RUN_ID: ${{ github.run_id }}
         run: e2e/scripts/gcp.sh
+
+  # Sweeps stale atlas-examples-e2e-* Atlas projects after every E2E run:
+  # catches leftovers from killed runners (the 5h grace period protects
+  # in-flight runs, so anything from this run is swept on a later one).
+  # Uses the clean-atlas-org tooling from mongodb/terraform-provider-mongodbatlas
+  # (pinned ref, bump periodically); our prefix is in its built-in defaults (#4616).
+  # Dispatch with target = cleanup to run only this job.
+  cleanup:
+    name: Cleanup test env
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [aws, azure, gcp]
+    if: always()
+    concurrency:
+      group: cleanup-test-env
+      cancel-in-progress: false
+    steps:
+      - name: Checkout terraform-provider-mongodbatlas
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: mongodb/terraform-provider-mongodbatlas
+          ref: f97f332befc6c4ea59599be5ddcbbfa0ab655068 # master incl. #4616, bump periodically
+      - name: Clean Atlas org
+        uses: ./.github/templates/clean-atlas-org
+        env: # least privilege: only the Atlas credentials the cleanup needs
+          MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
+          MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
+          MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
+          MONGODB_ATLAS_BASE_URL: ${{ secrets.MONGODB_ATLAS_BASE_URL }}
+          # Deleting clusters is slow; leftovers are retried on the next run instead of blocking
+          MONGODB_ATLAS_CLEAN_RETRY_ATTEMPTS: "1"
