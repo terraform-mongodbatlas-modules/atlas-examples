@@ -75,3 +75,27 @@ run "overrides" {
     error_message = "Log group should follow name_prefix override"
   }
 }
+
+run "ecr_repository_url_empty" {
+  command = plan
+
+  variables {
+    ecr_repository_url = ""
+  }
+
+  expect_failures = [
+    var.ecr_repository_url,
+  ]
+}
+
+run "ecr_repository_url_tagged" {
+  command = plan
+
+  variables {
+    ecr_repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-minimal:latest"
+  }
+
+  expect_failures = [
+    var.ecr_repository_url,
+  ]
+}

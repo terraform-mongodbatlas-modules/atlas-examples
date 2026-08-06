@@ -25,8 +25,18 @@ variable "mongo_private_connection_string" {
 }
 
 variable "ecr_repository_url" {
-  description = "ECR repository URL from 01_lz (no tag). Required; LZ creates the repo."
+  description = "ECR repository URL from 01_lz without an image tag. Required; LZ creates the repo."
   type        = string
+  nullable    = false
+
+  validation {
+    condition = (
+      var.ecr_repository_url == trimspace(var.ecr_repository_url) &&
+      length(var.ecr_repository_url) > 0 &&
+      !strcontains(element(reverse(split("/", var.ecr_repository_url)), 0), ":")
+    )
+    error_message = "ecr_repository_url must be a non-empty, untagged ECR repository URL. Set image_tag separately."
+  }
 }
 
 variable "name_prefix" {
