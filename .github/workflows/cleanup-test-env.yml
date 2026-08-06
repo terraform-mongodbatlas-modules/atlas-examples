@@ -46,18 +46,12 @@ jobs:
         with:
           repository: mongodb/terraform-provider-mongodbatlas
           ref: f97f332befc6c4ea59599be5ddcbbfa0ab655068 # master incl. #4616, bump periodically
-      - name: Configure optional Atlas base URL
-        run: |
-          # Normalize through GITHUB_ENV: the Go client rejects stray whitespace in the URL
-          if [ -n "${{ secrets.MONGODB_ATLAS_BASE_URL }}" ]; then
-            echo "MONGODB_ATLAS_BASE_URL=$(printf '%s' "${{ secrets.MONGODB_ATLAS_BASE_URL }}" | tr -d '[:space:]')" >> "$GITHUB_ENV"
-          fi
       - name: Clean Atlas org
         uses: ./.github/templates/clean-atlas-org
         env:
           MONGODB_ATLAS_CLIENT_ID: ${{ secrets.MONGODB_ATLAS_CLIENT_ID }}
           MONGODB_ATLAS_CLIENT_SECRET: ${{ secrets.MONGODB_ATLAS_CLIENT_SECRET }}
           MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
-          MONGODB_ATLAS_BASE_URL: ${{ env.MONGODB_ATLAS_BASE_URL }}
+          MONGODB_ATLAS_BASE_URL: ${{ secrets.MONGODB_ATLAS_BASE_URL }}
           # Deleting clusters is slow; leftovers are retried on the next run instead of blocking
           MONGODB_ATLAS_CLEAN_RETRY_ATTEMPTS: "1"
