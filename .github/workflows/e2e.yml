@@ -22,8 +22,8 @@ name: E2E apply and destroy
 on:
   workflow_dispatch:
     inputs:
-      cloud:
-        description: Which example to run (cleanup runs only the Atlas project cleanup)
+      target:
+        description: Which job to run (cleanup runs only the Atlas project cleanup)
         type: choice
         default: all
         options:
@@ -44,7 +44,7 @@ jobs:
     name: E2E AWS
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'aws'
+    if: github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'aws'
     concurrency:
       group: e2e-aws
       cancel-in-progress: false
@@ -76,7 +76,7 @@ jobs:
     name: E2E Azure
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'azure'
+    if: github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'azure'
     concurrency:
       group: e2e-azure
       cancel-in-progress: false
@@ -108,7 +108,7 @@ jobs:
     name: E2E GCP
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'schedule' || github.event.inputs.cloud == 'all' || github.event.inputs.cloud == 'gcp'
+    if: github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'gcp'
     concurrency:
       group: e2e-gcp
       cancel-in-progress: false
@@ -142,7 +142,7 @@ jobs:
   # in-flight runs, so anything from this run is swept on a later one).
   # Uses the clean-atlas-org tooling from mongodb/terraform-provider-mongodbatlas
   # (pinned ref, bump periodically); our prefix is in its built-in defaults (#4616).
-  # Dispatch with cloud = cleanup to run only this job.
+  # Dispatch with target = cleanup to run only this job.
   cleanup:
     name: Cleanup test env
     runs-on: ubuntu-latest
