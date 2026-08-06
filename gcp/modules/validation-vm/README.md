@@ -63,7 +63,7 @@ Use only the private endpoint connection string associated with the selected PSC
 | `gcp_project_id` | GCP project where the VM is created and zones are queried. | `string` | Required. |
 | `subnetwork` | Self-link of the subnetwork where the private VM is created. Optional networking resources are created in the subnet's project. | `string` | Required. |
 | `atlas_project_id` | Atlas project where the temporary database user is created. | `string` | Required. |
-| `atlas_connection_string` | Nullable Atlas private endpoint connection string. It must be non-null when the module is enabled. | `string` | Required. |
+| `atlas_connection_string` | Nullable Atlas private endpoint SRV connection string. It must be non-null when the module is enabled. | `string` | Required. |
 | `zone` | Compute Engine zone for the VM. It must belong to the subnetwork's region. When null, the first sorted available zone is selected. | `string` | `null`. |
 | `machine_type` | Compute Engine machine type for the validation VM. | `string` | `"e2-micro"`. |
 | `create_iap_ssh_firewall` | Create the targeted TCP port 22 firewall rule for IAP. | `bool` | `true`. |

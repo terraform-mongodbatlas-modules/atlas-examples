@@ -6,20 +6,13 @@ locals {
 
   zone = var.zone != null ? var.zone : sort(data.google_compute_zones.available[0].names)[0]
 
-  is_srv_connection = try(startswith(var.atlas_connection_string, "mongodb+srv://"), false)
-
-  connection_host = try(
-    regex("@([^/?]+)", var.atlas_connection_string)[0],
-    regex("^mongodb(?:\\+srv)?://([^@/?]+)", var.atlas_connection_string)[0],
+  connection_string_with_creds = try(
+    replace(
+      var.atlas_connection_string,
+      "mongodb+srv://",
+      "mongodb+srv://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@"
+    ),
     ""
-  )
-
-  connection_query_params = try(regex("\\?(.+)$", var.atlas_connection_string)[0], "")
-
-  connection_string_with_creds = local.connection_host == "" ? "" : (
-    local.is_srv_connection
-    ? "mongodb+srv://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}${local.connection_query_params != "" ? "/?${local.connection_query_params}" : ""}"
-    : "mongodb://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}/${local.connection_query_params != "" ? "?${local.connection_query_params}" : ""}"
   )
 
   shared_scripts_path = "${path.module}/../../../shared/validation-vm"
@@ -44,17 +37,6 @@ data "google_compute_zones" "available" {
   status  = "UP"
 }
 
-resource "terraform_data" "connection_string" {
-  input = var.atlas_connection_string
-
-  lifecycle {
-    precondition {
-      condition     = can(regex("^mongodb(?:\\+srv)?://", var.atlas_connection_string))
-      error_message = "A connection string associated with the selected Atlas private endpoint is required. Re-run Terraform after Atlas publishes the endpoint association."
-    }
-  }
-}
-
 resource "random_password" "db_user" {
   length  = 24
   special = false
@@ -75,8 +57,6 @@ resource "mongodbatlas_database_user" "validation" {
     key   = "purpose"
     value = "validation-vm-temporary"
   }
-
-  depends_on = [terraform_data.connection_string]
 }
 
 resource "terraform_data" "cloud_init" {
@@ -97,10 +77,9 @@ resource "google_compute_firewall" "iap_ssh" {
     ports    = ["22"]
   }
 
+  # Google Cloud's documented source range for IAP TCP forwarding.
   source_ranges = ["35.235.240.0/20"]
   target_tags   = [local.network_tag]
-
-  depends_on = [terraform_data.connection_string]
 }
 
 resource "google_compute_router" "this" {
@@ -110,8 +89,6 @@ resource "google_compute_router" "this" {
   name    = "atlas-validation-router"
   region  = data.google_compute_subnetwork.this.region
   network = data.google_compute_subnetwork.this.network
-
-  depends_on = [terraform_data.connection_string]
 }
 
 resource "google_compute_router_nat" "this" {
@@ -163,6 +140,11 @@ resource "google_compute_instance" "validation" {
 
   lifecycle {
     replace_triggered_by = [terraform_data.cloud_init]
+
+    precondition {
+      condition     = can(regex("^mongodb\\+srv://", var.atlas_connection_string))
+      error_message = "An SRV connection string associated with the selected Atlas private endpoint is required. Re-run Terraform after Atlas publishes the endpoint association."
+    }
 
     precondition {
       condition     = startswith(local.zone, "${data.google_compute_subnetwork.this.region}-")

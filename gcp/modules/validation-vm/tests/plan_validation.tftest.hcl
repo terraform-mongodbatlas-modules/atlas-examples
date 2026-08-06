@@ -173,7 +173,7 @@ run "missing_private_endpoint_connection_string_rejected" {
     zone                    = "us-east4-a"
   }
 
-  expect_failures = [terraform_data.connection_string]
+  expect_failures = [google_compute_instance.validation]
 }
 
 run "srv_connection_options_are_preserved" {

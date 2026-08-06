@@ -110,7 +110,7 @@ variable "validation_vm_create_iap_ssh_firewall" {
 }
 
 variable "validation_vm_enable_cloud_nat" {
-  description = "Create a dedicated Cloud Router and subnet-scoped Cloud NAT for validation VM package installation."
+  description = "Create a dedicated Cloud Router and subnet-scoped Cloud NAT for validation VM package installation. Enable this when the subnet has no existing outbound internet access."
   type        = bool
   default     = false
 }

@@ -14,7 +14,7 @@ variable "atlas_project_id" {
 }
 
 variable "atlas_connection_string" {
-  description = "MongoDB Atlas private endpoint connection string. Supports SRV and standard formats."
+  description = "MongoDB Atlas private endpoint SRV connection string."
   type        = string
   nullable    = true
 }
@@ -38,7 +38,7 @@ variable "create_iap_ssh_firewall" {
 }
 
 variable "enable_cloud_nat" {
-  description = "Create a dedicated Cloud Router and subnet-scoped Cloud NAT for validation VM package installation."
+  description = "Create a dedicated Cloud Router and subnet-scoped Cloud NAT for validation VM package installation. Enable this when the subnet has no existing outbound internet access."
   type        = bool
   default     = false
 }

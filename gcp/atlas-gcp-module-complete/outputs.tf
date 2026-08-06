@@ -10,11 +10,7 @@ output "cluster_id" {
 
 output "connection_string" {
   description = "Private endpoint SRV connection string (uses first region for sharded clusters)"
-  value = coalesce(
-    try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
-    try(module.atlas_cluster.connection_strings.private_srv, ""),
-    module.atlas_cluster.connection_strings.standard_srv
-  )
+  value       = local.connection_string
 }
 
 output "backup_export" {
