@@ -5,7 +5,7 @@ This module creates an EC2 instance to validate MongoDB Atlas connectivity over 
 ## Features
 
 - **Validation Script**: Pre-installed script to test DNS, connection, and CRUD operations
-- **Default Access**: SSM Session Manager (browser or CLI, always available)
+- **Default Access**: SSM Session Manager (browser or CLI, when the subnet can reach SSM through outbound internet access or VPC endpoints)
 - **Optional Access**: EC2 Instance Connect Endpoint (SSH without bastion, when enabled by setting `create_ec2_instance_connect_endpoint = true`)
 - **Optional NAT Gateway**: For private subnets without internet access (when enabled by setting `public_subnet_id`)
 - **Temporary Credentials**: Creates a temporary database user for validation
@@ -120,7 +120,7 @@ module "validation_vm" {
 
 ### SSM Session Manager (Default)
 
-Always available (IAM instance profile with SSM permissions is attached by default).
+The IAM instance profile with SSM permissions is attached by default. The VM must also reach SSM through outbound internet access or VPC endpoints.
 
 ```bash
 # Interactive shell (starts as ssm-user)

@@ -12,6 +12,7 @@ Use it as a **“known-good client”** that lives in the same network as your A
 - An Atlas cluster with an **Azure Private Endpoint** configured
 - **Private DNS** configured so the Private Endpoint hostname(s) resolve to private IPs from the VNet where this VM runs
 - Network routing/NSGs allow the VM subnet to reach the Private Endpoint
+- Outbound internet access from the VM subnet so cloud-init can download Ubuntu packages and `mongosh`.
 
 ## What gets created
 

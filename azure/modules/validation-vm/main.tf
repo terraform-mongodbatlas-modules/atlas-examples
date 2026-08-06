@@ -24,22 +24,10 @@ locals {
   use_bastion        = var.admin_ssh_public_key != null && trimspace(var.admin_ssh_public_key) != ""
   use_serial_console = !local.use_bastion
 
-  # Supports both SRV and standard connection string formats:
-  #   - SRV: mongodb+srv://[user:pass@]host/...
-  #   - Standard: mongodb://[user:pass@]host1:port,host2:port,host3:port/?replicaSet=...
-  is_srv_connection = can(regex("^mongodb\\+srv://", var.atlas_connection_string))
+  connection_scheme = regex("^mongodb(?:\\+srv)?://", var.atlas_connection_string)
+  connection_target = replace(var.atlas_connection_string, "/^mongodb(?:\\+srv)?:\\/\\/(?:[^@/?]+@)?/", "")
 
-  connection_host = (
-    can(regex("@([^/?]+)", var.atlas_connection_string))
-    ? regex("@([^/?]+)", var.atlas_connection_string)[0]
-    : regex("^mongodb(?:\\+srv)?://([^@/?]+)", var.atlas_connection_string)[0]
-  )
-
-  connection_string_with_creds = local.is_srv_connection ? (
-    "mongodb+srv://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}"
-    ) : (
-    "mongodb://${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_host}/?${regex("\\?(.+)$", var.atlas_connection_string)[0]}"
-  )
+  connection_string_with_creds = "${local.connection_scheme}${mongodbatlas_database_user.validation.username}:${random_password.db_user.result}@${local.connection_target}"
 
   shared_scripts_path = "${path.module}/../../../shared/validation-vm"
   validate_script     = file("${local.shared_scripts_path}/validate-atlas.sh")

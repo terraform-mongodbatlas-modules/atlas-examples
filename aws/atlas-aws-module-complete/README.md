@@ -38,7 +38,7 @@ This example creates the following resources:
    - At least 2 private subnets in different Availability Zones (for PrivateLink endpoint placement)
 
    **For the validation VM (optional, first region only):**
-   - A public subnet with a route to an Internet Gateway (for NAT Gateway placement, so cloud-init can download packages)
+   - Existing outbound internet access from the private subnet, or a public subnet with an Internet Gateway route for optional NAT Gateway placement.
 
 ## Configuration
 
@@ -144,7 +144,7 @@ Notes:
 When `enable_validation_vm = true` (the default), an EC2 instance is deployed into the first region's private subnet. After `terraform apply` completes:
 
 1. Note the `validation_vm` output for instance ID, username, and access commands.
-2. Connect via **SSM Session Manager** (default, always available):
+2. Connect via **SSM Session Manager** (default, when the subnet can reach SSM through outbound internet access or VPC endpoints):
    ```sh
    aws ssm start-session --target <instance-id>
    ```
@@ -154,7 +154,7 @@ When `enable_validation_vm = true` (the default), an EC2 instance is deployed in
    ```
 4. Run `./validate-atlas` on the VM to verify connectivity to your Atlas cluster over PrivateLink.
 
-To enable automatic package installation (mongosh) on the VM via cloud-init, provide `validation_vm_public_subnet_id` and `validation_vm_private_route_table_id` so the module can create a NAT Gateway for outbound internet access.
+Cloud-init requires outbound internet access to install `mongosh`. If the private subnet does not already have outbound access, provide `validation_vm_public_subnet_id` and `validation_vm_private_route_table_id` so the module can create a NAT Gateway.
 
 If cloud-init was unable to install packages (e.g. no NAT Gateway was configured), install mongosh manually once the subnet has outbound access. See the [official mongosh installation guide](https://www.mongodb.com/docs/mongodb-shell/install/).
 
