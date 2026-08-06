@@ -299,6 +299,44 @@ run "vpc_byo" {
   }
 }
 
+run "multi_region_privatelink_subnets" {
+  command = plan
+
+  variables {
+    atlas_org_id = "org123"
+    regions = [
+      { name = "US_EAST_1", node_count = 3 },
+      { name = "US_WEST_2", node_count = 2 },
+    ]
+    vpc_config = {
+      privatelink_subnet_ids_by_region = {
+        us-west-2 = ["subnet-west-a", "subnet-west-b"]
+      }
+    }
+  }
+
+  assert {
+    condition     = local.privatelink_subnet_ids_by_region["us-west-2"] == tolist(["subnet-west-a", "subnet-west-b"])
+    error_message = "Each additional region must use its regional PrivateLink subnets."
+  }
+}
+
+run "multi_region_missing_privatelink_subnets" {
+  command = plan
+
+  variables {
+    atlas_org_id = "org123"
+    regions = [
+      { name = "US_EAST_1", node_count = 3 },
+      { name = "US_WEST_2", node_count = 2 },
+    ]
+  }
+
+  expect_failures = [
+    var.vpc_config,
+  ]
+}
+
 run "vpc_byo_missing_fields" {
   command = plan
 

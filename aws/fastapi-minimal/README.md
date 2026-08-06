@@ -128,7 +128,7 @@ Re-apply `01_lz`, push an image to that repo URL, and point a thin app stack at 
 
 ### How do I grow to a second Atlas region?
 
-Add another object to `regions` (same shape as the [cluster module](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest)). `01_lz` always creates module-managed PrivateLink for each unique `regions[*].name` (no Bring Your Own Private Endpoint in this example). The demo VPC only has subnets in the primary AWS region (`regions[0]`). For PrivateLink in a second AWS region you need subnets there via BYO `vpc_config` (or a later multi-VPC extension); do not assume one created VPC covers every PE region. Architecture Center: put a private endpoint in every region where the cluster is deployed ([network security](https://www.mongodb.com/docs/atlas/architecture/current/network-security/)).
+Add another object to `regions` (same shape as the [cluster module](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest)). `01_lz` always creates module-managed PrivateLink for each unique `regions[*].name` (no Bring Your Own Private Endpoint in this example). The demo VPC only creates subnets in the primary AWS region (`regions[0]`). Add existing subnet IDs for each additional AWS region with `vpc_config.privatelink_subnet_ids_by_region`; Terraform creates that region's PrivateLink endpoint in the VPC that owns those subnets. Do not assume one created VPC covers every PE region. Architecture Center: put a private endpoint in every region where the cluster is deployed ([network security](https://www.mongodb.com/docs/atlas/architecture/current/network-security/)).
 
 ### How does `01_lz` hand values to `02_app_lambda`?
 

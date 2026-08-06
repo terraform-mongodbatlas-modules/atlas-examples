@@ -82,17 +82,18 @@ variable "manual_scaling" {
 # ----------------------------------------------------
 
 variable "vpc_config" {
-  description = "App VPC for PrivateLink and Lambda. create=true builds a private-only VPC; create=false requires vpc_id, private_subnet_ids, vpc_cidr_block, and private_route_table_ids."
+  description = "App VPC for PrivateLink and Lambda. create=true builds a private-only primary-region VPC; create=false requires vpc_id, private_subnet_ids, vpc_cidr_block, and private_route_table_ids. Set privatelink_subnet_ids_by_region for each additional cluster region."
   type = object({
-    create                  = optional(bool, true)
-    cidr                    = optional(string, "10.0.0.0/16")
-    az_count                = optional(number, 2)
-    enable_nat_gateway      = optional(bool, false)
-    create_igw              = optional(bool, false)
-    vpc_id                  = optional(string)
-    private_subnet_ids      = optional(list(string), [])
-    vpc_cidr_block          = optional(string)
-    private_route_table_ids = optional(list(string), [])
+    create                           = optional(bool, true)
+    cidr                             = optional(string, "10.0.0.0/16")
+    az_count                         = optional(number, 2)
+    enable_nat_gateway               = optional(bool, false)
+    create_igw                       = optional(bool, false)
+    vpc_id                           = optional(string)
+    private_subnet_ids               = optional(list(string), [])
+    vpc_cidr_block                   = optional(string)
+    private_route_table_ids          = optional(list(string), [])
+    privatelink_subnet_ids_by_region = optional(map(list(string)), {})
   })
   default = {}
 
@@ -109,6 +110,14 @@ variable "vpc_config" {
   validation {
     condition     = !var.vpc_config.create || (var.vpc_config.az_count >= 1 && var.vpc_config.az_count <= 6)
     error_message = "vpc_config.az_count must be between 1 and 6 when creating a VPC."
+  }
+
+  validation {
+    condition = alltrue([
+      for region in distinct([for value in var.regions : lower(replace(value.name, "_", "-"))]) :
+      region == lower(replace(var.regions[0].name, "_", "-")) || contains(keys(var.vpc_config.privatelink_subnet_ids_by_region), region)
+    ])
+    error_message = "Set vpc_config.privatelink_subnet_ids_by_region for every regions entry after the primary region."
   }
 }
 

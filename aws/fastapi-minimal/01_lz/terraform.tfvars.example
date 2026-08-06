@@ -49,4 +49,10 @@ atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 #   private_subnet_ids      = ["subnet-aaa", "subnet-bbb"]
 #   vpc_cidr_block          = "10.0.0.0/16"
 #   private_route_table_ids = ["rtb-aaa"]
+#
+#   # Required for each regions entry after regions[0]. The subnets must exist
+#   # in the named AWS region; Terraform creates module-managed PrivateLink there.
+#   privatelink_subnet_ids_by_region = {
+#     us-west-2 = ["subnet-ccc", "subnet-ddd"]
+#   }
 # }

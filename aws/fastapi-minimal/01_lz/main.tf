@@ -79,7 +79,7 @@ module "atlas_aws" {
   privatelink_endpoints = [
     for name in local.atlas_region_names : {
       region     = name
-      subnet_ids = local.private_subnet_ids
+      subnet_ids = local.privatelink_subnet_ids_by_region[lower(replace(name, "_", "-"))]
     }
   ]
 

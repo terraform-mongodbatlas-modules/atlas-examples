@@ -5,6 +5,10 @@ locals {
   private_subnet_ids      = var.vpc_config.create ? module.vpc[0].private_subnets : var.vpc_config.private_subnet_ids
   vpc_cidr_block          = var.vpc_config.create ? module.vpc[0].vpc_cidr_block : var.vpc_config.vpc_cidr_block
   private_route_table_ids = var.vpc_config.create ? module.vpc[0].private_route_table_ids : var.vpc_config.private_route_table_ids
+  privatelink_subnet_ids_by_region = merge(
+    { (local.aws_region) = local.private_subnet_ids },
+    var.vpc_config.privatelink_subnet_ids_by_region,
+  )
 
   mongo_private_connection_string = coalesce(
     try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
