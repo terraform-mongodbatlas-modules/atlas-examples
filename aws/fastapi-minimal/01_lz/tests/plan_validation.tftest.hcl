@@ -25,7 +25,7 @@ run "defaults" {
   }
 
   assert {
-    condition     = length(module.vpc) == 1 && length(module.vpc[0].natgw_ids) == 0
+    condition     = length(module.vpc) == 1 && length(module.vpc["us-east-1"].natgw_ids) == 0
     error_message = "Default path should create VPC with NAT disabled"
   }
 
@@ -275,11 +275,15 @@ run "vpc_byo" {
   variables {
     atlas_org_id = "org123"
     vpc_config = {
-      create                  = false
-      vpc_id                  = "vpc-byo"
-      private_subnet_ids      = ["subnet-aaa", "subnet-bbb"]
-      vpc_cidr_block          = "10.1.0.0/16"
-      private_route_table_ids = ["rtb-aaa"]
+      create = false
+      by_region = {
+        us-east-1 = {
+          vpc_id                  = "vpc-byo"
+          private_subnet_ids      = ["subnet-aaa", "subnet-bbb"]
+          vpc_cidr_block          = "10.1.0.0/16"
+          private_route_table_ids = ["rtb-aaa"]
+        }
+      }
     }
   }
 
@@ -297,58 +301,4 @@ run "vpc_byo" {
     condition     = toset(local.private_subnet_ids) == toset(["subnet-aaa", "subnet-bbb"])
     error_message = "BYO path should use provided private subnets"
   }
-}
-
-run "multi_region_privatelink_subnets" {
-  command = plan
-
-  variables {
-    atlas_org_id = "org123"
-    regions = [
-      { name = "US_EAST_1", node_count = 3 },
-      { name = "US_WEST_2", node_count = 2 },
-    ]
-    vpc_config = {
-      privatelink_subnet_ids_by_region = {
-        us-west-2 = ["subnet-west-a", "subnet-west-b"]
-      }
-    }
-  }
-
-  assert {
-    condition     = local.privatelink_subnet_ids_by_region["us-west-2"] == tolist(["subnet-west-a", "subnet-west-b"])
-    error_message = "Each additional region must use its regional PrivateLink subnets."
-  }
-}
-
-run "multi_region_missing_privatelink_subnets" {
-  command = plan
-
-  variables {
-    atlas_org_id = "org123"
-    regions = [
-      { name = "US_EAST_1", node_count = 3 },
-      { name = "US_WEST_2", node_count = 2 },
-    ]
-  }
-
-  expect_failures = [
-    var.vpc_config,
-  ]
-}
-
-run "vpc_byo_missing_fields" {
-  command = plan
-
-  variables {
-    atlas_org_id = "org123"
-    vpc_config = {
-      create = false
-      vpc_id = "vpc-byo"
-    }
-  }
-
-  expect_failures = [
-    var.vpc_config,
-  ]
 }

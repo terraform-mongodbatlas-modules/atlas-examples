@@ -22,7 +22,7 @@ variable "tags" {
 # ----------------------------------------------------
 
 variable "regions" {
-  description = "Cluster regions (Arch Center shape). AWS provider region is derived from regions[0].name. PrivateLink is created for each unique name using vpc_config subnets (demo VPC covers the primary AWS region only)."
+  description = "Cluster regions (Arch Center shape). AWS provider region is derived from regions[0].name. PrivateLink uses managed VPC subnets per region (create=true) or vpc_config.by_region (create=false). Lambda/ECR stay in regions[0] only."
   type = list(object({
     name       = string
     node_count = optional(number, 3)
@@ -82,42 +82,81 @@ variable "manual_scaling" {
 # ----------------------------------------------------
 
 variable "vpc_config" {
-  description = "App VPC for PrivateLink and Lambda. create=true builds a private-only primary-region VPC; create=false requires vpc_id, private_subnet_ids, vpc_cidr_block, and private_route_table_ids. Set privatelink_subnet_ids_by_region for each additional cluster region."
+  description = "App VPC for PrivateLink and Lambda. create=true manages one private VPC per cluster AWS region; create=false requires a full by_region entry per region."
   type = object({
-    create                           = optional(bool, true)
-    cidr                             = optional(string, "10.0.0.0/16")
-    az_count                         = optional(number, 2)
-    enable_nat_gateway               = optional(bool, false)
-    create_igw                       = optional(bool, false)
-    vpc_id                           = optional(string)
-    private_subnet_ids               = optional(list(string), [])
-    vpc_cidr_block                   = optional(string)
-    private_route_table_ids          = optional(list(string), [])
-    privatelink_subnet_ids_by_region = optional(map(list(string)), {})
+    create             = optional(bool, true)
+    base_cidr          = optional(string, "10.0.0.0/8")
+    az_count           = optional(number, 2)
+    enable_nat_gateway = optional(bool, false)
+    create_igw         = optional(bool, false)
+    by_region = optional(map(object({
+      cidr                    = optional(string)
+      az_count                = optional(number)
+      vpc_id                  = optional(string)
+      private_subnet_ids      = optional(list(string), [])
+      vpc_cidr_block          = optional(string)
+      private_route_table_ids = optional(list(string), [])
+    })), {})
   })
   default = {}
 
   validation {
-    condition = var.vpc_config.create || (
-      var.vpc_config.vpc_id != null &&
-      length(var.vpc_config.private_subnet_ids) > 0 &&
-      var.vpc_config.vpc_cidr_block != null &&
-      length(var.vpc_config.private_route_table_ids) > 0
-    )
-    error_message = "When vpc_config.create = false, set vpc_id, private_subnet_ids, vpc_cidr_block, and private_route_table_ids."
-  }
-
-  validation {
     condition     = !var.vpc_config.create || (var.vpc_config.az_count >= 1 && var.vpc_config.az_count <= 6)
-    error_message = "vpc_config.az_count must be between 1 and 6 when creating a VPC."
+    error_message = "vpc_config.az_count must be between 1 and 6 when create = true."
   }
 
   validation {
     condition = alltrue([
-      for region in distinct([for value in var.regions : lower(replace(value.name, "_", "-"))]) :
-      region == lower(replace(var.regions[0].name, "_", "-")) || contains(keys(var.vpc_config.privatelink_subnet_ids_by_region), region)
+      for key in keys(var.vpc_config.by_region) :
+      contains(distinct([for r in var.regions : replace(lower(r.name), "_", "-")]), key)
     ])
-    error_message = "Set vpc_config.privatelink_subnet_ids_by_region for every regions entry after the primary region."
+    error_message = "vpc_config.by_region keys must match a cluster AWS region from regions."
+  }
+
+  validation {
+    condition = var.vpc_config.create ? alltrue([
+      for _, cfg in var.vpc_config.by_region :
+      cfg.vpc_id == null &&
+      length(cfg.private_subnet_ids) == 0 &&
+      cfg.vpc_cidr_block == null &&
+      length(cfg.private_route_table_ids) == 0
+    ]) : true
+    error_message = "When vpc_config.create = true, by_region may only set cidr and az_count overrides."
+  }
+
+  validation {
+    condition = !var.vpc_config.create ? alltrue([
+      for _, cfg in var.vpc_config.by_region :
+      cfg.cidr == null && cfg.az_count == null
+    ]) : true
+    error_message = "When vpc_config.create = false, by_region may only set BYO VPC fields."
+  }
+
+  validation {
+    condition = !var.vpc_config.create ? alltrue([
+      for region in distinct([for r in var.regions : replace(lower(r.name), "_", "-")]) :
+      contains(keys(var.vpc_config.by_region), region) &&
+      var.vpc_config.by_region[region].vpc_id != null &&
+      length(var.vpc_config.by_region[region].private_subnet_ids) > 0 &&
+      var.vpc_config.by_region[region].vpc_cidr_block != null &&
+      length(var.vpc_config.by_region[region].private_route_table_ids) > 0
+    ]) : true
+    error_message = "When vpc_config.create = false, set vpc_id, private_subnet_ids, vpc_cidr_block, and private_route_table_ids in by_region for every cluster AWS region."
+  }
+
+  validation {
+    condition = var.vpc_config.create ? (
+      length(distinct([
+        for i, region in sort(distinct([for r in var.regions : replace(lower(r.name), "_", "-")])) :
+        coalesce(try(var.vpc_config.by_region[region].cidr, null), cidrsubnet(var.vpc_config.base_cidr, 8, i))
+      ])) == length(distinct([for r in var.regions : replace(lower(r.name), "_", "-")]))
+    ) : true
+    error_message = "Managed VPC CIDRs must be unique per cluster AWS region."
+  }
+
+  validation {
+    condition     = !var.vpc_config.create || length(distinct([for r in var.regions : replace(lower(r.name), "_", "-")])) <= 256
+    error_message = "Too many cluster AWS regions for vpc_config.base_cidr (max 256 /16 blocks from a /8 base)."
   }
 }
 

@@ -1,14 +1,26 @@
 locals {
-  az_letters = ["a", "b", "c", "d", "e", "f"]
-
-  vpc_id                  = var.vpc_config.create ? module.vpc[0].vpc_id : var.vpc_config.vpc_id
-  private_subnet_ids      = var.vpc_config.create ? module.vpc[0].private_subnets : var.vpc_config.private_subnet_ids
-  vpc_cidr_block          = var.vpc_config.create ? module.vpc[0].vpc_cidr_block : var.vpc_config.vpc_cidr_block
-  private_route_table_ids = var.vpc_config.create ? module.vpc[0].private_route_table_ids : var.vpc_config.private_route_table_ids
-  privatelink_subnet_ids_by_region = merge(
-    { (local.aws_region) = local.private_subnet_ids },
-    var.vpc_config.privatelink_subnet_ids_by_region,
-  )
+  sorted_aws_regions  = sort(local.aws_regions)
+  managed_vpc_regions = var.vpc_config.create ? toset(local.aws_regions) : toset([])
+  vpc_cidr_by_region = {
+    for i, region in local.sorted_aws_regions :
+    region => coalesce(
+      try(var.vpc_config.by_region[region].cidr, null),
+      cidrsubnet(var.vpc_config.base_cidr, 8, i)
+    )
+  }
+  vpc_az_count_by_region = {
+    for region in local.aws_regions :
+    region => coalesce(try(var.vpc_config.by_region[region].az_count, null), var.vpc_config.az_count)
+  }
+  privatelink_subnet_ids_by_region = var.vpc_config.create ? {
+    for region, mod in module.vpc : region => mod.private_subnets
+    } : {
+    for region, cfg in var.vpc_config.by_region : region => cfg.private_subnet_ids
+  }
+  vpc_id                  = var.vpc_config.create ? module.vpc[local.aws_region].vpc_id : var.vpc_config.by_region[local.aws_region].vpc_id
+  private_subnet_ids      = var.vpc_config.create ? module.vpc[local.aws_region].private_subnets : var.vpc_config.by_region[local.aws_region].private_subnet_ids
+  vpc_cidr_block          = var.vpc_config.create ? module.vpc[local.aws_region].vpc_cidr_block : var.vpc_config.by_region[local.aws_region].vpc_cidr_block
+  private_route_table_ids = var.vpc_config.create ? module.vpc[local.aws_region].private_route_table_ids : var.vpc_config.by_region[local.aws_region].private_route_table_ids
 
   mongo_private_connection_string = coalesce(
     try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
@@ -30,25 +42,17 @@ locals {
 }
 
 module "vpc" {
-  count   = var.vpc_config.create ? 1 : 0
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 5.21"
+  for_each = local.managed_vpc_regions
 
-  name = "${var.name_prefix}-vpc"
-  cidr = var.vpc_config.cidr
+  source     = "./modules/regional_vpc"
+  aws_region = each.key
+  name       = "${var.name_prefix}-vpc-${each.key}"
+  cidr       = local.vpc_cidr_by_region[each.key]
+  az_count   = local.vpc_az_count_by_region[each.key]
 
-  azs             = [for i in range(var.vpc_config.az_count) : "${local.aws_region}${local.az_letters[i]}"]
-  private_subnets = [for i in range(var.vpc_config.az_count) : cidrsubnet(var.vpc_config.cidr, 4, i)]
-
-  enable_nat_gateway            = var.vpc_config.enable_nat_gateway
-  create_igw                    = var.vpc_config.create_igw
-  enable_dns_hostnames          = true
-  enable_dns_support            = true
-  manage_default_security_group = false
-  manage_default_network_acl    = false
-  manage_default_route_table    = false
-
-  tags = var.tags
+  enable_nat_gateway = var.vpc_config.enable_nat_gateway
+  create_igw         = var.vpc_config.create_igw
+  tags               = var.tags
 }
 
 resource "aws_security_group" "lambda" {
