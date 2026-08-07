@@ -22,16 +22,31 @@ variable "tags" {
 # ----------------------------------------------------
 
 variable "regions" {
-  description = "Cluster regions (Arch Center shape). AWS provider region is derived from regions[0].name. PrivateLink uses managed VPC subnets per region (create=true) or vpc_config.by_region (create=false). Lambda apps and ECR repos default to regions[0]; set aws_region / region per entry to place compute and registries in other cluster regions."
+  description = "Cluster regions. Use AWS region names (e.g. us-east-1). Atlas format (US_EAST_1) is also accepted."
   type = list(object({
     name       = string
     node_count = optional(number, 3)
   }))
-  default = [{ name = "US_EAST_1", node_count = 3 }]
+  default = [{ name = "us-east-1", node_count = 3 }]
 
   validation {
     condition     = length(var.regions) > 0
     error_message = "regions must contain at least one entry."
+  }
+
+  validation {
+    condition = length(distinct([
+      for r in var.regions : replace(lower(r.name), "_", "-")
+    ])) == length(var.regions)
+    error_message = "regions must not list the same AWS region twice."
+  }
+
+  validation {
+    condition = alltrue([
+      for r in var.regions :
+      can(regex("^[a-z]{2,}-[a-z]+-[0-9]+$", replace(lower(r.name), "_", "-")))
+    ])
+    error_message = "regions[].name must be a valid region name (e.g. us-east-1)."
   }
 }
 

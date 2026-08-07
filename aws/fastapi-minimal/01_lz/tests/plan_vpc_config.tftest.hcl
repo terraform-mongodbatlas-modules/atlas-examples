@@ -11,8 +11,8 @@ run "multi_region_auto_vpc" {
 
   variables {
     regions = [
-      { name = "US_EAST_1", node_count = 3 },
-      { name = "US_WEST_2", node_count = 2 },
+      { name = "us-east-1", node_count = 3 },
+      { name = "us-west-2", node_count = 2 },
     ]
   }
 
@@ -37,8 +37,8 @@ run "multi_region_cidr_override" {
 
   variables {
     regions = [
-      { name = "US_EAST_1", node_count = 3 },
-      { name = "US_WEST_2", node_count = 2 },
+      { name = "us-east-1", node_count = 3 },
+      { name = "us-west-2", node_count = 2 },
     ]
     vpc_config = {
       by_region = {
@@ -58,8 +58,8 @@ run "vpc_byo_all_regions" {
 
   variables {
     regions = [
-      { name = "US_EAST_1", node_count = 3 },
-      { name = "US_WEST_2", node_count = 2 },
+      { name = "us-east-1", node_count = 3 },
+      { name = "us-west-2", node_count = 2 },
     ]
     vpc_config = {
       create = false
@@ -114,8 +114,8 @@ run "vpc_byo_missing_region" {
 
   variables {
     regions = [
-      { name = "US_EAST_1", node_count = 3 },
-      { name = "US_WEST_2", node_count = 2 },
+      { name = "us-east-1", node_count = 3 },
+      { name = "us-west-2", node_count = 2 },
     ]
     vpc_config = {
       create = false

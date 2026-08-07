@@ -10,8 +10,8 @@ run "defaults" {
   command = plan
 
   assert {
-    condition     = local.aws_region == "us-east-1"
-    error_message = "US_EAST_1 should derive us-east-1"
+    condition     = local.aws_region == "us-east-1" && local.cluster_regions[0].name == "US_EAST_1"
+    error_message = "Default us-east-1 should pass Atlas uppercase to cluster module"
   }
 
   assert {
@@ -260,12 +260,12 @@ run "replicaset_escape" {
     atlas_org_id = "org123"
     cluster_type = "REPLICASET"
     name_prefix  = "demo-app"
-    regions      = [{ name = "EU_WEST_1", node_count = 3 }]
+    regions      = [{ name = "eu-west-1", node_count = 3 }]
   }
 
   assert {
     condition     = var.cluster_type == "REPLICASET" && local.aws_region == "eu-west-1"
-    error_message = "REPLICASET escape hatch and EU_WEST_1 region derivation should work"
+    error_message = "REPLICASET escape hatch and eu-west-1 region derivation should work"
   }
 
   assert {

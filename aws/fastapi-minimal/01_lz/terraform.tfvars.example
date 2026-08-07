@@ -1,7 +1,7 @@
 atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 
 # Optional overrides:
-# regions = [{ name = "US_EAST_1", node_count = 3 }]
+# regions = [{ name = "us-east-1" }]
 # name_prefix = "fastapi-minimal"
 # tags = { Example = "aws-fastapi-minimal" }
 # s3_force_destroy = true  # false retains log/backup bucket objects on destroy
@@ -44,8 +44,8 @@ atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 #   }
 # }
 #
-# # Multi-region worker example (requires US_WEST_2 in regions and matching ECR region):
-# # regions = [{ name = "US_EAST_1" }, { name = "US_WEST_2" }]
+# # Multi-region worker example (requires us-west-2 in regions and matching ECR region):
+# # regions = [{ name = "us-east-1" }, { name = "us-west-2" }]
 # # ecr_repositories = { default = {}, api-west = { region = "us-west-2" } }
 #
 # # Managed VPC (default): one private VPC per cluster AWS region; append regions only.

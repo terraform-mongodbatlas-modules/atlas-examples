@@ -1,7 +1,20 @@
 locals {
-  atlas_region_names = distinct([for r in var.regions : r.name])
-  aws_region         = replace(lower(var.regions[0].name), "_", "-")
-  aws_regions        = [for name in local.atlas_region_names : replace(lower(name), "_", "-")]
+  regions_resolved = [
+    for r in var.regions : {
+      aws_name   = replace(lower(r.name), "_", "-")
+      atlas_name = upper(replace(replace(lower(r.name), "_", "-"), "-", "_"))
+      node_count = r.node_count
+    }
+  ]
+  aws_region         = local.regions_resolved[0].aws_name
+  aws_regions        = [for r in local.regions_resolved : r.aws_name]
+  atlas_region_names = distinct([for r in local.regions_resolved : r.atlas_name])
+  cluster_regions = [
+    for r in local.regions_resolved : {
+      name       = r.atlas_name
+      node_count = r.node_count
+    }
+  ]
 
   lambda_apps = {
     for k, v in var.lambda_apps : k => {
@@ -79,9 +92,9 @@ module "atlas_aws" {
   project_id = module.atlas_project.id
 
   privatelink_endpoints = [
-    for name in local.atlas_region_names : {
-      region     = name
-      subnet_ids = local.privatelink_subnet_ids_by_region[lower(replace(name, "_", "-"))]
+    for r in local.regions_resolved : {
+      region     = r.atlas_name
+      subnet_ids = local.privatelink_subnet_ids_by_region[r.aws_name]
     }
   ]
 
@@ -134,7 +147,7 @@ module "atlas_cluster" {
   cluster_type  = var.cluster_type
   shard_count   = var.cluster_type == "SHARDED" ? var.shard_count : null
 
-  regions       = var.regions
+  regions       = local.cluster_regions
   instance_size = local.cluster_instance_size
   auto_scaling  = local.cluster_auto_scaling
 

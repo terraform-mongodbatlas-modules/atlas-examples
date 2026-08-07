@@ -25,8 +25,8 @@ run "app_region_west" {
 
   variables {
     regions = [
-      { name = "US_EAST_1", node_count = 3 },
-      { name = "US_WEST_2", node_count = 2 },
+      { name = "us-east-1", node_count = 3 },
+      { name = "us-west-2", node_count = 2 },
     ]
     ecr_repositories = {
       default  = {}
@@ -100,8 +100,8 @@ run "app_ecr_region_mismatch" {
 
   variables {
     regions = [
-      { name = "US_EAST_1", node_count = 3 },
-      { name = "US_WEST_2", node_count = 2 },
+      { name = "us-east-1", node_count = 3 },
+      { name = "us-west-2", node_count = 2 },
     ]
     ecr_repositories = {
       default  = {}
