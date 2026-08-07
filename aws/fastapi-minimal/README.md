@@ -12,7 +12,7 @@ Success bar: both groups leave with something running and a clear next edit.
 **What this creates:**
 
 - **Atlas:** Project, PrivateLink endpoint(s), customer-key encryption-at-rest, log + backup-export integrations, sharded cluster (`SHARDED`, `shard_count = 2` by default), one IAM database user per `lambda_apps` entry (`roles` default: `readWrite` on `test`)
-- **AWS (`01_lz`):** PrivateLink VPC endpoint(s), Cloud Provider Access, module-managed KMS CMK, log + backup-export S3 buckets, VPC (create or BYO) + VPC endpoints, `ecr_repositories` (independent of compute), one Lambda execution role per `lambda_apps` entry, shared Lambda security group
+- **AWS (`01_lz`):** PrivateLink VPC endpoint(s), Cloud Provider Access, module-managed KMS CMK, log + backup-export S3 buckets, VPC (create or BYO) + VPC endpoints per app AWS region, `ecr_repositories` (independent of compute), one Lambda execution role per `lambda_apps` entry, Lambda security group per distinct app region
 - **AWS (`02_app_lambda`):** Lambda, Function URL, CloudWatch (requires ECR URL from LZ)
 - **App:** FastAPI image in `src/` (IAM auth to Mongo over PrivateLink)
 
@@ -128,7 +128,9 @@ Re-apply `01_lz`, push an image to that repo URL, and point a thin app stack at 
 
 ### How do I grow to a second Atlas region?
 
-Add another object to `regions` (same shape as the [cluster module](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest)). `01_lz` creates module-managed PrivateLink for each unique `regions[*].name`. With default `vpc_config.create = true`, Terraform also creates one private VPC per cluster AWS region and wires subnets into PrivateLink; append to `regions` only (west gets `10.1.0.0/16` from `base_cidr` by default). Override a region with `vpc_config.by_region[region].cidr` or `az_count`. For full BYO, set `create = false` and populate `by_region` for every cluster AWS region. Lambda, ECR, and interface VPC endpoints stay in `regions[0]` only. Architecture Center: put a private endpoint in every region where the cluster is deployed ([network security](https://www.mongodb.com/docs/atlas/architecture/current/network-security/)).
+Add another object to `regions` (same shape as the [cluster module](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest)). `01_lz` creates module-managed PrivateLink for each unique `regions[*].name`. With default `vpc_config.create = true`, Terraform also creates one private VPC per cluster AWS region and wires subnets into PrivateLink; append to `regions` only (west gets `10.1.0.0/16` from `base_cidr` by default). Override a region with `vpc_config.by_region[region].cidr` or `az_count`. For full BYO, set `create = false` and populate `by_region` for every cluster AWS region.
+
+Set `lambda_apps.*.aws_region` and `ecr_repositories.*.region` to place compute and registries in a cluster region other than `regions[0]` (both default to `regions[0]` when omitted). App `aws_region` must match the `ecr_key` repo region. Interface VPC endpoints and Lambda security groups are created per distinct app region. Architecture Center: put a private endpoint in every region where the cluster is deployed ([network security](https://www.mongodb.com/docs/atlas/architecture/current/network-security/)).
 
 ### How does `01_lz` hand values to `02_app_lambda`?
 
@@ -143,7 +145,7 @@ Defaults favor a production-shaped stack, not a zero-cost lab. Main drivers:
 - **Cluster compute:** Default is sharded (`SHARDED`, `shard_count = 2`), which costs more than a single replica set. For a cheap personal lab, set `cluster_type = "REPLICASET"` before the first apply (`shard_count` is ignored). Compute auto-scales M10–M200 by default; pin a size with `manual_scaling = { instance_size = "M10" }` (disk GB auto-scaling stays on either way).
 - **Customer-managed KMS:** Enabled by default. Destroy schedules key deletion (`deletion_window_in_days` default 7, AWS max 30); the key can still bill while pending-delete.
 - **Log/backup S3 + Atlas backups:** Buckets and `retain_backups_enabled = true` (snapshots may remain after destroy and block recreating the same cluster name until deleted or you change `name_prefix`). `s3_force_destroy` defaults to `true` so demo tear-down can empty the buckets.
-- **Multi-region VPCs:** Each `regions` entry with default `vpc_config` creates another VPC (distinct `/16` from `base_cidr`). Extra regions add VPC cost; interface endpoints are not created outside `regions[0]`.
+- **Multi-region VPCs:** Each `regions` entry with default `vpc_config` creates another VPC (distinct `/16` from `base_cidr`). Extra regions add VPC cost; interface endpoints are created only in regions where at least one `lambda_apps` entry sets `aws_region`.
 
 To make a short-lived run more ephemeral before the first apply, in [01_lz/main.tf](./01_lz/main.tf) disable module-managed CMK encryption:
 
@@ -160,4 +162,4 @@ Keep `encryption_at_rest_provider = module.atlas_aws.encryption_at_rest_provider
 
 ### What is not covered here?
 
-Custom DNS / Route 53, the Industry Solutions AI app (`aws/ai-demo` is a sibling), multi-region E2E apply, regional Lambda/ECR, ECS from `ecs_apps`, and index management (this app needs none).
+Custom DNS / Route 53, the Industry Solutions AI app (`aws/ai-demo` is a sibling), multi-region E2E apply, per-region Mongo connection strings in handoff, ECS from `ecs_apps`, and index management (this app needs none).

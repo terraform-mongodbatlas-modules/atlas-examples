@@ -50,6 +50,11 @@ run "defaults" {
   }
 
   assert {
+    condition     = length(aws_security_group.lambda) == 1 && local.lambda_apps["default"].aws_region == "us-east-1"
+    error_message = "Default lambda app should use regions[0] AWS region"
+  }
+
+  assert {
     condition = length([
       for r in mongodbatlas_database_user.lambda["default"].roles :
       r if r.role_name == "readWrite" && r.database_name == "test"

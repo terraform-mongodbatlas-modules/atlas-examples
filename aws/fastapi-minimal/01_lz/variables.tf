@@ -22,7 +22,7 @@ variable "tags" {
 # ----------------------------------------------------
 
 variable "regions" {
-  description = "Cluster regions (Arch Center shape). AWS provider region is derived from regions[0].name. PrivateLink uses managed VPC subnets per region (create=true) or vpc_config.by_region (create=false). Lambda/ECR stay in regions[0] only."
+  description = "Cluster regions (Arch Center shape). AWS provider region is derived from regions[0].name. PrivateLink uses managed VPC subnets per region (create=true) or vpc_config.by_region (create=false). Lambda apps and ECR repos default to regions[0]; set aws_region / region per entry to place compute and registries in other cluster regions."
   type = list(object({
     name       = string
     node_count = optional(number, 3)
@@ -181,6 +181,7 @@ variable "ecr_repositories" {
   EOT
   type = map(object({
     name                 = optional(string)
+    region               = optional(string)
     image_tag_mutability = optional(string, "IMMUTABLE")
     scan_on_push         = optional(bool, true)
     force_delete         = optional(bool, true)
@@ -205,6 +206,17 @@ variable "ecr_repositories" {
     ])
     error_message = "ecr_repositories.*.lifecycle_keep_count must be >= 0 (0 disables the lifecycle policy)."
   }
+
+  validation {
+    condition = alltrue([
+      for _, repo in var.ecr_repositories :
+      contains(
+        distinct([for r in var.regions : replace(lower(r.name), "_", "-")]),
+        coalesce(repo.region, replace(lower(var.regions[0].name), "_", "-"))
+      )
+    ])
+    error_message = "ecr_repositories.*.region must be a cluster AWS region from regions."
+  }
 }
 
 # Apps
@@ -224,6 +236,7 @@ variable "lambda_apps" {
   type = map(object({
     name             = optional(string)
     ecr_key          = string
+    aws_region       = optional(string)
     primary_database = optional(string)
     tfvars_path      = optional(string)
     secret = optional(object({
@@ -271,6 +284,29 @@ variable "lambda_apps" {
     ])
     error_message = "lambda_apps.*.tfvars_path values must be unique when set."
   }
+
+  validation {
+    condition = alltrue([
+      for _, app in var.lambda_apps :
+      contains(
+        distinct([for r in var.regions : replace(lower(r.name), "_", "-")]),
+        coalesce(app.aws_region, replace(lower(var.regions[0].name), "_", "-"))
+      )
+    ])
+    error_message = "lambda_apps.*.aws_region must be a cluster AWS region from regions."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, app in var.lambda_apps :
+      coalesce(app.aws_region, replace(lower(var.regions[0].name), "_", "-")) ==
+      coalesce(
+        try(var.ecr_repositories[app.ecr_key].region, null),
+        replace(lower(var.regions[0].name), "_", "-")
+      )
+    ])
+    error_message = "lambda_apps.*.aws_region must match ecr_repositories[ecr_key].region (after defaults)."
+  }
 }
 
 variable "ecs_apps" {
@@ -278,6 +314,7 @@ variable "ecs_apps" {
   type = map(object({
     name             = optional(string)
     ecr_key          = string
+    aws_region       = optional(string)
     primary_database = optional(string)
     tfvars_path      = optional(string)
     secret = optional(object({
@@ -290,4 +327,15 @@ variable "ecs_apps" {
     }))
   }))
   default = {}
+
+  validation {
+    condition = alltrue([
+      for _, app in var.ecs_apps :
+      contains(
+        distinct([for r in var.regions : replace(lower(r.name), "_", "-")]),
+        coalesce(app.aws_region, replace(lower(var.regions[0].name), "_", "-"))
+      )
+    ])
+    error_message = "ecs_apps.*.aws_region must be a cluster AWS region from regions."
+  }
 }

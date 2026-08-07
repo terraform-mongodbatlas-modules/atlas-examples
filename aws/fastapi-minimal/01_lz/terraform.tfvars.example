@@ -19,6 +19,7 @@ atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 #     image_tag_mutability = "IMMUTABLE"  # default; use MUTABLE only to overwrite tags
 #     scan_on_push         = true
 #     lifecycle_keep_count = 10  # 0 disables lifecycle policy
+#     # region = "us-west-2"     # omit to default to regions[0]
 #     # force_delete = false    # block destroy while images remain
 #   }
 # }
@@ -32,7 +33,8 @@ atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 #   }
 #   worker = {
 #     name        = "fastapi-minimal-worker"
-#     ecr_key     = "api"
+#     ecr_key     = "api-west"
+#     aws_region  = "us-west-2"
 #     tfvars_path = "../02_app_worker/infra.auto.tfvars"
 #     secret      = {}
 #     roles = [
@@ -41,6 +43,10 @@ atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 #     ]
 #   }
 # }
+#
+# # Multi-region worker example (requires US_WEST_2 in regions and matching ECR region):
+# # regions = [{ name = "US_EAST_1" }, { name = "US_WEST_2" }]
+# # ecr_repositories = { default = {}, api-west = { region = "us-west-2" } }
 #
 # # Managed VPC (default): one private VPC per cluster AWS region; append regions only.
 # vpc_config = {

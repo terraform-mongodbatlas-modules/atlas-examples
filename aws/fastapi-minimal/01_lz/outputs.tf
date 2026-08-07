@@ -14,8 +14,8 @@ output "private_subnet_ids" {
 }
 
 output "lambda_security_group_id" {
-  description = "Security group ID for Lambda functions"
-  value       = aws_security_group.lambda.id
+  description = "Security group ID for the primary lambda_apps entry"
+  value       = aws_security_group.lambda[local.primary_app.aws_region].id
 }
 
 output "lambda_execution_role_arn" {
@@ -59,6 +59,7 @@ output "ecr_repositories" {
   value = {
     for k, v in local.ecr_repositories : k => {
       name                 = v.name
+      region               = v.region
       repository_url       = aws_ecr_repository.this[k].repository_url
       image_tag_mutability = v.image_tag_mutability
       scan_on_push         = v.scan_on_push
@@ -73,6 +74,7 @@ output "lambda_apps" {
   value = {
     for k, v in local.lambda_apps : k => {
       name                      = v.name
+      aws_region                = v.aws_region
       primary_database          = v.primary_database
       roles                     = v.roles
       lambda_execution_role_arn = aws_iam_role.lambda_exec[k].arn

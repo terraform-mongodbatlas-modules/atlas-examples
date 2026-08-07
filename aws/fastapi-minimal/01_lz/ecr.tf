@@ -1,6 +1,7 @@
 resource "aws_ecr_repository" "this" {
   for_each = local.ecr_repositories
 
+  region               = each.value.region
   name                 = each.value.name
   image_tag_mutability = each.value.image_tag_mutability
   force_delete         = each.value.force_delete
@@ -19,6 +20,7 @@ resource "aws_ecr_repository" "this" {
 resource "aws_ecr_lifecycle_policy" "this" {
   for_each = local.ecr_lifecycle_policies
 
+  region     = local.ecr_repositories[each.key].region
   repository = aws_ecr_repository.this[each.key].name
   policy = jsonencode({
     rules = [{

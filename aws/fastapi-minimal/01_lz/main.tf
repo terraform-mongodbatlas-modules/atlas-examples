@@ -7,6 +7,7 @@ locals {
     for k, v in var.lambda_apps : k => {
       name             = coalesce(v.name, k == "default" ? var.name_prefix : "${var.name_prefix}-${k}")
       ecr_key          = v.ecr_key
+      aws_region       = coalesce(v.aws_region, local.aws_region)
       primary_database = coalesce(v.primary_database, v.roles[0].database_name)
       roles            = v.roles
       tfvars_path      = v.tfvars_path != null && v.tfvars_path != "" ? v.tfvars_path : null
@@ -27,6 +28,7 @@ locals {
   ecr_repositories = {
     for k, v in var.ecr_repositories : k => {
       name                 = coalesce(v.name, k == "default" ? var.name_prefix : "${var.name_prefix}-${k}")
+      region               = coalesce(v.region, local.aws_region)
       image_tag_mutability = v.image_tag_mutability
       scan_on_push         = v.scan_on_push
       force_delete         = v.force_delete

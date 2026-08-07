@@ -22,6 +22,16 @@ locals {
   vpc_cidr_block          = var.vpc_config.create ? module.vpc[local.aws_region].vpc_cidr_block : var.vpc_config.by_region[local.aws_region].vpc_cidr_block
   private_route_table_ids = var.vpc_config.create ? module.vpc[local.aws_region].private_route_table_ids : var.vpc_config.by_region[local.aws_region].private_route_table_ids
 
+  app_aws_regions = toset([for app in local.lambda_apps : app.aws_region])
+  app_network = {
+    for region in local.app_aws_regions : region => {
+      vpc_id                  = var.vpc_config.create ? module.vpc[region].vpc_id : var.vpc_config.by_region[region].vpc_id
+      private_subnet_ids      = var.vpc_config.create ? module.vpc[region].private_subnets : var.vpc_config.by_region[region].private_subnet_ids
+      vpc_cidr_block          = var.vpc_config.create ? module.vpc[region].vpc_cidr_block : var.vpc_config.by_region[region].vpc_cidr_block
+      private_route_table_ids = var.vpc_config.create ? module.vpc[region].private_route_table_ids : var.vpc_config.by_region[region].private_route_table_ids
+    }
+  }
+
   mongo_private_connection_string = coalesce(
     try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
     try(module.atlas_cluster.connection_strings.private_srv, ""),
@@ -30,9 +40,9 @@ locals {
 
   app_handoff_payloads = {
     for k, v in local.lambda_apps : k => {
-      aws_region                      = local.aws_region
-      private_subnet_ids              = local.private_subnet_ids
-      lambda_security_group_id        = aws_security_group.lambda.id
+      aws_region                      = v.aws_region
+      private_subnet_ids              = local.app_network[v.aws_region].private_subnet_ids
+      lambda_security_group_id        = aws_security_group.lambda[v.aws_region].id
       lambda_execution_role_arn       = aws_iam_role.lambda_exec[k].arn
       mongo_private_connection_string = local.mongo_private_connection_string
       app_database_name               = v.primary_database
@@ -56,16 +66,19 @@ module "vpc" {
 }
 
 resource "aws_security_group" "lambda" {
+  for_each = local.app_aws_regions
+
+  region      = each.key
   name_prefix = "${var.name_prefix}-lambda-"
   description = "Lambda app SG: PrivateLink + VPC endpoint egress only"
-  vpc_id      = local.vpc_id
+  vpc_id      = local.app_network[each.key].vpc_id
 
   egress {
     description = "Atlas PrivateLink"
     from_port   = 1024
     to_port     = 65535
     protocol    = "tcp"
-    cidr_blocks = [local.vpc_cidr_block]
+    cidr_blocks = [local.app_network[each.key].vpc_cidr_block]
   }
 
   egress {
@@ -73,7 +86,7 @@ resource "aws_security_group" "lambda" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = [local.vpc_cidr_block]
+    cidr_blocks = [local.app_network[each.key].vpc_cidr_block]
   }
 
   egress {
@@ -81,10 +94,10 @@ resource "aws_security_group" "lambda" {
     from_port   = 53
     to_port     = 53
     protocol    = "udp"
-    cidr_blocks = [local.vpc_cidr_block]
+    cidr_blocks = [local.app_network[each.key].vpc_cidr_block]
   }
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-lambda" })
+  tags = merge(var.tags, { Name = "${var.name_prefix}-lambda-${each.key}" })
 
   lifecycle {
     create_before_destroy = true
@@ -92,19 +105,22 @@ resource "aws_security_group" "lambda" {
 }
 
 resource "aws_security_group" "vpc_endpoints" {
+  for_each = local.app_aws_regions
+
+  region      = each.key
   name_prefix = "${var.name_prefix}-vpce-"
   description = "Interface VPC endpoints for Lambda AWS API access"
-  vpc_id      = local.vpc_id
+  vpc_id      = local.app_network[each.key].vpc_id
 
   ingress {
     description     = "HTTPS from Lambda"
     from_port       = 443
     to_port         = 443
     protocol        = "tcp"
-    security_groups = [aws_security_group.lambda.id]
+    security_groups = [aws_security_group.lambda[each.key].id]
   }
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-vpce" })
+  tags = merge(var.tags, { Name = "${var.name_prefix}-vpce-${each.key}" })
 
   lifecycle {
     create_before_destroy = true
@@ -112,35 +128,47 @@ resource "aws_security_group" "vpc_endpoints" {
 }
 
 resource "aws_vpc_endpoint" "interface" {
-  for_each = toset(["ecr.api", "ecr.dkr", "logs", "sts"])
+  for_each = {
+    for pair in setproduct(tolist(local.app_aws_regions), ["ecr.api", "ecr.dkr", "logs", "sts"]) :
+    "${pair[0]}-${pair[1]}" => {
+      region  = pair[0]
+      service = pair[1]
+    }
+  }
 
-  vpc_id              = local.vpc_id
-  service_name        = "com.amazonaws.${local.aws_region}.${each.value}"
+  region              = each.value.region
+  vpc_id              = local.app_network[each.value.region].vpc_id
+  service_name        = "com.amazonaws.${each.value.region}.${each.value.service}"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = local.private_subnet_ids
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  subnet_ids          = local.app_network[each.value.region].private_subnet_ids
+  security_group_ids  = [aws_security_group.vpc_endpoints[each.value.region].id]
   private_dns_enabled = true
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-${each.value}" })
+  tags = merge(var.tags, { Name = "${var.name_prefix}-${each.value.region}-${each.value.service}" })
 }
 
 resource "aws_vpc_endpoint" "s3" {
-  vpc_id            = local.vpc_id
-  service_name      = "com.amazonaws.${local.aws_region}.s3"
-  vpc_endpoint_type = "Gateway"
-  route_table_ids   = local.private_route_table_ids
+  for_each = local.app_aws_regions
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-s3" })
+  region            = each.key
+  vpc_id            = local.app_network[each.key].vpc_id
+  service_name      = "com.amazonaws.${each.key}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = local.app_network[each.key].private_route_table_ids
+
+  tags = merge(var.tags, { Name = "${var.name_prefix}-s3-${each.key}" })
 }
 
 resource "aws_security_group_rule" "lambda_s3" {
+  for_each = local.app_aws_regions
+
   type              = "egress"
-  security_group_id = aws_security_group.lambda.id
+  security_group_id = aws_security_group.lambda[each.key].id
   description       = "S3 via gateway VPC endpoint (ECR layers)"
   from_port         = 443
   to_port           = 443
   protocol          = "tcp"
-  prefix_list_ids   = [aws_vpc_endpoint.s3.prefix_list_id]
+  prefix_list_ids   = [aws_vpc_endpoint.s3[each.key].prefix_list_id]
 }
 
 resource "aws_iam_role" "lambda_exec" {
