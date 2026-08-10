@@ -90,7 +90,7 @@ run "operations_vpc_pin_null_byo" {
   }
 }
 
-run "operations_vpcs_byo" {
+run "aws_vpcs_byo" {
   command = plan
 
   variables {
@@ -118,7 +118,7 @@ run "operations_vpcs_byo" {
   }
 
   assert {
-    condition     = output.operations.vpcs["us-east-1"].vpc_id == "vpc-east" && output.operations.vpcs["us-west-2"].vpc_id == "vpc-west"
-    error_message = "BYO path should echo vpc IDs in vpcs"
+    condition     = output.aws.vpcs["us-east-1"].vpc_id == "vpc-east" && output.aws.vpcs["us-west-2"].vpc_id == "vpc-west"
+    error_message = "BYO path should echo vpc IDs in aws.vpcs"
   }
 }

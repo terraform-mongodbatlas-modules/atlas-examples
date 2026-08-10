@@ -74,8 +74,8 @@ run "lz_only_defaults" {
   }
 
   assert {
-    condition     = length(output.database.users) == 0
-    error_message = "database.users should be empty with no app targets"
+    condition     = length(output.database_users) == 0
+    error_message = "database_users should be empty with no app targets"
   }
 
   assert {
@@ -133,8 +133,8 @@ run "lambda_fastapi_path" {
   }
 
   assert {
-    condition     = length(output.database.users) == 1 && output.database.users[0].source == "lambda_apps"
-    error_message = "database.users should list one lambda_apps entry"
+    condition     = length(output.database_users) == 1 && output.database_users[0].id == "default"
+    error_message = "database_users should list one lambda_apps entry"
   }
 
   assert {

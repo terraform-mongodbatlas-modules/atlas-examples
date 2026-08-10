@@ -33,8 +33,8 @@ run "public_debug_enabled" {
   }
 
   assert {
-    condition     = length([for u in output.database.users : u if u.source == "public_debug_access"]) == 1
-    error_message = "database.users should list public debug user"
+    condition     = length([for u in output.database_users : u if u.id == "public_debug"]) == 1
+    error_message = "database_users should list public debug user"
   }
 }
 

@@ -5,24 +5,79 @@ output "connection_string_public" {
 }
 
 output "atlas" {
-  description = "Atlas project, cluster, connectivity, and module-managed AWS integrations. connection_string_private is hostnames only (PrivateLink); IAM auth supplies credentials at runtime."
+  description = "Atlas project, cluster, connectivity, and module-managed integrations. connection_string_private is hostnames only (PrivateLink); IAM auth supplies credentials at runtime."
   value = {
     project_id                = module.atlas_project.id
     cluster_name              = module.atlas_cluster.cluster_name
     connection_string_private = local.mongo_private_connection_string
-    privatelink               = module.atlas_aws.privatelink
-    log_bucket_name           = try(module.atlas_aws.log_integration.bucket_name, null)
-    backup_bucket_name        = try(module.atlas_aws.backup_export.bucket_name, null)
+    privatelink = {
+      for k, pl in module.atlas_aws.privatelink : k => {
+        vpc_endpoint_id   = pl.vpc_endpoint_id
+        security_group_id = pl.security_group_id
+        status            = pl.status
+      }
+    }
+    log_bucket_name         = try(module.atlas_aws.log_integration.bucket_name, null)
+    log_integration_ids     = try(module.atlas_aws.log_integration.integration_ids, null)
+    backup_bucket_name      = try(module.atlas_aws.backup_export.bucket_name, null)
+    backup_export_bucket_id = try(module.atlas_aws.backup_export.export_bucket_id, null)
+    cloud_provider_access_role_id = module.atlas_aws.role_id
+  }
+}
+
+output "aws" {
+  description = "AWS resource IDs grouped by landing-zone feature. Atlas IDs and bucket names: atlas output."
+  value = {
+    cloud_provider_access_role_arn = try(module.atlas_aws.resource_ids.iam_role_arn, null)
+
+    encryption = module.atlas_aws.encryption == null ? null : {
+      kms_key_arn = module.atlas_aws.encryption.kms_key_arn
+      valid       = module.atlas_aws.encryption.valid
+      private_endpoint_status = {
+        for region, ep in module.atlas_aws.encryption.private_endpoints : region => ep.status
+      }
+    }
+
+    log_integration = module.atlas_aws.log_integration == null ? null : {
+      bucket_arn = module.atlas_aws.log_integration.bucket_arn
+    }
+
+    backup_export = module.atlas_aws.backup_export == null ? null : {
+      bucket_arn = module.atlas_aws.backup_export.bucket_arn
+    }
+
+    vpcs = var.vpc_config.create ? {
+      for region in local.aws_regions : region => {
+        vpc_id             = module.vpc[region].vpc_id
+        private_subnet_ids = module.vpc[region].private_subnets
+        vpc_cidr_block     = module.vpc[region].vpc_cidr_block
+      }
+      } : {
+      for region, cfg in var.vpc_config.by_region : region => {
+        vpc_id             = cfg.vpc_id
+        private_subnet_ids = cfg.private_subnet_ids
+        vpc_cidr_block     = cfg.vpc_cidr_block
+      }
+    }
+
+    compute = {
+      for region in local.app_aws_regions : region => {
+        lambda_security_group_id = aws_security_group.lambda[region].id
+      }
+    }
+
+    lambda_roles = {
+      for k in keys(local.lambda_apps) : k => aws_iam_role.lambda_exec[k].arn
+    }
   }
 }
 
 output "operations" {
-  description = "Cluster region layout and VPC pinning/visibility. Copy vpc_pin into vpc_config.by_region before reordering regions (managed VPC only). vpcs is read-only. See docs/lz-changes.md."
+  description = "Cluster region layout and VPC pinning for lz-changes workflows. Copy vpc_pin into vpc_config.by_region before reordering regions (managed VPC only). VPC IDs: aws.vpcs. See docs/lz-changes.md."
   value = {
     regions = [
       for r in local.regions_resolved : {
         aws_region = r.aws_name
-        atlas_name = r.atlas_name
         node_count = r.node_count
       }
     ]
@@ -33,76 +88,45 @@ output "operations" {
         az_count = local.vpc_az_count_by_region[region]
       }
     } : null
-
-    vpcs = var.vpc_config.create ? {
-      for region in local.aws_regions : region => {
-        vpc_id                  = module.vpc[region].vpc_id
-        private_subnet_ids      = module.vpc[region].private_subnets
-        vpc_cidr_block          = module.vpc[region].vpc_cidr_block
-        private_route_table_ids = module.vpc[region].private_route_table_ids
-      }
-      } : {
-      for region, cfg in var.vpc_config.by_region : region => {
-        vpc_id                  = cfg.vpc_id
-        private_subnet_ids      = cfg.private_subnet_ids
-        vpc_cidr_block          = cfg.vpc_cidr_block
-        private_route_table_ids = cfg.private_route_table_ids
-      }
-    }
   }
 }
 
-output "database" {
-  description = "Atlas database users and grants from *_apps maps. users is empty when no app targets."
-  value = {
-    cluster_name = module.atlas_cluster.cluster_name
-    users = concat(
-      [
-        for k, app in local.lambda_apps : {
-          id               = k
-          source           = "lambda_apps"
-          username         = aws_iam_role.lambda_exec[k].arn
-          auth_type        = "AWS_IAM_ROLE"
-          primary_database = app.primary_database
-          grants = [
-            for r in app.roles : {
-              database_name   = r.database_name
-              role_name       = r.role_name
-              collection_name = try(r.collection_name, null)
-            }
-          ]
-        }
-      ],
-      var.public_debug_access != null ? [
-        {
-          id               = "public_debug"
-          source           = "public_debug_access"
-          username         = var.public_debug_access.username
-          auth_type        = "SCRAM"
-          primary_database = var.public_debug_access.database_name
-          grants = [{
-            database_name   = var.public_debug_access.database_name
-            role_name       = var.public_debug_access.role_name
-            collection_name = null
-          }]
-        }
-      ] : []
-    )
-  }
+output "database_users" {
+  description = "Atlas database users and grants from *_apps maps. Empty list when no app targets."
+  value = concat(
+    [
+      for k, app in local.lambda_apps : {
+        id               = k
+        username         = aws_iam_role.lambda_exec[k].arn
+        primary_database = app.primary_database
+        grants = [
+          for r in app.roles : {
+            database_name   = r.database_name
+            role_name       = r.role_name
+            collection_name = try(r.collection_name, null)
+          }
+        ]
+      }
+    ],
+    var.public_debug_access != null ? [
+      {
+        id               = "public_debug"
+        username         = var.public_debug_access.username
+        primary_database = var.public_debug_access.database_name
+        grants = [{
+          database_name   = var.public_debug_access.database_name
+          role_name       = var.public_debug_access.role_name
+          collection_name = null
+        }]
+      }
+    ] : []
+  )
 }
 
 output "ecr_repositories" {
-  description = "ECR registries keyed by ecr_repositories map key."
+  description = "ECR repository URLs keyed by ecr_repositories map key."
   value = {
-    for k, v in local.ecr_repositories : k => {
-      name                 = v.name
-      region               = v.region
-      repository_url       = aws_ecr_repository.this[k].repository_url
-      image_tag_mutability = v.image_tag_mutability
-      scan_on_push         = v.scan_on_push
-      force_delete         = v.force_delete
-      lifecycle_keep_count = v.lifecycle_keep_count
-    }
+    for k in keys(local.ecr_repositories) : k => aws_ecr_repository.this[k].repository_url
   }
 }
 
@@ -121,7 +145,7 @@ output "lambda_apps" {
 }
 
 output "app_handoff" {
-  description = "Per-Lambda-app inputs for a thin 02_app_* stack when file and Secrets Manager handoff are omitted."
+  description = "Sensitive per-app payload for thin 02_app_* stacks when tfvars_path and secret are omitted: aws_region, name_prefix, private_subnet_ids, lambda_security_group_id, lambda_execution_role_arn, mongo_private_connection_string, app_database_name, ecr_repository_url."
   sensitive   = true
   value       = local.app_handoff_payloads
 }

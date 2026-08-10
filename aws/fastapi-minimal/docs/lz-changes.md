@@ -1,6 +1,6 @@
 # Landing zone changes
 
-Use-case index for editing `01_lz` after the first apply. Config lives in [terraform.tfvars.example](../01_lz/terraform.tfvars.example) and [README](../README.md).
+Use-case index for editing `01_lz` after the first apply. Config lives in [terraform.tfvars.example](../01_lz/terraform.tfvars.example) and [README](../README.md). LZ visibility: `terraform -chdir=01_lz output` (descriptions on each output).
 
 - [Change the primary region](#change-the-primary-region)
 - [Add a cluster region](#add-a-cluster-region)
@@ -16,7 +16,7 @@ Use-case index for editing `01_lz` after the first apply. Config lives in [terra
 Move a different AWS region to `regions[0]` (default AWS provider region, `operations.regions[0]`, default ECR/Lambda region). Managed VPC CIDRs follow list index unless pinned in `vpc_config.by_region`; pin before reordering `regions`.
 
 1. `terraform -chdir=01_lz output -json operations | jq '.vpc_pin'`
-2. Paste each entry into `vpc_config.by_region` in `terraform.tfvars`. Do not paste `vpcs`; it is read-only.
+2. Paste each entry into `vpc_config.by_region` in `terraform.tfvars`. Do not paste `aws.vpcs`; it is read-only.
 3. Reorder `regions` so the new primary is first
 4. `terraform -chdir=01_lz plan` then apply
 
@@ -50,7 +50,7 @@ See README **AWS Lambda** and `terraform.tfvars.example` (multiple `lambda_apps`
 
 Apply `01_lz` with empty `ecr_repositories`, `lambda_apps`, `ecs_apps`, and `ec2_apps`. You get Atlas + PrivateLink + VPC(s) + CPA/KMS/log/backup only.
 
-App teams supply their own Atlas IAM DB users, compute IAM roles, registry, security groups, VPC endpoints, and `02_app_*` wiring. Read `atlas`, `operations` (`regions`, `vpc_pin`, `vpcs`), and `database` outputs for visibility; runtime handoff is not written unless you configure an app target. For short-lived public debugging, see README FAQ **How do I connect from my laptop?**
+App teams supply their own Atlas IAM DB users, compute IAM roles, registry, security groups, VPC endpoints, and `02_app_*` wiring. Run `terraform -chdir=01_lz output` for LZ visibility; runtime handoff is not written unless you configure an app target. For short-lived public debugging, see README FAQ **How do I connect from my laptop?**
 
 ## App config overlays
 

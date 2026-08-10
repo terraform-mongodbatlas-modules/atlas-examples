@@ -83,13 +83,34 @@ TODO: future `ec2_apps` map; no resources in `01_lz` yet (follow-up PR).
 
 ### Platform-only landing zone
 
-Valid to apply with no app targets (`ecr_repositories = {}`, `lambda_apps = {}`). You get Atlas + PrivateLink + VPC(s) + CPA/KMS/log/backup only. App teams run their own pipeline and need Atlas/AWS permissions for DB users, IAM, registry, network, and `02_app_*` wiring. Use `atlas`, `operations` (`regions`, `vpc_pin`, `vpcs`), and `database` outputs for visibility.
+Valid to apply with no app targets (`ecr_repositories = {}`, `lambda_apps = {}`). You get Atlas + PrivateLink + VPC(s) + Cloud Provider Access/KMS/log/backup only. App teams run their own pipeline and wire compute themselves; run `terraform -chdir=01_lz output` for LZ visibility (each output has a description). Region and VPC edits: [docs/lz-changes.md](./docs/lz-changes.md).
 
-Optional knobs in `terraform.tfvars`: `cluster_name`, `default_resource_name_prefix`, `regions`, `tags`, `s3_force_destroy`, `vpc_config`, `cluster_type`, `manual_scaling`, `public_debug_access`. For region and VPC edits after the first apply, see [docs/lz-changes.md](./docs/lz-changes.md).
+Optional knobs in `terraform.tfvars`: `cluster_name`, `default_resource_name_prefix`, `regions`, `tags`, `s3_force_destroy`, `vpc_config`, `cluster_type`, `manual_scaling`, `public_debug_access`.
 
 For a short-lived lab, see [What is the cost of running this example?](#what-is-the-cost-of-running-this-example) (replica-set escape hatch, skip module-managed KMS, and other levers before the first apply).
 
 To change Landing Zone features (PrivateLink, encryption, log integration, backup export) or pin cluster autoscaling, edit the module blocks in [01_lz/main.tf](./01_lz/main.tf) (comments show how to disable features). VPC, security groups, ECR, and the Lambda role live in [01_lz/aws.tf](./01_lz/aws.tf). Full schemas: [project](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/project/mongodbatlas/latest), [atlas-aws](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws/tree/main), [cluster](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest). The `atlas-aws` module temporarily tracks its `main` branch for the AWS provider 6 deprecation fix; switch back to the registry release once that fix is published.
+
+## Handoff to `02_app_lambda`
+
+`01_lz` provisions Atlas, network, IAM, and ECR. `02_app_lambda` is a thin stack that only needs runtime wiring (subnets, security group, execution role, Mongo connection string, database name, image URL). `01_lz` does not deploy Lambda; it hands those values to the app stack.
+
+Pick one handoff path per `lambda_apps` entry:
+
+- **File (FastAPI demo default):** Set `tfvars_path` (for example `../02_app_lambda/infra.auto.tfvars`). Re-apply `01_lz` to write a gitignored auto-vars file consumed by `02_app_lambda` on the next apply.
+- **Secrets Manager:** Omit `tfvars_path` and set `secret = {}` (optional `name`). Re-apply `01_lz` to publish a JSON secret in the app's `aws_region`. Your app stack reads the secret instead of a local file.
+- **Manual:** Omit both `tfvars_path` and `secret`. Copy one app payload from `terraform -chdir=01_lz output -json app_handoff` into [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example) fields.
+
+Each payload includes: `aws_region`, `name_prefix`, `private_subnet_ids`, `lambda_security_group_id`, `lambda_execution_role_arn`, `mongo_private_connection_string`, `app_database_name`, and `ecr_repository_url`. The connection string is PrivateLink hostnames only; Lambda uses IAM auth at runtime (`USE_IAM_AUTH=true` in `02_app_lambda`).
+
+After handoff is in place, push an image before `02_app_lambda` apply:
+
+```sh
+just build-push                        # ecr_repositories key "api" (default)
+ECR_KEY=worker just build-push         # another key from ecr_repositories
+```
+
+`lambda_apps` output lists configured apps and where handoff landed (`tfvars_path` or `secret_name`). Destroy the app stack before destroying `01_lz` when Secrets Manager handoff is in use.
 
 ## Deploy Atlas and AWS LZ
 
@@ -202,9 +223,7 @@ See [docs/lz-changes.md](./docs/lz-changes.md) (**Add a cluster region**). Pin V
 
 ### How does `01_lz` hand values to `02_app_lambda`?
 
-When `lambda_apps` includes `tfvars_path`, `01_lz` writes `02_app_lambda/infra.auto.tfvars`. To configure a thin app stack manually, omit both `tfvars_path` and `secret`, then copy the selected app payload from `terraform -chdir=01_lz output -json app_handoff` into [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example). The payload contains the app region, Lambda name prefix, subnet IDs, Lambda security group ID, execution-role ARN, regional MongoDB private connection string, database name, and ECR URL.
-
-Optional Secrets Manager: set `secret = {}` (or `secret = { name = "..." }`) on that app. `01_lz` creates the secret in the app's `aws_region`. Re-apply `01_lz` to replace the secret version. Destroy the app stack before deleting the secret / destroying `01_lz`.
+See [Handoff to `02_app_lambda`](#handoff-to-02_app_lambda). To move from file handoff to Secrets Manager, see [docs/lz-changes.md](./docs/lz-changes.md) (**Move from file handoff to Secrets Manager**).
 
 ### What is the cost of running this example?
 
