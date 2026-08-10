@@ -190,7 +190,7 @@ resource "mongodbatlas_database_user" "public_debug" {
 
   project_id         = module.atlas_project.id
   username           = var.public_debug_access.username
-  password           = coalesce(var.public_debug_access.password, random_password.public_debug[0].result)
+  password           = local.public_debug_password
   auth_database_name = "admin"
 
   roles {

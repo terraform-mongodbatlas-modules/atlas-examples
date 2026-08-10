@@ -202,7 +202,7 @@ See [docs/lz-changes.md](./docs/lz-changes.md) (**Add a cluster region**). Pin V
 
 ### How does `01_lz` hand values to `02_app_lambda`?
 
-When `lambda_apps` includes `tfvars_path`, `01_lz` writes `02_app_lambda/infra.auto.tfvars`. To configure a thin app stack manually, omit both `tfvars_path` and `secret`, then copy the selected app payload from `terraform -chdir=01_lz output -json app_handoff` into [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example). The payload contains the app region, subnet IDs, Lambda security group ID, execution-role ARN, regional MongoDB private connection string, database name, and ECR URL.
+When `lambda_apps` includes `tfvars_path`, `01_lz` writes `02_app_lambda/infra.auto.tfvars`. To configure a thin app stack manually, omit both `tfvars_path` and `secret`, then copy the selected app payload from `terraform -chdir=01_lz output -json app_handoff` into [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example). The payload contains the app region, Lambda name prefix, subnet IDs, Lambda security group ID, execution-role ARN, regional MongoDB private connection string, database name, and ECR URL.
 
 Optional Secrets Manager: set `secret = {}` (or `secret = { name = "..." }`) on that app. `01_lz` creates the secret in the app's `aws_region`. Re-apply `01_lz` to replace the secret version. Destroy the app stack before deleting the secret / destroying `01_lz`.
 

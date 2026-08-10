@@ -1,5 +1,6 @@
-locals {
-  az_letters = ["a", "b", "c", "d", "e", "f"]
+data "aws_availability_zones" "available" {
+  region = var.aws_region
+  state  = "available"
 }
 
 module "vpc" {
@@ -10,7 +11,7 @@ module "vpc" {
   name   = var.name
   cidr   = var.cidr
 
-  azs             = [for i in range(var.az_count) : "${var.aws_region}${local.az_letters[i]}"]
+  azs             = slice(data.aws_availability_zones.available.names, 0, min(var.az_count, length(data.aws_availability_zones.available.names)))
   private_subnets = [for i in range(var.az_count) : cidrsubnet(var.cidr, 4, i)]
   public_subnets  = var.enable_nat_gateway ? [for i in range(var.az_count) : cidrsubnet(var.cidr, 4, 8 + i)] : []
 

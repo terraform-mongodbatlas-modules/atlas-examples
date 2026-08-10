@@ -1,5 +1,9 @@
 mock_provider "mongodbatlas" {}
-mock_provider "aws" {}
+mock_provider "aws" {
+  mock_data "aws_availability_zones" {
+    defaults = { names = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e", "us-east-1f"] }
+  }
+}
 mock_provider "local" {}
 
 variables {
@@ -87,6 +91,7 @@ run "lambda_fastapi_path" {
     ecr_repositories = { api = {} }
     lambda_apps = {
       default = {
+        name        = "custom-api"
         ecr_key     = "api"
         roles       = [{ database_name = "test" }]
         tfvars_path = "../02_app_lambda/infra.auto.tfvars"
@@ -120,6 +125,11 @@ run "lambda_fastapi_path" {
   assert {
     condition     = length(local_file.app_tfvars) == 1 && local_file.app_tfvars["default"].filename == "../02_app_lambda/infra.auto.tfvars"
     error_message = "Handoff path should target 02_app_lambda"
+  }
+
+  assert {
+    condition     = local.app_handoff_payloads["default"].name_prefix == "custom-api"
+    error_message = "Handoff should set the Lambda name prefix from the resolved app name."
   }
 
   assert {
@@ -210,6 +220,19 @@ run "manual_scaling_invalid_tier" {
   ]
 }
 
+run "manual_scaling_invalid_format" {
+  command = plan
+
+  variables {
+    atlas_org_id   = "org123"
+    manual_scaling = { instance_size = "invalid" }
+  }
+
+  expect_failures = [
+    var.manual_scaling,
+  ]
+}
+
 run "ecr_lifecycle_disabled" {
   command = plan
 
@@ -232,6 +255,21 @@ run "ecr_lifecycle_disabled" {
     condition     = aws_ecr_repository.this["api"].image_scanning_configuration[0].scan_on_push == false
     error_message = "scan_on_push should follow ecr_repositories setting"
   }
+}
+
+run "ecr_lifecycle_fractional_count" {
+  command = plan
+
+  variables {
+    atlas_org_id = "org123"
+    ecr_repositories = {
+      api = { lifecycle_keep_count = 1.5 }
+    }
+  }
+
+  expect_failures = [
+    var.ecr_repositories,
+  ]
 }
 
 run "lambda_ecr_key_missing" {

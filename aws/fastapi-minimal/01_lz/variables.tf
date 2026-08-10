@@ -40,7 +40,11 @@ variable "public_debug_access" {
   nullable = true
 
   validation {
-    condition     = var.public_debug_access == null || can(cidrhost("${var.public_debug_access.ip_address}/32", 0))
+    condition = var.public_debug_access == null || (
+      !strcontains(var.public_debug_access.ip_address, ":") &&
+      length(split(".", var.public_debug_access.ip_address)) == 4 &&
+      can(cidrhost("${var.public_debug_access.ip_address}/32", 0))
+    )
     error_message = "public_debug_access.ip_address must be a single IPv4 address (e.g. 1.2.3.4)."
   }
 }
@@ -264,9 +268,10 @@ variable "ecr_repositories" {
   validation {
     condition = alltrue([
       for _, repo in var.ecr_repositories :
-      repo.lifecycle_keep_count >= 0
+      repo.lifecycle_keep_count >= 0 &&
+      repo.lifecycle_keep_count == floor(repo.lifecycle_keep_count)
     ])
-    error_message = "ecr_repositories.*.lifecycle_keep_count must be >= 0 (0 disables the lifecycle policy)."
+    error_message = "ecr_repositories.*.lifecycle_keep_count must be a whole number >= 0 (0 disables the lifecycle policy)."
   }
 
   validation {

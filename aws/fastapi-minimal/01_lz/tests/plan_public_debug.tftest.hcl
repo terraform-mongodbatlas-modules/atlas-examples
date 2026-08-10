@@ -1,5 +1,9 @@
 mock_provider "mongodbatlas" {}
-mock_provider "aws" {}
+mock_provider "aws" {
+  mock_data "aws_availability_zones" {
+    defaults = { names = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e", "us-east-1f"] }
+  }
+}
 mock_provider "local" {}
 mock_provider "random" {}
 
@@ -34,6 +38,22 @@ run "public_debug_enabled" {
   }
 }
 
+run "public_debug_supplied_password" {
+  command = plan
+
+  variables {
+    public_debug_access = {
+      ip_address = "203.0.113.42"
+      password   = "debug-password"
+    }
+  }
+
+  assert {
+    condition     = length(random_password.public_debug) == 0 && mongodbatlas_database_user.public_debug[0].password == "debug-password"
+    error_message = "A supplied public debug password should not create or index the generated password."
+  }
+}
+
 run "public_debug_full_access" {
   command = plan
 
@@ -60,6 +80,20 @@ run "public_debug_invalid_ip" {
   variables {
     public_debug_access = {
       ip_address = "not-an-ip"
+    }
+  }
+
+  expect_failures = [
+    var.public_debug_access,
+  ]
+}
+
+run "public_debug_ipv6" {
+  command = plan
+
+  variables {
+    public_debug_access = {
+      ip_address = "2001:db8::1"
     }
   }
 

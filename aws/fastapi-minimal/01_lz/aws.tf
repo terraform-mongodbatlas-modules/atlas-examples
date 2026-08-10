@@ -55,14 +55,15 @@ locals {
 
   public_debug_connection_string = var.public_debug_access != null ? format(
     "mongodb+srv://%s:%s@%s/?authSource=admin",
-    var.public_debug_access.username,
-    local.public_debug_password,
+    urlencode(var.public_debug_access.username),
+    urlencode(local.public_debug_password),
     trimprefix(module.atlas_cluster.connection_strings.standard_srv, "mongodb+srv://")
   ) : null
 
   app_handoff_payloads = {
     for k, v in local.lambda_apps : k => {
       aws_region                      = v.aws_region
+      name_prefix                     = v.name
       private_subnet_ids              = local.app_network[v.aws_region].private_subnet_ids
       lambda_security_group_id        = aws_security_group.lambda[v.aws_region].id
       lambda_execution_role_arn       = aws_iam_role.lambda_exec[k].arn
@@ -240,6 +241,7 @@ resource "local_file" "app_tfvars" {
   filename = each.value.tfvars_path
   content  = <<-EOT
     aws_region                      = "${local.app_handoff_payloads[each.key].aws_region}"
+    name_prefix                     = "${local.app_handoff_payloads[each.key].name_prefix}"
     private_subnet_ids              = ${jsonencode(local.app_handoff_payloads[each.key].private_subnet_ids)}
     lambda_security_group_id        = "${local.app_handoff_payloads[each.key].lambda_security_group_id}"
     lambda_execution_role_arn       = "${local.app_handoff_payloads[each.key].lambda_execution_role_arn}"

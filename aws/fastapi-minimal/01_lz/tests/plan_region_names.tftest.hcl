@@ -1,5 +1,9 @@
 mock_provider "mongodbatlas" {}
-mock_provider "aws" {}
+mock_provider "aws" {
+  mock_data "aws_availability_zones" {
+    defaults = { names = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e", "us-east-1f"] }
+  }
+}
 mock_provider "local" {}
 
 variables {
