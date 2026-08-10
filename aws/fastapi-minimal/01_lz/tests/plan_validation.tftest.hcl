@@ -6,8 +6,12 @@ variables {
   atlas_org_id = "org123"
 }
 
-run "defaults" {
+run "lz_only_defaults" {
   command = plan
+
+  variables {
+    manual_scaling = null
+  }
 
   assert {
     condition     = local.aws_region == "us-east-1" && local.cluster_regions[0].name == "US_EAST_1"
@@ -20,8 +24,8 @@ run "defaults" {
   }
 
   assert {
-    condition     = module.atlas_cluster.cluster_name == "fastapi-minimal" && output.app_database_name == "test"
-    error_message = "Cluster name and primary app DB should match defaults"
+    condition     = module.atlas_cluster.cluster_name == "fastapi-minimal"
+    error_message = "Cluster name should match name_prefix default"
   }
 
   assert {
@@ -35,23 +39,68 @@ run "defaults" {
   }
 
   assert {
-    condition     = length(aws_ecr_repository.this) == 1 && contains(keys(aws_ecr_repository.this), "default")
-    error_message = "Default ecr_repositories should create one repo keyed default"
+    condition     = length(aws_ecr_repository.this) == 0
+    error_message = "Platform-only defaults should not create ECR"
   }
 
   assert {
-    condition     = length(aws_ecr_lifecycle_policy.this) == 1 && aws_ecr_repository.this["default"].image_scanning_configuration[0].scan_on_push == true
-    error_message = "Default ECR should enable scan_on_push and a lifecycle policy"
+    condition     = length(aws_iam_role.lambda_exec) == 0
+    error_message = "Platform-only defaults should not create Lambda IAM roles"
   }
 
   assert {
-    condition     = length(aws_iam_role.lambda_exec) == 1 && local.lambda_apps["default"].ecr_key == "default"
-    error_message = "Default lambda_apps should create one IAM role referencing ecr_key default"
+    condition     = length(aws_security_group.lambda) == 0
+    error_message = "Platform-only defaults should not create Lambda security groups"
+  }
+
+  assert {
+    condition     = length(mongodbatlas_database_user.lambda) == 0
+    error_message = "Platform-only defaults should not create Atlas IAM DB users"
+  }
+
+  assert {
+    condition     = length(local_file.app_tfvars) == 0
+    error_message = "Platform-only defaults should not write app handoff files"
+  }
+
+  assert {
+    condition     = length(output.database.users) == 0
+    error_message = "database.users should be empty with no app targets"
+  }
+
+  assert {
+    condition     = output.atlas.cluster_name == "fastapi-minimal"
+    error_message = "atlas.cluster_name should resolve on platform-only apply"
+  }
+}
+
+run "lambda_fastapi_path" {
+  command = plan
+
+  variables {
+    ecr_repositories = { api = {} }
+    lambda_apps = {
+      default = {
+        ecr_key     = "api"
+        roles       = [{ database_name = "test" }]
+        tfvars_path = "../02_app_lambda/infra.auto.tfvars"
+      }
+    }
+  }
+
+  assert {
+    condition     = length(aws_ecr_repository.this) == 1 && contains(keys(aws_ecr_repository.this), "api")
+    error_message = "Lambda path should create ECR keyed api"
+  }
+
+  assert {
+    condition     = length(aws_iam_role.lambda_exec) == 1 && local.lambda_apps["default"].ecr_key == "api"
+    error_message = "Lambda path should create one IAM role referencing ecr_key api"
   }
 
   assert {
     condition     = length(aws_security_group.lambda) == 1 && local.lambda_apps["default"].aws_region == "us-east-1"
-    error_message = "Default lambda app should use regions[0] AWS region"
+    error_message = "Lambda app should use regions[0] AWS region"
   }
 
   assert {
@@ -59,17 +108,27 @@ run "defaults" {
       for r in mongodbatlas_database_user.lambda["default"].roles :
       r if r.role_name == "readWrite" && r.database_name == "test"
     ]) == 1 && length(mongodbatlas_database_user.lambda) == 1
-    error_message = "Default IAM DB user should be readWrite on test only"
+    error_message = "IAM DB user should be readWrite on test only"
   }
 
   assert {
     condition     = length(local_file.app_tfvars) == 1 && local_file.app_tfvars["default"].filename == "../02_app_lambda/infra.auto.tfvars"
-    error_message = "Default handoff path should target 02_app_lambda"
+    error_message = "Handoff path should target 02_app_lambda"
   }
 
   assert {
-    condition     = length(aws_secretsmanager_secret.app) == 0
-    error_message = "Secrets Manager should be off by default"
+    condition     = length(output.database.users) == 1 && output.database.users[0].source == "lambda_apps"
+    error_message = "database.users should list one lambda_apps entry"
+  }
+
+  assert {
+    condition     = contains(keys(output.ecr_repositories), "api")
+    error_message = "ecr_repositories output should include api key"
+  }
+
+  assert {
+    condition     = output.lambda_apps["default"].tfvars_path == "../02_app_lambda/infra.auto.tfvars"
+    error_message = "lambda_apps tfvars_path should point at 02_app_lambda"
   }
 }
 
@@ -151,7 +210,7 @@ run "ecr_lifecycle_disabled" {
   variables {
     atlas_org_id = "org123"
     ecr_repositories = {
-      default = {
+      api = {
         lifecycle_keep_count = 0
         scan_on_push         = false
       }
@@ -164,7 +223,7 @@ run "ecr_lifecycle_disabled" {
   }
 
   assert {
-    condition     = aws_ecr_repository.this["default"].image_scanning_configuration[0].scan_on_push == false
+    condition     = aws_ecr_repository.this["api"].image_scanning_configuration[0].scan_on_push == false
     error_message = "scan_on_push should follow ecr_repositories setting"
   }
 }
@@ -175,7 +234,7 @@ run "lambda_ecr_key_missing" {
   variables {
     atlas_org_id = "org123"
     ecr_repositories = {
-      default = {}
+      api = {}
     }
     lambda_apps = {
       default = {
@@ -194,10 +253,11 @@ run "lambda_apps_empty_roles" {
   command = plan
 
   variables {
-    atlas_org_id = "org123"
+    atlas_org_id     = "org123"
+    ecr_repositories = { api = {} }
     lambda_apps = {
       default = {
-        ecr_key = "default"
+        ecr_key = "api"
         roles   = []
       }
     }
@@ -212,10 +272,11 @@ run "create_app_secret" {
   command = plan
 
   variables {
-    atlas_org_id = "org123"
+    atlas_org_id     = "org123"
+    ecr_repositories = { api = {} }
     lambda_apps = {
       default = {
-        ecr_key     = "default"
+        ecr_key     = "api"
         roles       = [{ database_name = "test" }]
         tfvars_path = "../02_app_lambda/infra.auto.tfvars"
         secret      = {}
@@ -238,10 +299,11 @@ run "app_tfvars_disabled" {
   command = plan
 
   variables {
-    atlas_org_id = "org123"
+    atlas_org_id     = "org123"
+    ecr_repositories = { api = {} }
     lambda_apps = {
       default = {
-        ecr_key = "default"
+        ecr_key = "api"
         roles   = [{ database_name = "test" }]
       }
     }
@@ -269,7 +331,7 @@ run "replicaset_escape" {
   }
 
   assert {
-    condition     = output.atlas_cluster_name == "demo-app"
+    condition     = output.atlas.cluster_name == "demo-app"
     error_message = "Cluster name should follow name_prefix"
   }
 }

@@ -31,10 +31,6 @@ locals {
       )
     }
   }
-  primary_app_key = contains(keys(local.lambda_apps), "default") ? "default" : sort(keys(local.lambda_apps))[0]
-  primary_app     = local.lambda_apps[local.primary_app_key]
-  primary_ecr_url = aws_ecr_repository.this[local.primary_app.ecr_key].repository_url
-
   lambda_tfvars  = { for k, v in local.lambda_apps : k => v if v.tfvars_path != null }
   lambda_secrets = { for k, v in local.lambda_apps : k => v if v.secret_name != null }
 

@@ -4,16 +4,17 @@
 
 **Audience (Developer Days):**
 
-- **Platform track (~10):** Own `01_lz` (Atlas + PrivateLink + VPC + ECR + IAM DB users). Leave with a base you can iterate on for other apps.
-- **App track (~100):** Consume LZ outputs (file handoff by default; optional Secrets Manager), build/push the image, apply thin `02_app_lambda`.
+- **Platform track (~10):** Own `01_lz` (Atlas + PrivateLink + VPC). Leave with a base you can iterate on for other apps.
+- **App track (~100):** Enable an app deployment target, consume LZ handoff, build/push the image, apply thin `02_app_lambda`.
 
 Success bar: both groups leave with something running and a clear next edit.
 
 **What this creates:**
 
-- **Atlas:** Project, PrivateLink endpoint(s), customer-key encryption-at-rest, log + backup-export integrations, sharded cluster (`SHARDED`, `shard_count = 2` by default), one IAM database user per `lambda_apps` entry (`roles` default: `readWrite` on `test`)
-- **AWS (`01_lz`):** PrivateLink VPC endpoint(s), Cloud Provider Access, module-managed KMS CMK, log + backup-export S3 buckets, VPC (create or BYO) + VPC endpoints per app AWS region, `ecr_repositories` (independent of compute), one Lambda execution role per `lambda_apps` entry, Lambda security group per distinct app region
-- **AWS (`02_app_lambda`):** Lambda, Function URL, CloudWatch (requires ECR URL from LZ)
+- **Atlas (`01_lz`):** Project, PrivateLink endpoint(s), customer-key encryption-at-rest, log + backup-export integrations, sharded cluster (`SHARDED`, `shard_count = 2` by default)
+- **AWS platform (`01_lz`):** PrivateLink VPC endpoint(s), Cloud Provider Access, module-managed KMS CMK, log + backup-export S3 buckets, VPC (create or BYO) per cluster AWS region
+- **Optional app targets (`01_lz`):** ECR, Lambda execution roles, Atlas IAM DB users, Lambda security groups + VPC endpoints per distinct app region (enable via **AWS Lambda** in tfvars)
+- **AWS (`02_app_lambda`):** Lambda, Function URL, CloudWatch (requires Lambda target configured and image pushed)
 - **App:** FastAPI image in `src/` (IAM auth to Mongo over PrivateLink)
 
 Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-examples) only. App source is in `src/`. Run all commands from this directory with `terraform -chdir=…` (do not `cd` into the stacks).
@@ -29,6 +30,8 @@ Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-e
 ├── 02_app_lambda
 │   ├── terraform.tfvars.example
 │   └── ...
+├── docs
+│   └── lz-changes.md
 ├── justfile
 └── src
     └── ...
@@ -41,14 +44,48 @@ Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-e
 3. AWS credentials for the target account/region (AWS CLI for log tail)
 4. [Docker](https://docs.docker.com/) and [just](https://github.com/casey/just)
 
-### Make the example your own
+## Make the example your own
 
 ```sh
 cp 01_lz/terraform.tfvars.example 01_lz/terraform.tfvars
 # Edit 01_lz/terraform.tfvars and set atlas_org_id
 ```
 
-Optional knobs in that tfvars file: `regions`, `name_prefix`, `tags`, `s3_force_destroy`, `ecr_repositories`, `lambda_apps` (per-app `tfvars_path` / `secret`), `vpc_config`, `cluster_type`, `manual_scaling`.
+`01_lz` provisions the Atlas + AWS landing zone. App deployment targets are optional and composable; enable only what you need in `terraform.tfvars`.
+
+### AWS Lambda
+
+Uncomment and apply this block for the FastAPI demo path:
+
+```hcl
+ecr_repositories = {
+  api = {}
+}
+
+lambda_apps = {
+  api = {
+    ecr_key     = "api"
+    roles       = [{ database_name = "test" }]
+    tfvars_path = "../02_app_lambda/infra.auto.tfvars"
+  }
+}
+```
+
+Re-apply `01_lz` after adding this block before `just build-push` and `02_app_lambda`. Each `lambda_apps` entry creates one IAM execution role and one Atlas IAM database user (`roles` default: `readWrite` on `test`). See [02_app_lambda](./02_app_lambda/) for the thin app stack.
+
+### Amazon ECS
+
+TODO: same variable shape as `lambda_apps` (`ecs_apps`); no resources in `01_lz` yet (follow-up PR).
+
+### Amazon EC2
+
+TODO: future `ec2_apps` map; no resources in `01_lz` yet (follow-up PR).
+
+### Platform-only landing zone
+
+Valid to apply with no app targets (`ecr_repositories = {}`, `lambda_apps = {}`). You get Atlas + PrivateLink + VPC(s) + CPA/KMS/log/backup only. App teams run their own pipeline and need Atlas/AWS permissions for DB users, IAM, registry, network, and `02_app_*` wiring. Use `atlas`, `network`, and `database` outputs for visibility.
+
+Optional knobs in `terraform.tfvars`: `regions`, `name_prefix`, `tags`, `s3_force_destroy`, `vpc_config`, `cluster_type`, `manual_scaling`. For region and VPC edits after the first apply, see [docs/lz-changes.md](./docs/lz-changes.md).
 
 For a short-lived lab, see [What is the cost of running this example?](#what-is-the-cost-of-running-this-example) (replica-set escape hatch, skip module-managed KMS, and other levers before the first apply).
 
@@ -56,7 +93,7 @@ To change Landing Zone features (PrivateLink, encryption, log integration, backu
 
 ## Deploy Atlas and AWS LZ
 
-`01_lz` creates the Atlas project/cluster, AWS network/IAM, and ECR. On apply it writes `02_app_lambda/infra.auto.tfvars` (gitignored), including the private Mongo connection string (hostnames only; IAM auth supplies credentials at runtime) and `ecr_repository_url`.
+`01_lz` creates the Atlas project/cluster and AWS platform resources. With the **AWS Lambda** block configured, apply also writes `02_app_lambda/infra.auto.tfvars` (gitignored).
 
 ```sh
 terraform -chdir=01_lz init
@@ -65,7 +102,7 @@ terraform -chdir=01_lz apply
 
 ## Build the image and deploy Lambda
 
-LZ already created ECR. Build/push, then apply the thin app stack.
+Requires the **AWS Lambda** block in `terraform.tfvars` and a successful `01_lz` apply.
 
 ```sh
 # Login, build linux/arm64 from src/, tag 0.0.1 (override: just build-push 0.0.2), push
@@ -90,7 +127,7 @@ aws logs tail "$(terraform -chdir=02_app_lambda output -raw lambda_log_group_nam
 
 ## Tear down
 
-Destroy the app stack before LZ. Lambda ENIs stay attached to the LZ security group until `02_app_lambda` is gone; destroying LZ first hangs or fails on SG/VPC teardown. If an app sets `secret`, destroy that app stack before destroying `01_lz` (secrets are deleted with LZ).
+Destroy the app stack before LZ when Lambda was deployed. Lambda ENIs stay attached to the LZ security group until `02_app_lambda` is gone; destroying LZ first hangs or fails on SG/VPC teardown. If an app sets `secret`, destroy that app stack before destroying `01_lz`.
 
 ```sh
 terraform -chdir=02_app_lambda destroy
@@ -101,7 +138,7 @@ terraform -chdir=01_lz destroy
 
 ### How does the app reach MongoDB?
 
-Private subnets only (no NAT/IGW by default). VPC endpoints cover `ecr.api`, `ecr.dkr`, `s3` (gateway), `logs`, and `sts`. Lambda SG egress is limited to the VPC CIDR and the S3 prefix list. Each `lambda_apps` entry gets its own IAM execution role and Atlas IAM database user (`roles` map to `mongodbatlas_database_user.roles`; `role_name` defaults to `readWrite`). Image registries live in `ecr_repositories` and are selected with `ecr_key` (not destroyed when you remove a Lambda app). Env set by `02_app_lambda`: `MONGO_URL` (private connection string), `USE_IAM_AUTH=true`, `DB_NAME` (primary app `primary_database`, default `test`).
+Private subnets only (no NAT/IGW by default). When `lambda_apps` is non-empty, VPC endpoints cover `ecr.api`, `ecr.dkr`, `s3` (gateway), `logs`, and `sts` per distinct app region. Lambda SG egress is limited to the VPC CIDR and the S3 prefix list. Each `lambda_apps` entry gets its own IAM execution role and Atlas IAM database user. Image registries live in `ecr_repositories` and are selected with `ecr_key`. Env set by `02_app_lambda`: `MONGO_URL` (private connection string), `USE_IAM_AUTH=true`, `DB_NAME` (primary app `primary_database`, default `test`).
 
 ### How do I add another Lambda app?
 
@@ -113,7 +150,7 @@ ecr_repositories = {
 }
 
 lambda_apps = {
-  default = {
+  api = {
     ecr_key     = "api"
     roles       = [{ database_name = "test" }]
     tfvars_path = "../02_app_lambda/infra.auto.tfvars"
@@ -130,19 +167,17 @@ lambda_apps = {
 }
 ```
 
-Re-apply `01_lz`, push an image to that repo URL, and point a thin app stack at that URL, role ARN, and `primary_database`. `ecs_apps` is a stub (`default = {}`) with no resources yet; when it lands it should reuse `ecr_key`, `tfvars_path`, and `secret` the same way.
+Re-apply `01_lz`, push an image to that repo URL, and point a thin app stack at that URL, role ARN, and `primary_database`.
 
 ### How do I grow to a second Atlas region?
 
-Add another object to `regions` using AWS region names (same shape as the [cluster module](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest)). `01_lz` creates module-managed PrivateLink for each cluster region. With default `vpc_config.create = true`, Terraform also creates one private VPC per cluster AWS region and wires subnets into PrivateLink; append to `regions` only (west gets `10.1.0.0/16` from `base_cidr` by default). Override a region with `vpc_config.by_region[region].cidr` or `az_count`. For full BYO, set `create = false` and populate `by_region` for every cluster AWS region.
-
-Set `lambda_apps.*.aws_region` and `ecr_repositories.*.region` to place compute and registries in a cluster region other than `regions[0]` (both default to `regions[0]` when omitted). App `aws_region` must match the `ecr_key` repo region. Interface VPC endpoints and Lambda security groups are created per distinct app region. Architecture Center: put a private endpoint in every region where the cluster is deployed ([network security](https://www.mongodb.com/docs/atlas/architecture/current/network-security/)).
+See [docs/lz-changes.md](./docs/lz-changes.md) (**Add a cluster region**). Pin VPC CIDRs from `terraform output -json operations` before reordering `regions`.
 
 ### How does `01_lz` hand values to `02_app_lambda`?
 
-By default the `default` lambda app writes `02_app_lambda/infra.auto.tfvars` via `tfvars_path` (includes that app’s `ecr_repository_url` and role ARN). Omit `tfvars_path` on an app to skip its file writer, then paste values from [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example).
+When `lambda_apps` includes `tfvars_path`, `01_lz` writes `02_app_lambda/infra.auto.tfvars` (includes `ecr_repository_url` and role ARN). Omit `tfvars_path` on an app to skip its file writer, then paste values from [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example).
 
-Optional Secrets Manager: set `secret = {}` (or `secret = { name = "..." }`) on that app when the app track should not read Terraform state. Re-apply `01_lz` to replace the secret version (no automatic rotator in this demo). Destroy the app stack before deleting the secret / destroying `01_lz`.
+Optional Secrets Manager: set `secret = {}` (or `secret = { name = "..." }`) on that app. Re-apply `01_lz` to replace the secret version. Destroy the app stack before deleting the secret / destroying `01_lz`.
 
 ### What is the cost of running this example?
 
@@ -168,4 +203,4 @@ Keep `encryption_at_rest_provider = module.atlas_aws.encryption_at_rest_provider
 
 ### What is not covered here?
 
-Custom DNS / Route 53, the Industry Solutions AI app (`aws/ai-demo` is a sibling), multi-region E2E apply, per-region Mongo connection strings in handoff, ECS from `ecs_apps`, and index management (this app needs none).
+Custom DNS / Route 53, the Industry Solutions AI app (`aws/ai-demo` is a sibling), multi-region E2E apply, per-region Mongo connection strings in handoff, ECS from `ecs_apps`, EC2 from `ec2_apps`, and index management (this app needs none).

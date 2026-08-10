@@ -7,10 +7,15 @@ build-push tag="0.0.1":
     #!/usr/bin/env bash
     set -euo pipefail
     root="$(cd "{{justfile_directory}}" && pwd)"
-    repo_url="$(terraform -chdir="${root}/01_lz" output -raw ecr_repository_url 2>/dev/null || true)"
+    ecr_key="${ECR_KEY:-api}"
+    repo_url="$(terraform -chdir="${root}/01_lz" output -json ecr_repositories 2>/dev/null | jq -r --arg k "$ecr_key" '.[$k].repository_url // empty' || true)"
     if [[ -z "${repo_url}" ]]; then
-      : "${ECR_REPOSITORY_URL:?Set ECR_REPOSITORY_URL or apply 01_lz first}"
-      repo_url="${ECR_REPOSITORY_URL}"
+      if [[ -n "${ECR_REPOSITORY_URL:-}" ]]; then
+        repo_url="${ECR_REPOSITORY_URL}"
+      else
+        echo "No ECR repository for key '${ecr_key}'. Enable AWS Lambda in 01_lz/terraform.tfvars (ecr_repositories with key '${ecr_key}') and re-apply 01_lz." >&2
+        exit 1
+      fi
     fi
     region="$(echo "${repo_url}" | cut -d. -f4)"
     aws ecr get-login-password --region "${region}" \

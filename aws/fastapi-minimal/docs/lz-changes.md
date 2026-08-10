@@ -1,0 +1,61 @@
+# Landing zone changes
+
+Use-case index for editing `01_lz` after the first apply. Config lives in [terraform.tfvars.example](../01_lz/terraform.tfvars.example) and [README](../README.md).
+
+- [Change the primary region](#change-the-primary-region)
+- [Add a cluster region](#add-a-cluster-region)
+- [Remove a cluster region](#remove-a-cluster-region)
+- [Place compute in another region](#place-compute-in-another-region)
+- [Add another Lambda app](#add-another-lambda-app)
+- [Run platform-only (no app targets)](#run-platform-only-no-app-targets)
+- [App config overlays](#app-config-overlays)
+- [Move from file handoff to Secrets Manager](#move-from-file-handoff-to-secrets-manager)
+
+## Change the primary region
+
+Move a different AWS region to `regions[0]` (default AWS provider region, `network` output, default ECR/Lambda region). Managed VPC CIDRs follow list index unless pinned in `vpc_config.by_region`; pin before reordering `regions`.
+
+1. `terraform -chdir=01_lz output -json operations | jq '.vpc_config_resolved'`
+2. Paste each `by_region` entry into `vpc_config.by_region` in `terraform.tfvars`
+3. Reorder `regions` so the new primary is first
+4. `terraform -chdir=01_lz plan` then apply
+
+## Add a cluster region
+
+Grow from one region to multi-region Atlas + managed VPC. Pin existing VPC CIDRs before appending so list index does not reassign them.
+
+1. `terraform -chdir=01_lz output -json operations | jq '.vpc_config_resolved'`
+2. Paste each `by_region` entry into `vpc_config.by_region` in `terraform.tfvars`
+3. Append the new region to `regions`
+4. Assign a CIDR for the new region in `vpc_config.by_region`, or accept the next auto index
+5. Plan and apply. Put a private endpoint in every cluster region ([Architecture Center network security](https://www.mongodb.com/docs/atlas/architecture/current/network-security/))
+
+## Remove a cluster region
+
+Shrink the cluster and tear down that region's VPC. If survivors move index in `regions`, pin their CIDRs in `vpc_config.by_region` first.
+
+1. When list order changes: `terraform -chdir=01_lz output -json operations | jq '.vpc_config_resolved'`, then paste into `vpc_config.by_region`
+2. Remove the region from `regions`
+3. Plan and apply. Expect Atlas node removal and VPC destroy for that region
+
+## Place compute in another region
+
+Point `lambda_apps.*.aws_region` and matching `ecr_repositories.*.region` at a non-primary cluster region. Both must match. See README **AWS Lambda**. ECS/EC2 placement follows the same pattern when those targets land.
+
+## Add another Lambda app
+
+See README **AWS Lambda** and `terraform.tfvars.example` (multiple `lambda_apps` entries, shared or separate `ecr_repositories` keys).
+
+## Run platform-only (no app targets)
+
+Apply `01_lz` with empty `ecr_repositories`, `lambda_apps`, `ecs_apps`, and `ec2_apps`. You get Atlas + PrivateLink + VPC(s) + CPA/KMS/log/backup only.
+
+App teams supply their own Atlas IAM DB users, compute IAM roles, registry, security groups, VPC endpoints, and `02_app_*` wiring. Read `atlas`, `network`, and `database` outputs for visibility; runtime handoff is not written unless you configure an app target.
+
+## App config overlays
+
+TODO: optional YAML file paths for large `*_apps` maps (follow-up PR).
+
+## Move from file handoff to Secrets Manager
+
+Set `secret = {}` (or `secret = { name = "..." }`) on a `lambda_apps` entry. Re-apply `01_lz` to write the secret version. Destroy the app stack before destroying `01_lz` when secrets are in use.

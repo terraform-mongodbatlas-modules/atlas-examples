@@ -1,61 +1,82 @@
-output "aws_region" {
-  description = "AWS region derived from regions[0].name"
-  value       = local.aws_region
+output "atlas" {
+  description = "Atlas project, cluster, connectivity, and module-managed AWS integrations. connection_string_private is hostnames only (PrivateLink); IAM auth supplies credentials at runtime."
+  value = {
+    project_id                = module.atlas_project.id
+    cluster_name              = module.atlas_cluster.cluster_name
+    connection_string_private = local.mongo_private_connection_string
+    privatelink               = module.atlas_aws.privatelink
+    integrations = {
+      log_bucket_name    = try(module.atlas_aws.log_integration.bucket_name, null)
+      backup_bucket_name = try(module.atlas_aws.backup_export.bucket_name, null)
+    }
+  }
 }
 
-output "vpc_id" {
-  description = "VPC ID for 02_app_lambda"
-  value       = local.vpc_id
+output "network" {
+  description = "Primary cluster region VPC (regions[0]). Multi-region VPC layout: operations.vpc_config_resolved."
+  value = {
+    primary_aws_region = local.aws_region
+    vpc_id             = local.vpc_id
+    private_subnet_ids = local.private_subnet_ids
+    vpc_cidr_block     = local.vpc_cidr_block
+  }
 }
 
-output "private_subnet_ids" {
-  description = "Private subnet IDs for Lambda and PrivateLink"
-  value       = local.private_subnet_ids
+output "operations" {
+  description = "Resolved region and VPC layout for pinning before regions list edits. See docs/lz-changes.md."
+  value = {
+    regions_resolved = [
+      for i, r in local.regions_resolved : {
+        index      = i
+        aws_region = r.aws_name
+        atlas_name = r.atlas_name
+        node_count = r.node_count
+        primary    = i == 0
+      }
+    ]
+    vpc_config_resolved = var.vpc_config.create ? {
+      create             = var.vpc_config.create
+      base_cidr          = var.vpc_config.base_cidr
+      az_count           = var.vpc_config.az_count
+      enable_nat_gateway = var.vpc_config.enable_nat_gateway
+      create_igw         = var.vpc_config.create_igw
+      by_region = {
+        for region in local.aws_regions : region => {
+          cidr     = local.vpc_cidr_by_region[region]
+          az_count = local.vpc_az_count_by_region[region]
+        }
+      }
+    } : null
+  }
 }
 
-output "lambda_security_group_id" {
-  description = "Security group ID for the primary lambda_apps entry"
-  value       = aws_security_group.lambda[local.primary_app.aws_region].id
-}
-
-output "lambda_execution_role_arn" {
-  description = "Primary lambda_apps IAM role ARN (Atlas IAM DB username for that app)"
-  value       = aws_iam_role.lambda_exec[local.primary_app_key].arn
-}
-
-output "mongo_private_connection_string" {
-  description = "Private endpoint SRV connection string for the cluster"
-  sensitive   = true
-  value       = local.mongo_private_connection_string
-}
-
-output "atlas_project_id" {
-  description = "Atlas project ID"
-  value       = module.atlas_project.id
-}
-
-output "atlas_cluster_name" {
-  description = "Atlas cluster name"
-  value       = module.atlas_cluster.cluster_name
-}
-
-output "app_database_name" {
-  description = "Primary lambda_apps primary_database (DB_NAME handoff)"
-  value       = local.primary_app.primary_database
-}
-
-output "ecr_repository_url" {
-  description = "ECR URL for the primary lambda_apps ecr_key (handoff convenience)"
-  value       = local.primary_ecr_url
-}
-
-output "ecr_repository_urls" {
-  description = "Map of ecr_repositories key to repository URL"
-  value       = { for k, r in aws_ecr_repository.this : k => r.repository_url }
+output "database" {
+  description = "Atlas database users and grants from *_apps maps. users is empty when no app targets."
+  value = {
+    cluster_name = module.atlas_cluster.cluster_name
+    users = concat(
+      [
+        for k, app in local.lambda_apps : {
+          id               = k
+          source           = "lambda_apps"
+          username         = aws_iam_role.lambda_exec[k].arn
+          auth_type        = "AWS_IAM_ROLE"
+          primary_database = app.primary_database
+          grants = [
+            for r in app.roles : {
+              database_name   = r.database_name
+              role_name       = r.role_name
+              collection_name = try(r.collection_name, null)
+            }
+          ]
+        }
+      ]
+    )
+  }
 }
 
 output "ecr_repositories" {
-  description = "Resolved ecr_repositories (name, URL, scan/lifecycle settings)"
+  description = "ECR registries keyed by ecr_repositories map key."
   value = {
     for k, v in local.ecr_repositories : k => {
       name                 = v.name
@@ -70,44 +91,25 @@ output "ecr_repositories" {
 }
 
 output "lambda_apps" {
-  description = "Resolved lambda_apps (name, primary_database, roles, role ARN, ecr_key, ECR URL, handoff paths)"
+  description = "Configured Lambda apps and handoff destination. Values for 02_app_* are in infra.auto.tfvars or Secrets Manager."
   value = {
     for k, v in local.lambda_apps : k => {
-      name                      = v.name
-      aws_region                = v.aws_region
-      primary_database          = v.primary_database
-      roles                     = v.roles
-      lambda_execution_role_arn = aws_iam_role.lambda_exec[k].arn
-      ecr_key                   = v.ecr_key
-      ecr_repository_url        = aws_ecr_repository.this[v.ecr_key].repository_url
-      tfvars_path               = v.tfvars_path
-      secret_name               = v.secret_name
-      secret_arn                = try(aws_secretsmanager_secret.app[k].arn, null)
+      name             = v.name
+      aws_region       = v.aws_region
+      primary_database = v.primary_database
+      ecr_key          = v.ecr_key
+      tfvars_path      = v.tfvars_path
+      secret_name      = v.secret_name
     }
   }
 }
 
-output "app_secret_arns" {
-  description = "Map of lambda_apps key to Secrets Manager ARN (only apps with secret set)"
-  value       = { for k, s in aws_secretsmanager_secret.app : k => s.arn }
+output "ecs_apps" {
+  description = "Configured ECS apps and handoff destination. Empty until ECS resources land."
+  value       = {}
 }
 
-output "app_secret_names" {
-  description = "Map of lambda_apps key to Secrets Manager name (only apps with secret set)"
-  value       = { for k, s in aws_secretsmanager_secret.app : k => s.name }
-}
-
-output "privatelink" {
-  description = "PrivateLink endpoint summary"
-  value       = module.atlas_aws.privatelink
-}
-
-output "log_integration_bucket_name" {
-  description = "Log integration S3 bucket name"
-  value       = try(module.atlas_aws.log_integration.bucket_name, null)
-}
-
-output "backup_export_bucket_name" {
-  description = "Backup export S3 bucket name"
-  value       = try(module.atlas_aws.backup_export.bucket_name, null)
+output "ec2_apps" {
+  description = "Configured EC2 apps and handoff destination. Empty until EC2 resources land."
+  value       = {}
 }

@@ -9,13 +9,24 @@ variables {
 run "app_region_default" {
   command = plan
 
+  variables {
+    ecr_repositories = { api = {} }
+    lambda_apps = {
+      default = {
+        ecr_key     = "api"
+        roles       = [{ database_name = "test" }]
+        tfvars_path = "../02_app_lambda/infra.auto.tfvars"
+      }
+    }
+  }
+
   assert {
     condition     = length(aws_security_group.lambda) == 1 && contains(keys(aws_security_group.lambda), "us-east-1")
     error_message = "Default app should create one Lambda SG in regions[0]"
   }
 
   assert {
-    condition     = local.ecr_repositories["default"].region == "us-east-1" && aws_ecr_repository.this["default"].region == "us-east-1"
+    condition     = local.ecr_repositories["api"].region == "us-east-1" && aws_ecr_repository.this["api"].region == "us-east-1"
     error_message = "Default ECR repo should resolve to regions[0]"
   }
 }
@@ -29,12 +40,12 @@ run "app_region_west" {
       { name = "us-west-2", node_count = 2 },
     ]
     ecr_repositories = {
-      default  = {}
+      api      = {}
       api-west = { name = "fastapi-minimal-api-west", region = "us-west-2" }
     }
     lambda_apps = {
       default = {
-        ecr_key     = "default"
+        ecr_key     = "api"
         roles       = [{ database_name = "test" }]
         tfvars_path = "../02_app_lambda/infra.auto.tfvars"
       }
@@ -67,9 +78,10 @@ run "app_region_invalid" {
   command = plan
 
   variables {
+    ecr_repositories = { api = {} }
     lambda_apps = {
       default = {
-        ecr_key    = "default"
+        ecr_key    = "api"
         aws_region = "eu-central-1"
         roles      = [{ database_name = "test" }]
       }
@@ -86,7 +98,7 @@ run "ecr_region_invalid" {
 
   variables {
     ecr_repositories = {
-      default = { region = "eu-central-1" }
+      api = { region = "eu-central-1" }
     }
   }
 
@@ -104,7 +116,7 @@ run "app_ecr_region_mismatch" {
       { name = "us-west-2", node_count = 2 },
     ]
     ecr_repositories = {
-      default  = {}
+      api      = {}
       api-west = { region = "us-west-2" }
     }
     lambda_apps = {

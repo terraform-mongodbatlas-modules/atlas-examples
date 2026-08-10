@@ -21,7 +21,7 @@ locals {
   vpc_cidr_block          = var.vpc_config.create ? module.vpc[local.aws_region].vpc_cidr_block : var.vpc_config.by_region[local.aws_region].vpc_cidr_block
   private_route_table_ids = var.vpc_config.create ? module.vpc[local.aws_region].private_route_table_ids : var.vpc_config.by_region[local.aws_region].private_route_table_ids
 
-  app_aws_regions = toset([for app in local.lambda_apps : app.aws_region])
+  app_aws_regions = toset([for app in local.lambda_apps : app.aws_region]) # ECS/EC2 union in follow-up PR
   app_network = {
     for region in local.app_aws_regions : region => {
       vpc_id                  = var.vpc_config.create ? module.vpc[region].vpc_id : var.vpc_config.by_region[region].vpc_id

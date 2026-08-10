@@ -205,7 +205,7 @@ variable "s3_force_destroy" {
 
 variable "ecr_repositories" {
   description = <<-EOT
-    ECR repositories managed by 01_lz. Independent of lambda_apps / ecs_apps so registries survive compute changes (for example Lambda to ECS).
+    Optional ECR repositories managed by 01_lz. Independent of lambda_apps / ecs_apps / ec2_apps so registries survive compute changes.
     Map keys are stable identities. Each entry creates a repository; lifecycle_keep_count > 0 adds a lifecycle policy (keep last N images).
     force_delete defaults true for demo tear-down (set false to block destroy while images remain).
     image_tag_mutability defaults to IMMUTABLE (retagging the same tag fails; bump image_tag on each push). Use MUTABLE only if you intentionally overwrite tags.
@@ -218,9 +218,7 @@ variable "ecr_repositories" {
     force_delete         = optional(bool, true)
     lifecycle_keep_count = optional(number, 10)
   }))
-  default = {
-    default = {}
-  }
+  default = {}
 
   validation {
     condition = alltrue([
@@ -255,7 +253,7 @@ variable "ecr_repositories" {
 
 variable "lambda_apps" {
   description = <<-EOT
-    Lambda apps to provision. Map keys are stable identities.
+    Optional Lambda deployment targets. Map keys are stable identities.
     Each entry creates one IAM execution role and one Atlas IAM database user (username = that role ARN).
     ecr_key selects an entry in ecr_repositories (registry lifecycle is not tied to this map).
     roles maps to mongodbatlas_database_user.roles (multi-database / multi-role). role_name defaults to readWrite.
@@ -279,18 +277,7 @@ variable "lambda_apps" {
       collection_name = optional(string)
     }))
   }))
-  default = {
-    default = {
-      ecr_key     = "default"
-      roles       = [{ database_name = "test" }]
-      tfvars_path = "../02_app_lambda/infra.auto.tfvars"
-    }
-  }
-
-  validation {
-    condition     = length(var.lambda_apps) > 0
-    error_message = "lambda_apps must contain at least one entry."
-  }
+  default = {}
 
   validation {
     condition     = alltrue([for _, app in var.lambda_apps : length(app.roles) > 0])
@@ -341,7 +328,7 @@ variable "lambda_apps" {
 }
 
 variable "ecs_apps" {
-  description = "Reserved for future ECS apps (same shape as lambda_apps, including tfvars_path and secret). No resources are created from this map yet."
+  description = "Optional ECS deployment targets (same shape as lambda_apps). No resources are created from this map yet."
   type = map(object({
     name             = optional(string)
     ecr_key          = string
@@ -368,5 +355,36 @@ variable "ecs_apps" {
       )
     ])
     error_message = "ecs_apps.*.aws_region must be a cluster AWS region from regions."
+  }
+}
+
+variable "ec2_apps" {
+  description = "Optional EC2 deployment targets (same shape as lambda_apps). No resources are created from this map yet."
+  type = map(object({
+    name             = optional(string)
+    ecr_key          = string
+    aws_region       = optional(string)
+    primary_database = optional(string)
+    tfvars_path      = optional(string)
+    secret = optional(object({
+      name = optional(string)
+    }))
+    roles = list(object({
+      role_name       = optional(string, "readWrite")
+      database_name   = string
+      collection_name = optional(string)
+    }))
+  }))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for _, app in var.ec2_apps :
+      contains(
+        distinct([for r in var.regions : replace(lower(r.name), "_", "-")]),
+        coalesce(app.aws_region, replace(lower(var.regions[0].name), "_", "-"))
+      )
+    ])
+    error_message = "ec2_apps.*.aws_region must be a cluster AWS region from regions."
   }
 }

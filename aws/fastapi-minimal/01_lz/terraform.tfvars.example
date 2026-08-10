@@ -12,7 +12,7 @@ atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 # # Pin compute (disk GB still auto-scales):
 # manual_scaling = { instance_size = "M10" }
 #
-# # ECR is independent of lambda_apps (survives Lambda -> ECS compute changes):
+# # --- AWS Lambda (optional) ---
 # ecr_repositories = {
 #   api = {
 #     name                 = "fastapi-minimal-api"
@@ -25,37 +25,28 @@ atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 # }
 #
 # lambda_apps = {
-#   default = {
+#   api = {
 #     ecr_key     = "api"
 #     roles       = [{ database_name = "test" }]
 #     tfvars_path = "../02_app_lambda/infra.auto.tfvars"
 #     # secret = { name = "fastapi-minimal-app" }  # null-gate; omit name to derive <app>-app
 #   }
-#   worker = {
-#     name        = "fastapi-minimal-worker"
-#     ecr_key     = "api-west"
-#     aws_region  = "us-west-2"
-#     tfvars_path = "../02_app_worker/infra.auto.tfvars"
-#     secret      = {}
-#     roles = [
-#       { database_name = "jobs" },
-#       { database_name = "jobs_archive", role_name = "read" },
-#     ]
-#   }
 # }
 #
-# # Multi-region worker example (requires us-west-2 in regions and matching ECR region):
-# # regions = [{ name = "us-east-1" }, { name = "us-west-2" }]
-# # ecr_repositories = { default = {}, api-west = { region = "us-west-2" } }
+# # --- Amazon ECS (TODO) ---
+# # ecs_apps = { ... }  # same shape as lambda_apps; no resources in 01_lz yet
 #
-# # Managed VPC (default): one private VPC per cluster AWS region; append regions only.
-# vpc_config = {
-#   base_cidr          = "10.0.0.0/8"
-#   az_count           = 2
-#   enable_nat_gateway = false
-#   create_igw         = false
-#   # by_region = { us-west-2 = { cidr = "10.42.0.0/16", az_count = 3 } }
-# }
+# # --- Amazon EC2 (TODO) ---
+# # ec2_apps = { ... }  # same shape as lambda_apps; no resources in 01_lz yet
+#
+# # Multi-region: see docs/lz-changes.md before editing regions order.
+# # vpc_config = {
+# #   base_cidr          = "10.0.0.0/8"
+# #   az_count           = 2
+# #   enable_nat_gateway = false
+# #   create_igw         = false
+# #   # by_region = { us-west-2 = { cidr = "10.42.0.0/16", az_count = 3 } }
+# # }
 #
 # # BYO VPC (create = false): full entry per cluster AWS region.
 # vpc_config = {
@@ -66,12 +57,6 @@ atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 #       private_subnet_ids      = ["subnet-aaa", "subnet-bbb"]
 #       vpc_cidr_block          = "10.0.0.0/16"
 #       private_route_table_ids = ["rtb-aaa"]
-#     }
-#     us-west-2 = {
-#       vpc_id                  = "vpc-yyy"
-#       private_subnet_ids      = ["subnet-ccc", "subnet-ddd"]
-#       vpc_cidr_block          = "10.1.0.0/16"
-#       private_route_table_ids = ["rtb-bbb"]
 #     }
 #   }
 # }
