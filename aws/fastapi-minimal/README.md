@@ -40,7 +40,13 @@ Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-e
 2. Atlas credentials (prefer service account: `MONGODB_ATLAS_CLIENT_ID` / `MONGODB_ATLAS_CLIENT_SECRET`) with permission to create projects
 3. AWS credentials for the target account/region (AWS CLI for log tail)
 4. [Docker](https://docs.docker.com/) and [just](https://github.com/casey/just)
-5. Copy [01_lz/terraform.tfvars.example](./01_lz/terraform.tfvars.example) to `01_lz/terraform.tfvars` and set `atlas_org_id`
+
+### Make the example your own
+
+```sh
+cp 01_lz/terraform.tfvars.example 01_lz/terraform.tfvars
+# Edit 01_lz/terraform.tfvars and set atlas_org_id
+```
 
 Optional knobs in that tfvars file: `regions`, `name_prefix`, `tags`, `s3_force_destroy`, `ecr_repositories`, `lambda_apps` (per-app `tfvars_path` / `secret`), `vpc_config`, `cluster_type`, `manual_scaling`.
 
