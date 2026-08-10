@@ -4,6 +4,7 @@ mock_provider "local" {}
 
 variables {
   atlas_org_id = "org123"
+  cluster_name = "fastapi-minimal"
 }
 
 run "operations_vpc_config_single_region" {

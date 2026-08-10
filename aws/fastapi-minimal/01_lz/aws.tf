@@ -48,6 +48,18 @@ locals {
     )
   }
 
+  public_debug_password = var.public_debug_access != null ? coalesce(
+    try(var.public_debug_access.password, null),
+    try(random_password.public_debug[0].result, null)
+  ) : null
+
+  public_debug_connection_string = var.public_debug_access != null ? format(
+    "mongodb+srv://%s:%s@%s/?authSource=admin",
+    var.public_debug_access.username,
+    local.public_debug_password,
+    trimprefix(module.atlas_cluster.connection_strings.standard_srv, "mongodb+srv://")
+  ) : null
+
   app_handoff_payloads = {
     for k, v in local.lambda_apps : k => {
       aws_region                      = v.aws_region
@@ -66,7 +78,7 @@ module "vpc" {
 
   source     = "./modules/regional_vpc"
   aws_region = each.key
-  name       = "${var.name_prefix}-vpc-${each.key}"
+  name       = "${var.default_resource_name_prefix}-vpc-${each.key}"
   cidr       = local.vpc_cidr_by_region[each.key]
   az_count   = local.vpc_az_count_by_region[each.key]
 
@@ -79,7 +91,7 @@ resource "aws_security_group" "lambda" {
   for_each = local.app_aws_regions
 
   region      = each.key
-  name_prefix = "${var.name_prefix}-lambda-"
+  name_prefix = "${var.default_resource_name_prefix}-lambda-"
   description = "Lambda app SG: PrivateLink + VPC endpoint egress only"
   vpc_id      = local.app_network[each.key].vpc_id
 
@@ -107,7 +119,7 @@ resource "aws_security_group" "lambda" {
     cidr_blocks = [local.app_network[each.key].vpc_cidr_block]
   }
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-lambda-${each.key}" })
+  tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-lambda-${each.key}" })
 
   lifecycle {
     create_before_destroy = true
@@ -118,7 +130,7 @@ resource "aws_security_group" "vpc_endpoints" {
   for_each = local.app_aws_regions
 
   region      = each.key
-  name_prefix = "${var.name_prefix}-vpce-"
+  name_prefix = "${var.default_resource_name_prefix}-vpce-"
   description = "Interface VPC endpoints for Lambda AWS API access"
   vpc_id      = local.app_network[each.key].vpc_id
 
@@ -130,7 +142,7 @@ resource "aws_security_group" "vpc_endpoints" {
     security_groups = [aws_security_group.lambda[each.key].id]
   }
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-vpce-${each.key}" })
+  tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-vpce-${each.key}" })
 
   lifecycle {
     create_before_destroy = true
@@ -154,7 +166,7 @@ resource "aws_vpc_endpoint" "interface" {
   security_group_ids  = [aws_security_group.vpc_endpoints[each.value.region].id]
   private_dns_enabled = true
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-${each.value.region}-${each.value.service}" })
+  tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-${each.value.region}-${each.value.service}" })
 }
 
 resource "aws_vpc_endpoint" "s3" {
@@ -166,7 +178,7 @@ resource "aws_vpc_endpoint" "s3" {
   vpc_endpoint_type = "Gateway"
   route_table_ids   = local.app_network[each.key].private_route_table_ids
 
-  tags = merge(var.tags, { Name = "${var.name_prefix}-s3-${each.key}" })
+  tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-s3-${each.key}" })
 }
 
 resource "aws_security_group_rule" "lambda_s3" {

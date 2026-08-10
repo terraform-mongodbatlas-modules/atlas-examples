@@ -18,7 +18,7 @@ locals {
 
   lambda_apps = {
     for k, v in var.lambda_apps : k => {
-      name             = coalesce(v.name, k == "default" ? var.name_prefix : "${var.name_prefix}-${k}")
+      name             = coalesce(v.name, k)
       ecr_key          = v.ecr_key
       aws_region       = coalesce(v.aws_region, local.aws_region)
       primary_database = coalesce(v.primary_database, v.roles[0].database_name)
@@ -27,7 +27,7 @@ locals {
       secret_name = (
         v.secret == null
         ? null
-        : coalesce(v.secret.name, "${coalesce(v.name, k == "default" ? var.name_prefix : "${var.name_prefix}-${k}")}-app")
+        : coalesce(v.secret.name, "${coalesce(v.name, k)}-app")
       )
     }
   }
@@ -36,7 +36,7 @@ locals {
 
   ecr_repositories = {
     for k, v in var.ecr_repositories : k => {
-      name                 = coalesce(v.name, k == "default" ? var.name_prefix : "${var.name_prefix}-${k}")
+      name                 = coalesce(v.name, k)
       region               = coalesce(v.region, local.aws_region)
       image_tag_mutability = v.image_tag_mutability
       scan_on_push         = v.scan_on_push
@@ -75,10 +75,15 @@ module "atlas_project" {
   source  = "terraform-mongodbatlas-modules/project/mongodbatlas"
   version = "~> 0.2"
 
-  org_id         = var.atlas_org_id
-  name           = var.name_prefix
-  tags           = var.tags
-  ip_access_list = []
+  org_id = var.atlas_org_id
+  name   = var.default_resource_name_prefix
+  tags   = var.tags
+  ip_access_list = var.public_debug_access != null ? [
+    {
+      source  = var.public_debug_access.ip_address
+      comment = var.public_debug_access.comment
+    }
+  ] : []
 }
 
 module "atlas_aws" {
@@ -110,7 +115,7 @@ module "atlas_aws" {
     create_s3_bucket = {
       enabled       = true
       force_destroy = var.s3_force_destroy
-      name_prefix   = "${var.name_prefix}-logs-"
+      name_prefix   = "${var.default_resource_name_prefix}-logs-"
     }
     integrations = [
       { log_types = ["MONGOD"], prefix_path = "operational" },
@@ -124,7 +129,7 @@ module "atlas_aws" {
     create_s3_bucket = {
       enabled       = true
       force_destroy = var.s3_force_destroy
-      name_prefix   = "${var.name_prefix}-backup-"
+      name_prefix   = "${var.default_resource_name_prefix}-backup-"
     }
   }
 
@@ -138,7 +143,7 @@ module "atlas_cluster" {
   version = "~> 0.4"
 
   project_id    = module.atlas_project.id
-  name          = var.name_prefix
+  name          = var.cluster_name
   provider_name = "AWS"
   cluster_type  = var.cluster_type
   shard_count   = var.cluster_type == "SHARDED" ? var.shard_count : null
@@ -169,6 +174,28 @@ resource "mongodbatlas_database_user" "lambda" {
       database_name   = roles.value.database_name
       collection_name = roles.value.collection_name
     }
+  }
+
+  depends_on = [module.atlas_cluster]
+}
+
+resource "random_password" "public_debug" {
+  count   = var.public_debug_access != null && try(var.public_debug_access.password, null) == null ? 1 : 0
+  length  = 24
+  special = false
+}
+
+resource "mongodbatlas_database_user" "public_debug" {
+  count = var.public_debug_access != null ? 1 : 0
+
+  project_id         = module.atlas_project.id
+  username           = var.public_debug_access.username
+  password           = coalesce(var.public_debug_access.password, random_password.public_debug[0].result)
+  auth_database_name = "admin"
+
+  roles {
+    role_name     = var.public_debug_access.role_name
+    database_name = var.public_debug_access.database_name
   }
 
   depends_on = [module.atlas_cluster]

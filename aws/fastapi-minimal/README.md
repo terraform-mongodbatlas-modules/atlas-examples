@@ -48,7 +48,7 @@ Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-e
 
 ```sh
 cp 01_lz/terraform.tfvars.example 01_lz/terraform.tfvars
-# Edit 01_lz/terraform.tfvars and set atlas_org_id
+# Edit 01_lz/terraform.tfvars: set atlas_org_id and cluster_name
 ```
 
 `01_lz` provisions the Atlas + AWS landing zone. App deployment targets are optional and composable; enable only what you need in `terraform.tfvars`.
@@ -85,7 +85,7 @@ TODO: future `ec2_apps` map; no resources in `01_lz` yet (follow-up PR).
 
 Valid to apply with no app targets (`ecr_repositories = {}`, `lambda_apps = {}`). You get Atlas + PrivateLink + VPC(s) + CPA/KMS/log/backup only. App teams run their own pipeline and need Atlas/AWS permissions for DB users, IAM, registry, network, and `02_app_*` wiring. Use `atlas`, `network`, and `database` outputs for visibility.
 
-Optional knobs in `terraform.tfvars`: `regions`, `name_prefix`, `tags`, `s3_force_destroy`, `vpc_config`, `cluster_type`, `manual_scaling`. For region and VPC edits after the first apply, see [docs/lz-changes.md](./docs/lz-changes.md).
+Optional knobs in `terraform.tfvars`: `cluster_name`, `default_resource_name_prefix`, `regions`, `tags`, `s3_force_destroy`, `vpc_config`, `cluster_type`, `manual_scaling`, `public_debug_access`. For region and VPC edits after the first apply, see [docs/lz-changes.md](./docs/lz-changes.md).
 
 For a short-lived lab, see [What is the cost of running this example?](#what-is-the-cost-of-running-this-example) (replica-set escape hatch, skip module-managed KMS, and other levers before the first apply).
 
@@ -121,7 +121,7 @@ What the Lambda does: receives HTTP on a Function URL (`authorization_type = NON
 ```sh
 # Expect JSON with "db": true and a populated read_record
 curl "$(terraform -chdir=02_app_lambda output -raw function_url)?write=hello"
-# Follows /aws/lambda/<name_prefix>
+# Follows /aws/lambda/<app name from lambda_apps>
 aws logs tail "$(terraform -chdir=02_app_lambda output -raw lambda_log_group_name)" --follow
 ```
 
@@ -139,6 +139,33 @@ terraform -chdir=01_lz destroy
 ### How does the app reach MongoDB?
 
 Private subnets only (no NAT/IGW by default). When `lambda_apps` is non-empty, VPC endpoints cover `ecr.api`, `ecr.dkr`, `s3` (gateway), `logs`, and `sts` per distinct app region. Lambda SG egress is limited to the VPC CIDR and the S3 prefix list. Each `lambda_apps` entry gets its own IAM execution role and Atlas IAM database user. Image registries live in `ecr_repositories` and are selected with `ecr_key`. Env set by `02_app_lambda`: `MONGO_URL` (private connection string), `USE_IAM_AUTH=true`, `DB_NAME` (primary app `primary_database`, default `test`).
+
+### How do I connect from my laptop?
+
+Apps use PrivateLink + IAM auth from private subnets by default. Laptop access over the public internet is off unless you set `public_debug_access` in `terraform.tfvars` (single IPv4 allowlist + SCRAM user). Use only for short-lived debugging with Compass or `mongosh`; remove the block when done. Your public IP may change; the SCRAM password lives in Terraform state.
+
+Default grant: `readWrite` on database `test` (matches the FastAPI demo). To read and write all databases, set `role_name = "readWriteAnyDatabase"` and `database_name = "admin"`:
+
+```hcl
+public_debug_access = {
+  ip_address    = "203.0.113.42"
+  database_name = "admin"
+  role_name     = "readWriteAnyDatabase"
+}
+```
+
+Minimal path (demo DB only):
+
+1. Discover your IP: `curl -fsS https://ifconfig.me`
+2. Add to `terraform.tfvars`:
+   ```hcl
+   public_debug_access = { ip_address = "203.0.113.42" }
+   ```
+3. `terraform -chdir=01_lz apply`
+4. Connect: `mongosh "$(terraform -chdir=01_lz output -raw connection_string_public)"` or paste into Compass.
+5. Tear down: remove `public_debug_access` and re-apply.
+
+Optional: `username`, `password` (see `terraform.tfvars.example`). Lambda / ECS paths stay on IAM; this user is independent of `lambda_apps`.
 
 ### How do I add another Lambda app?
 
@@ -185,7 +212,7 @@ Defaults favor a production-shaped stack, not a zero-cost lab. Main drivers:
 
 - **Cluster compute:** Default is sharded (`SHARDED`, `shard_count = 2`), which costs more than a single replica set. For a cheap personal lab, set `cluster_type = "REPLICASET"` before the first apply (`shard_count` is ignored). Compute auto-scales M10–M200 by default; pin a size with `manual_scaling = { instance_size = "M10" }` (disk GB auto-scaling stays on either way).
 - **Customer-managed KMS:** Enabled by default. Destroy schedules key deletion (`deletion_window_in_days` default 7, AWS max 30); the key can still bill while pending-delete.
-- **Log/backup S3 + Atlas backups:** Buckets and `retain_backups_enabled = true` (snapshots may remain after destroy and block recreating the same cluster name until deleted or you change `name_prefix`). `s3_force_destroy` defaults to `true` so demo tear-down can empty the buckets.
+- **Log/backup S3 + Atlas backups:** Buckets and `retain_backups_enabled = true` (snapshots may remain after destroy and block recreating the same cluster name until deleted or you change `cluster_name`). `s3_force_destroy` defaults to `true` so demo tear-down can empty the buckets.
 - **Multi-region VPCs:** Each `regions` entry with default `vpc_config` creates another VPC (distinct `/16` from `base_cidr`). Extra regions add VPC cost; interface endpoints are created only in regions where at least one `lambda_apps` entry sets `aws_region`.
 
 To make a short-lived run more ephemeral before the first apply, in [01_lz/main.tf](./01_lz/main.tf) disable module-managed CMK encryption:

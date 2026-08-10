@@ -1,3 +1,9 @@
+output "connection_string_public" {
+  description = "Full mongodb+srv:// URI with SCRAM credentials when public_debug_access is set. Null when disabled."
+  value       = var.public_debug_access != null ? local.public_debug_connection_string : null
+  sensitive   = true
+}
+
 output "atlas" {
   description = "Atlas project, cluster, connectivity, and module-managed AWS integrations. connection_string_private is hostnames only (PrivateLink); IAM auth supplies credentials at runtime."
   value = {
@@ -70,7 +76,21 @@ output "database" {
             }
           ]
         }
-      ]
+      ],
+      var.public_debug_access != null ? [
+        {
+          id               = "public_debug"
+          source           = "public_debug_access"
+          username         = var.public_debug_access.username
+          auth_type        = "SCRAM"
+          primary_database = var.public_debug_access.database_name
+          grants = [{
+            database_name   = var.public_debug_access.database_name
+            role_name       = var.public_debug_access.role_name
+            collection_name = null
+          }]
+        }
+      ] : []
     )
   }
 }

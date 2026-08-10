@@ -6,10 +6,43 @@ variable "atlas_org_id" {
   type        = string
 }
 
-variable "name_prefix" {
-  description = "Prefix for project, cluster, VPC, IAM role, and default resource names"
+variable "cluster_name" {
+  description = "Atlas cluster name."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-zA-Z][a-zA-Z0-9-]{0,62}[a-zA-Z0-9]$", var.cluster_name))
+    error_message = "cluster_name must be 2–64 characters, start with a letter, and contain only letters, digits, and hyphens."
+  }
+}
+
+variable "default_resource_name_prefix" {
+  description = "Prefix for Atlas project name and AWS resource names (VPC, security groups, module-managed S3 buckets)."
   type        = string
   default     = "fastapi-minimal"
+}
+
+variable "public_debug_access" {
+  description = <<-EOT
+    Opt-in public internet access for debugging (SCRAM + IP allowlist).
+    Default null disables this path. Use only for short-lived debugging; production apps should use PrivateLink + IAM auth.
+    Default grant is readWrite on database test. For read/write on all databases, set role_name = "readWriteAnyDatabase" and database_name = "admin".
+  EOT
+  type = object({
+    ip_address    = string
+    username      = optional(string, "debug")
+    password      = optional(string)
+    database_name = optional(string, "test")
+    role_name     = optional(string, "readWrite")
+    comment       = optional(string, "public debug")
+  })
+  default  = null
+  nullable = true
+
+  validation {
+    condition     = var.public_debug_access == null || can(cidrhost("${var.public_debug_access.ip_address}/32", 0))
+    error_message = "public_debug_access.ip_address must be a single IPv4 address (e.g. 203.0.113.42)."
+  }
 }
 
 variable "tags" {

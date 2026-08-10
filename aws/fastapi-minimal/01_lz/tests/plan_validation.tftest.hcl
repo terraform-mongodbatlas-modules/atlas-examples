@@ -4,6 +4,7 @@ mock_provider "local" {}
 
 variables {
   atlas_org_id = "org123"
+  cluster_name = "fastapi-minimal"
 }
 
 run "lz_only_defaults" {
@@ -25,7 +26,7 @@ run "lz_only_defaults" {
 
   assert {
     condition     = module.atlas_cluster.cluster_name == "fastapi-minimal"
-    error_message = "Cluster name should match name_prefix default"
+    error_message = "Cluster name should match cluster_name"
   }
 
   assert {
@@ -61,6 +62,11 @@ run "lz_only_defaults" {
   assert {
     condition     = length(local_file.app_tfvars) == 0
     error_message = "Platform-only defaults should not write app handoff files"
+  }
+
+  assert {
+    condition     = var.public_debug_access == null && length(mongodbatlas_database_user.public_debug) == 0
+    error_message = "Platform-only defaults should not create public debug user"
   }
 
   assert {
@@ -290,7 +296,7 @@ run "create_app_secret" {
   }
 
   assert {
-    condition     = aws_secretsmanager_secret.app["default"].name == "fastapi-minimal-app"
+    condition     = aws_secretsmanager_secret.app["default"].name == "default-app"
     error_message = "Derived secret name should be <app-name>-app"
   }
 }
@@ -321,7 +327,7 @@ run "replicaset_escape" {
   variables {
     atlas_org_id = "org123"
     cluster_type = "REPLICASET"
-    name_prefix  = "demo-app"
+    cluster_name = "demo-app"
     regions      = [{ name = "eu-west-1", node_count = 3 }]
   }
 
@@ -332,7 +338,7 @@ run "replicaset_escape" {
 
   assert {
     condition     = output.atlas.cluster_name == "demo-app"
-    error_message = "Cluster name should follow name_prefix"
+    error_message = "Cluster name should follow cluster_name"
   }
 }
 

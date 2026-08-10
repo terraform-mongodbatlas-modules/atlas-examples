@@ -50,7 +50,7 @@ See README **AWS Lambda** and `terraform.tfvars.example` (multiple `lambda_apps`
 
 Apply `01_lz` with empty `ecr_repositories`, `lambda_apps`, `ecs_apps`, and `ec2_apps`. You get Atlas + PrivateLink + VPC(s) + CPA/KMS/log/backup only.
 
-App teams supply their own Atlas IAM DB users, compute IAM roles, registry, security groups, VPC endpoints, and `02_app_*` wiring. Read `atlas`, `network`, and `database` outputs for visibility; runtime handoff is not written unless you configure an app target.
+App teams supply their own Atlas IAM DB users, compute IAM roles, registry, security groups, VPC endpoints, and `02_app_*` wiring. Read `atlas`, `network`, and `database` outputs for visibility; runtime handoff is not written unless you configure an app target. For short-lived public debugging, see README FAQ **How do I connect from my laptop?**
 
 ## App config overlays
 

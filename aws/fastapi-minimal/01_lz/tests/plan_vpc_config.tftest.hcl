@@ -4,6 +4,7 @@ mock_provider "local" {}
 
 variables {
   atlas_org_id = "org123"
+  cluster_name = "fastapi-minimal"
 }
 
 run "multi_region_auto_vpc" {

@@ -1,8 +1,25 @@
-atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
+atlas_org_id  = "<YOUR_ATLAS_ORG_ID>"
+cluster_name  = "fastapi-minimal"
+
+# # Public debug (public internet + SCRAM). Remove after testing.
+# public_debug_access = {
+#   ip_address = "203.0.113.42"  # curl -fsS https://ifconfig.me
+#   # username      = "debug"
+#   # password      = "..."      # omit to auto-generate
+#   # database_name = "test"     # default: readWrite on test
+#   # role_name     = "readWrite"
+# }
+#
+# # Full read/write on all databases (broader than the default test grant):
+# public_debug_access = {
+#   ip_address    = "203.0.113.42"
+#   database_name = "admin"
+#   role_name     = "readWriteAnyDatabase"
+# }
 
 # Optional overrides:
+# default_resource_name_prefix = "fastapi-minimal"  # Atlas project + AWS resource names
 # regions = [{ name = "us-east-1" }]
-# name_prefix = "fastapi-minimal"
 # tags = { Example = "aws-fastapi-minimal" }
 # s3_force_destroy = true  # false retains log/backup bucket objects on destroy
 #
