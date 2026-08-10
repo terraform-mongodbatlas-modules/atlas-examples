@@ -80,8 +80,11 @@ run "app_region_west" {
   }
 
   assert {
-    condition     = aws_security_group_rule.lambda_s3["us-west-2"].region == "us-west-2"
-    error_message = "West S3 security group rule should use the app region"
+    condition = length([
+      for e in aws_security_group.lambda["us-west-2"].egress : e
+      if e.description == "S3 via gateway VPC endpoint (ECR layers)" && length(e.prefix_list_ids) == 1
+    ]) == 1
+    error_message = "West Lambda SG should include S3 gateway endpoint egress"
   }
 
   assert {

@@ -120,6 +120,14 @@ resource "aws_security_group" "lambda" {
     cidr_blocks = [local.app_network[each.key].vpc_cidr_block]
   }
 
+  egress {
+    description     = "S3 via gateway VPC endpoint (ECR layers)"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    prefix_list_ids = [aws_vpc_endpoint.s3[each.key].prefix_list_id]
+  }
+
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-lambda-${each.key}" })
 
   lifecycle {
@@ -180,19 +188,6 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = local.app_network[each.key].private_route_table_ids
 
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-s3-${each.key}" })
-}
-
-resource "aws_security_group_rule" "lambda_s3" {
-  for_each = local.app_aws_regions
-
-  region            = each.key
-  type              = "egress"
-  security_group_id = aws_security_group.lambda[each.key].id
-  description       = "S3 via gateway VPC endpoint (ECR layers)"
-  from_port         = 443
-  to_port           = 443
-  protocol          = "tcp"
-  prefix_list_ids   = [aws_vpc_endpoint.s3[each.key].prefix_list_id]
 }
 
 resource "aws_iam_role" "lambda_exec" {
