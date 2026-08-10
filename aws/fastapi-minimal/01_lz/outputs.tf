@@ -16,41 +16,39 @@ output "atlas" {
   }
 }
 
-output "network" {
-  description = "Primary cluster region VPC (regions[0]). Multi-region VPC layout: operations.vpc_config_resolved."
-  value = {
-    primary_aws_region = local.aws_region
-    vpc_id             = local.vpc_id
-    private_subnet_ids = local.private_subnet_ids
-    vpc_cidr_block     = local.vpc_cidr_block
-  }
-}
-
 output "operations" {
-  description = "Resolved region and VPC layout for pinning before regions list edits. See docs/lz-changes.md."
+  description = "Cluster region layout and VPC pinning/visibility. Copy vpc_pin into vpc_config.by_region before reordering regions (managed VPC only). vpcs is read-only. See docs/lz-changes.md."
   value = {
-    regions_resolved = [
-      for i, r in local.regions_resolved : {
-        index      = i
+    regions = [
+      for r in local.regions_resolved : {
         aws_region = r.aws_name
         atlas_name = r.atlas_name
         node_count = r.node_count
-        primary    = i == 0
       }
     ]
-    vpc_config_resolved = var.vpc_config.create ? {
-      create             = var.vpc_config.create
-      base_cidr          = var.vpc_config.base_cidr
-      az_count           = var.vpc_config.az_count
-      enable_nat_gateway = var.vpc_config.enable_nat_gateway
-      create_igw         = var.vpc_config.create_igw
-      by_region = {
-        for region in local.aws_regions : region => {
-          cidr     = local.vpc_cidr_by_region[region]
-          az_count = local.vpc_az_count_by_region[region]
-        }
+
+    vpc_pin = var.vpc_config.create ? {
+      for region in local.aws_regions : region => {
+        cidr     = local.vpc_cidr_by_region[region]
+        az_count = local.vpc_az_count_by_region[region]
       }
     } : null
+
+    vpcs = var.vpc_config.create ? {
+      for region in local.aws_regions : region => {
+        vpc_id                  = module.vpc[region].vpc_id
+        private_subnet_ids      = module.vpc[region].private_subnets
+        vpc_cidr_block          = module.vpc[region].vpc_cidr_block
+        private_route_table_ids = module.vpc[region].private_route_table_ids
+      }
+      } : {
+      for region, cfg in var.vpc_config.by_region : region => {
+        vpc_id                  = cfg.vpc_id
+        private_subnet_ids      = cfg.private_subnet_ids
+        vpc_cidr_block          = cfg.vpc_cidr_block
+        private_route_table_ids = cfg.private_route_table_ids
+      }
+    }
   }
 }
 

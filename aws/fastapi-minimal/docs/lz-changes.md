@@ -13,10 +13,10 @@ Use-case index for editing `01_lz` after the first apply. Config lives in [terra
 
 ## Change the primary region
 
-Move a different AWS region to `regions[0]` (default AWS provider region, `network` output, default ECR/Lambda region). Managed VPC CIDRs follow list index unless pinned in `vpc_config.by_region`; pin before reordering `regions`.
+Move a different AWS region to `regions[0]` (default AWS provider region, `operations.regions[0]`, default ECR/Lambda region). Managed VPC CIDRs follow list index unless pinned in `vpc_config.by_region`; pin before reordering `regions`.
 
-1. `terraform -chdir=01_lz output -json operations | jq '.vpc_config_resolved'`
-2. Paste each `by_region` entry into `vpc_config.by_region` in `terraform.tfvars`
+1. `terraform -chdir=01_lz output -json operations | jq '.vpc_pin'`
+2. Paste each entry into `vpc_config.by_region` in `terraform.tfvars`. Do not paste `vpcs`; it is read-only.
 3. Reorder `regions` so the new primary is first
 4. `terraform -chdir=01_lz plan` then apply
 
@@ -24,8 +24,8 @@ Move a different AWS region to `regions[0]` (default AWS provider region, `netwo
 
 Grow from one region to multi-region Atlas + managed VPC. Pin existing VPC CIDRs before appending so list index does not reassign them.
 
-1. `terraform -chdir=01_lz output -json operations | jq '.vpc_config_resolved'`
-2. Paste each `by_region` entry into `vpc_config.by_region` in `terraform.tfvars`
+1. `terraform -chdir=01_lz output -json operations | jq '.vpc_pin'`
+2. Paste each entry into `vpc_config.by_region` in `terraform.tfvars`
 3. Append the new region to `regions`
 4. Assign a CIDR for the new region in `vpc_config.by_region`, or accept the next auto index
 5. Plan and apply. Put a private endpoint in every cluster region ([Architecture Center network security](https://www.mongodb.com/docs/atlas/architecture/current/network-security/))
@@ -34,7 +34,7 @@ Grow from one region to multi-region Atlas + managed VPC. Pin existing VPC CIDRs
 
 Shrink the cluster and tear down that region's VPC. If survivors move index in `regions`, pin their CIDRs in `vpc_config.by_region` first.
 
-1. When list order changes: `terraform -chdir=01_lz output -json operations | jq '.vpc_config_resolved'`, then paste into `vpc_config.by_region`
+1. When list order changes: `terraform -chdir=01_lz output -json operations | jq '.vpc_pin'`, then paste into `vpc_config.by_region`
 2. Remove the region from `regions`
 3. Plan and apply. Expect Atlas node removal and VPC destroy for that region
 
@@ -50,7 +50,7 @@ See README **AWS Lambda** and `terraform.tfvars.example` (multiple `lambda_apps`
 
 Apply `01_lz` with empty `ecr_repositories`, `lambda_apps`, `ecs_apps`, and `ec2_apps`. You get Atlas + PrivateLink + VPC(s) + CPA/KMS/log/backup only.
 
-App teams supply their own Atlas IAM DB users, compute IAM roles, registry, security groups, VPC endpoints, and `02_app_*` wiring. Read `atlas`, `network`, and `database` outputs for visibility; runtime handoff is not written unless you configure an app target. For short-lived public debugging, see README FAQ **How do I connect from my laptop?**
+App teams supply their own Atlas IAM DB users, compute IAM roles, registry, security groups, VPC endpoints, and `02_app_*` wiring. Read `atlas`, `operations` (`regions`, `vpc_pin`, `vpcs`), and `database` outputs for visibility; runtime handoff is not written unless you configure an app target. For short-lived public debugging, see README FAQ **How do I connect from my laptop?**
 
 ## App config overlays
 

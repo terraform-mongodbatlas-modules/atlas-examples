@@ -83,7 +83,7 @@ TODO: future `ec2_apps` map; no resources in `01_lz` yet (follow-up PR).
 
 ### Platform-only landing zone
 
-Valid to apply with no app targets (`ecr_repositories = {}`, `lambda_apps = {}`). You get Atlas + PrivateLink + VPC(s) + CPA/KMS/log/backup only. App teams run their own pipeline and need Atlas/AWS permissions for DB users, IAM, registry, network, and `02_app_*` wiring. Use `atlas`, `network`, and `database` outputs for visibility.
+Valid to apply with no app targets (`ecr_repositories = {}`, `lambda_apps = {}`). You get Atlas + PrivateLink + VPC(s) + CPA/KMS/log/backup only. App teams run their own pipeline and need Atlas/AWS permissions for DB users, IAM, registry, network, and `02_app_*` wiring. Use `atlas`, `operations` (`regions`, `vpc_pin`, `vpcs`), and `database` outputs for visibility.
 
 Optional knobs in `terraform.tfvars`: `cluster_name`, `default_resource_name_prefix`, `regions`, `tags`, `s3_force_destroy`, `vpc_config`, `cluster_type`, `manual_scaling`, `public_debug_access`. For region and VPC edits after the first apply, see [docs/lz-changes.md](./docs/lz-changes.md).
 
@@ -198,7 +198,7 @@ Re-apply `01_lz`, push an image to that repo URL, and point a thin app stack at 
 
 ### How do I grow to a second Atlas region?
 
-See [docs/lz-changes.md](./docs/lz-changes.md) (**Add a cluster region**). Pin VPC CIDRs from `terraform output -json operations` before reordering `regions`.
+See [docs/lz-changes.md](./docs/lz-changes.md) (**Add a cluster region**). Pin VPC CIDRs from `terraform output -json operations | jq '.vpc_pin'` before reordering `regions`.
 
 ### How does `01_lz` hand values to `02_app_lambda`?
 
