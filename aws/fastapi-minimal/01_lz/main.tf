@@ -69,6 +69,62 @@ locals {
       policy_arn = local.lambda_managed_policies[pair[1]]
     }
   }
+
+  atlas_aws_encryption = {
+    enabled = var.atlas_integrations.encryption.enabled
+    private_endpoint_regions = (
+      var.atlas_integrations.encryption.enabled && !var.atlas_integrations.encryption.skip_private_endpoints
+      ? local.aws_regions
+      : []
+    )
+    kms_key_arn = (
+      var.atlas_integrations.encryption.enabled
+      ? var.atlas_integrations.encryption.kms_key_arn
+      : null
+    )
+    create_kms_key = (
+      var.atlas_integrations.encryption.enabled && var.atlas_integrations.encryption.kms_key_arn == null
+      ? {
+        enabled                 = true
+        deletion_window_in_days = var.atlas_integrations.encryption.create_kms_key.deletion_window_in_days
+        enable_key_rotation     = var.atlas_integrations.encryption.create_kms_key.enable_key_rotation
+      }
+      : null
+    )
+  }
+
+  atlas_aws_log_integration = {
+    enabled = var.atlas_integrations.log_integration.enabled
+    create_s3_bucket = (
+      var.atlas_integrations.log_integration.enabled
+      ? {
+        enabled         = true
+        force_destroy   = var.atlas_integrations.s3_force_destroy
+        name_prefix     = "${var.default_resource_name_prefix}-logs-"
+        expiration_days = var.atlas_integrations.log_integration.expiration_days
+      }
+      : null
+    )
+    integrations = (
+      var.atlas_integrations.log_integration.enabled
+      ? var.atlas_integrations.log_integration.integrations
+      : null
+    )
+  }
+
+  atlas_aws_backup_export = {
+    enabled = var.atlas_integrations.backup_export.enabled
+    create_s3_bucket = (
+      var.atlas_integrations.backup_export.enabled
+      ? {
+        enabled         = true
+        force_destroy   = var.atlas_integrations.s3_force_destroy
+        name_prefix     = "${var.default_resource_name_prefix}-backup-"
+        expiration_days = var.atlas_integrations.backup_export.expiration_days
+      }
+      : null
+    )
+  }
 }
 
 module "atlas_project" {
@@ -99,39 +155,9 @@ module "atlas_aws" {
     }
   ]
 
-  # Disable: encryption = { enabled = false }
-  encryption = {
-    enabled = true
-    create_kms_key = {
-      enabled = true
-      # For non-ephemeral accounts, raise deletion_window_in_days (max 30).
-    }
-    private_endpoint_regions = local.aws_regions
-  }
-
-  # Disable: log_integration = { enabled = false }
-  log_integration = {
-    enabled = true
-    create_s3_bucket = {
-      enabled       = true
-      force_destroy = var.s3_force_destroy
-      name_prefix   = "${var.default_resource_name_prefix}-logs-"
-    }
-    integrations = [
-      { log_types = ["MONGOD"], prefix_path = "operational" },
-      { log_types = ["MONGOD_AUDIT"], prefix_path = "audit" },
-    ]
-  }
-
-  # Disable: backup_export = { enabled = false }
-  backup_export = {
-    enabled = true
-    create_s3_bucket = {
-      enabled       = true
-      force_destroy = var.s3_force_destroy
-      name_prefix   = "${var.default_resource_name_prefix}-backup-"
-    }
-  }
+  encryption      = local.atlas_aws_encryption
+  log_integration = local.atlas_aws_log_integration
+  backup_export   = local.atlas_aws_backup_export
 
   aws_tags = var.tags
 

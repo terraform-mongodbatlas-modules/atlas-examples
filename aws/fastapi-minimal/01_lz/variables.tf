@@ -231,10 +231,46 @@ variable "vpc_config" {
 # Atlas AWS integrations (CPA / encryption / log / backup)
 # ----------------------------------------------------
 
-variable "s3_force_destroy" {
-  description = "Force-destroy module-managed log and backup export S3 buckets even when non-empty. Enable for ephemeral demos; disable for shared accounts that must retain objects."
-  type        = bool
-  default     = true
+variable "atlas_integrations" {
+  description = <<-EOT
+    Atlas AWS integrations (encryption, log export, backup export). Omit for production defaults (all enabled).
+    encryption.kms_key_arn: BYO KMS; when set, create_kms_key is ignored.
+    encryption.skip_private_endpoints: when true, omit Atlas KMS PrivateLink (private_endpoint_regions = []); default false enables KMS PE in every cluster AWS region.
+    Log and backup export always use module-managed S3 buckets (name_prefix derived from default_resource_name_prefix).
+    expiration_days maps to create_s3_bucket.expiration_days in atlas-aws.
+    s3_force_destroy applies to both module-managed log and backup buckets (true for ephemeral demos; false for shared accounts that must retain objects).
+  EOT
+  type = object({
+    encryption = optional(object({
+      enabled                = optional(bool, true)
+      kms_key_arn            = optional(string)
+      skip_private_endpoints = optional(bool, false)
+      create_kms_key = optional(object({
+        deletion_window_in_days = optional(number, 7)
+        enable_key_rotation     = optional(bool, true)
+      }), {})
+    }), {})
+
+    log_integration = optional(object({
+      enabled = optional(bool, true)
+      integrations = optional(list(object({
+        log_types   = set(string)
+        prefix_path = string
+        })), [
+        { log_types = ["MONGOD"], prefix_path = "operational" },
+        { log_types = ["MONGOD_AUDIT"], prefix_path = "audit" },
+      ])
+      expiration_days = optional(number, 90)
+    }), {})
+
+    backup_export = optional(object({
+      enabled         = optional(bool, true)
+      expiration_days = optional(number, 365)
+    }), {})
+
+    s3_force_destroy = optional(bool, true)
+  })
+  default = {}
 }
 
 # Container registries

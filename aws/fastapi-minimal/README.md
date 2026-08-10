@@ -85,11 +85,11 @@ TODO: future `ec2_apps` map; no resources in `01_lz` yet (follow-up PR).
 
 Valid to apply with no app targets (`ecr_repositories = {}`, `lambda_apps = {}`). You get Atlas + PrivateLink + VPC(s) + Cloud Provider Access/KMS/log/backup only. App teams run their own pipeline and wire compute themselves; run `terraform -chdir=01_lz output` for LZ visibility (each output has a description). Region and VPC edits: [docs/lz-changes.md](./docs/lz-changes.md).
 
-Optional knobs in `terraform.tfvars`: `cluster_name`, `default_resource_name_prefix`, `regions`, `tags`, `s3_force_destroy`, `vpc_config`, `cluster_type`, `manual_scaling`, `public_debug_access`.
+Optional knobs in `terraform.tfvars`: `cluster_name`, `default_resource_name_prefix`, `regions`, `tags`, `atlas_integrations`, `vpc_config`, `cluster_type`, `manual_scaling`, `public_debug_access`.
 
 For a short-lived lab, see [What is the cost of running this example?](#what-is-the-cost-of-running-this-example) (replica-set escape hatch, skip module-managed KMS, and other levers before the first apply).
 
-To change Landing Zone features (PrivateLink, encryption, log integration, backup export) or pin cluster autoscaling, edit the module blocks in [01_lz/main.tf](./01_lz/main.tf) (comments show how to disable features). VPC, security groups, ECR, and the Lambda role live in [01_lz/aws.tf](./01_lz/aws.tf). Full schemas: [project](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/project/mongodbatlas/latest), [atlas-aws](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws/tree/main), [cluster](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest). The `atlas-aws` module temporarily tracks its `main` branch for the AWS provider 6 deprecation fix; switch back to the registry release once that fix is published.
+Toggle encryption, log export, and backup export with `atlas_integrations` in tfvars (defaults keep all three on). Lab snippets: [01_lz/terraform.tfvars.example](./01_lz/terraform.tfvars.example). BYO and shared-account patterns: [What is the cost of running this example?](#what-is-the-cost-of-running-this-example). Pin cluster autoscaling with `manual_scaling`. VPC, security groups, ECR, and the Lambda role live in [01_lz/aws.tf](./01_lz/aws.tf). Full schemas: [project](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/project/mongodbatlas/latest), [atlas-aws](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws/tree/main), [cluster](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest). The `atlas-aws` module temporarily tracks its `main` branch for the AWS provider 6 deprecation fix; switch back to the registry release once that fix is published.
 
 ## Handoff to `02_app_lambda`
 
@@ -231,17 +231,35 @@ Defaults favor a production-shaped stack, not a zero-cost lab. Main drivers:
 
 - **Cluster compute:** Default is sharded (`SHARDED`, `shard_count = 2`), which costs more than a single replica set. For a cheap personal lab, set `cluster_type = "REPLICASET"` before the first apply (`shard_count` is ignored). Compute auto-scales M10–M200 by default; pin a size with `manual_scaling = { instance_size = "M10" }` (disk GB auto-scaling stays on either way).
 - **Customer-managed KMS:** Enabled by default. Destroy schedules key deletion (`deletion_window_in_days` default 7, AWS max 30); the key can still bill while pending-delete.
-- **Log/backup S3 + Atlas backups:** Buckets and `retain_backups_enabled = true` (snapshots may remain after destroy and block recreating the same cluster name until deleted or you change `cluster_name`). `s3_force_destroy` defaults to `true` so demo tear-down can empty the buckets.
+- **Log/backup S3 + Atlas backups:** Buckets and `retain_backups_enabled = true` (snapshots may remain after destroy and block recreating the same cluster name until deleted or you change `cluster_name`). `atlas_integrations.s3_force_destroy` defaults to `true` so demo tear-down can empty the buckets.
 - **Multi-region VPCs:** Each `regions` entry with default `vpc_config` creates another VPC (distinct `/16` from `base_cidr`). Extra regions add VPC cost; interface endpoints are created only in regions where at least one `lambda_apps` entry sets `aws_region`.
 
-To make a short-lived run more ephemeral before the first apply, in [01_lz/main.tf](./01_lz/main.tf) disable module-managed CMK encryption:
+To make a short-lived run more ephemeral before the first apply, disable module-managed CMK in tfvars:
 
 ```hcl
-# Atlas keeps provider-default encryption at rest (no customer-managed KMS key to create or schedule-delete).
-encryption = { enabled = false }
+atlas_integrations = { encryption = { enabled = false } }
 ```
 
-Keep `encryption_at_rest_provider = module.atlas_aws.encryption_at_rest_provider` on the cluster; with encryption disabled the module outputs `NONE`. Optionally set `retain_backups_enabled = false` on the cluster for cleaner destroy. Leave `s3_force_destroy = true` (the tfvars default) so log/backup buckets delete with the stack.
+Atlas keeps provider-default encryption at rest (no customer-managed KMS key to create or schedule-delete). Keep `encryption_at_rest_provider = module.atlas_aws.encryption_at_rest_provider` on the cluster; with encryption disabled the module outputs `NONE`.
+
+To also turn off log and backup export (cluster PrivateLink stays on):
+
+```hcl
+atlas_integrations = {
+  encryption      = { enabled = false }
+  log_integration = { enabled = false }
+  backup_export   = { enabled = false }
+}
+```
+
+Other `atlas_integrations` patterns before first apply:
+
+- **Skip KMS PrivateLink, keep CMK:** `encryption = { skip_private_endpoints = true }`. Faster lab apply; less private networking. See [atlas-aws encryption docs](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws/tree/main).
+- **BYO KMS:** `encryption = { kms_key_arn = "arn:aws:kms:..." }` (optionally with `skip_private_endpoints = true`). Module-managed `create_kms_key` is ignored when `kms_key_arn` is set. Buckets stay module-managed; this example does not take BYO S3.
+- **Shared account:** Raise KMS pending-delete window and retain bucket objects, for example `encryption = { create_kms_key = { deletion_window_in_days = 30 } }` and `s3_force_destroy = false`.
+- **Audit-only logs:** Set `log_integration.integrations` to a single `MONGOD_AUDIT` entry.
+
+Optionally set `retain_backups_enabled = false` on the cluster for cleaner destroy. Leave `atlas_integrations.s3_force_destroy = true` (the default) so log/backup buckets delete with the stack.
 
 ### Why is `user_agent_extra.example` set?
 

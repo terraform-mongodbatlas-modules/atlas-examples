@@ -1,0 +1,135 @@
+mock_provider "mongodbatlas" {}
+mock_provider "aws" {
+  mock_data "aws_availability_zones" {
+    defaults = { names = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e", "us-east-1f"] }
+  }
+}
+mock_provider "local" {}
+
+variables {
+  atlas_org_id = "org123"
+  cluster_name = "fastapi-minimal"
+}
+
+run "defaults_all_enabled" {
+  command = plan
+
+  assert {
+    condition = (
+      local.atlas_aws_encryption.enabled &&
+      local.atlas_aws_encryption.create_kms_key.enabled &&
+      toset(local.atlas_aws_encryption.private_endpoint_regions) == toset(local.aws_regions) &&
+      local.atlas_aws_log_integration.enabled &&
+      local.atlas_aws_backup_export.enabled
+    )
+    error_message = "Omit atlas_integrations: encryption/log/backup enabled with module-managed CMK and KMS PE in every cluster AWS region"
+  }
+}
+
+run "encryption_disabled" {
+  command = plan
+
+  variables {
+    atlas_integrations = { encryption = { enabled = false } }
+  }
+
+  assert {
+    condition = (
+      !local.atlas_aws_encryption.enabled &&
+      local.atlas_aws_encryption.kms_key_arn == null &&
+      local.atlas_aws_encryption.create_kms_key == null &&
+      length(local.atlas_aws_encryption.private_endpoint_regions) == 0
+    )
+    error_message = "encryption.enabled = false should clear CMK inputs and KMS PE regions"
+  }
+}
+
+run "skip_kms_private_endpoints" {
+  command = plan
+
+  variables {
+    atlas_integrations = { encryption = { skip_private_endpoints = true } }
+  }
+
+  assert {
+    condition     = local.atlas_aws_encryption.enabled && length(local.atlas_aws_encryption.private_endpoint_regions) == 0
+    error_message = "skip_private_endpoints should clear private_endpoint_regions"
+  }
+}
+
+run "byo_kms" {
+  command = plan
+
+  variables {
+    atlas_integrations = {
+      encryption = { kms_key_arn = "arn:aws:kms:us-east-1:123456789012:key/abc" }
+    }
+  }
+
+  assert {
+    condition = (
+      local.atlas_aws_encryption.kms_key_arn == "arn:aws:kms:us-east-1:123456789012:key/abc" &&
+      local.atlas_aws_encryption.create_kms_key == null
+    )
+    error_message = "BYO kms_key_arn should omit create_kms_key"
+  }
+}
+
+run "log_audit_only" {
+  command = plan
+
+  variables {
+    atlas_integrations = {
+      log_integration = {
+        integrations = [{ log_types = ["MONGOD_AUDIT"], prefix_path = "audit" }]
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      length(local.atlas_aws_log_integration.integrations) == 1 &&
+      contains(local.atlas_aws_log_integration.integrations[0].log_types, "MONGOD_AUDIT")
+    )
+    error_message = "Custom log integrations should pass through to the atlas-aws local"
+  }
+}
+
+run "integrations_all_off" {
+  command = plan
+
+  variables {
+    atlas_integrations = {
+      encryption      = { enabled = false }
+      log_integration = { enabled = false }
+      backup_export   = { enabled = false }
+    }
+  }
+
+  assert {
+    condition = (
+      !local.atlas_aws_encryption.enabled &&
+      !local.atlas_aws_log_integration.enabled &&
+      !local.atlas_aws_backup_export.enabled &&
+      local.atlas_aws_log_integration.create_s3_bucket == null &&
+      local.atlas_aws_backup_export.create_s3_bucket == null
+    )
+    error_message = "All three enabled = false should disable integrations and omit bucket configs"
+  }
+}
+
+run "s3_force_destroy_false" {
+  command = plan
+
+  variables {
+    atlas_integrations = { s3_force_destroy = false }
+  }
+
+  assert {
+    condition = (
+      local.atlas_aws_log_integration.create_s3_bucket.force_destroy == false &&
+      local.atlas_aws_backup_export.create_s3_bucket.force_destroy == false
+    )
+    error_message = "atlas_integrations.s3_force_destroy should apply to both module-managed buckets"
+  }
+}

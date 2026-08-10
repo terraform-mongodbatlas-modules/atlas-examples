@@ -21,13 +21,23 @@ cluster_name  = "fastapi-minimal"
 # default_resource_name_prefix = "fastapi-minimal"  # Atlas project + AWS resource names
 # regions = [{ name = "us-east-1" }]
 # tags = { Example = "aws-fastapi-minimal" }
-# s3_force_destroy = true  # false retains log/backup bucket objects on destroy
 #
 # # Cheap personal lab (before first apply):
 # cluster_type = "REPLICASET"
 # # shard_count is ignored for REPLICASET
 # # Pin compute (disk GB still auto-scales):
 # manual_scaling = { instance_size = "M10" }
+#
+# # Atlas AWS integrations (omit for production defaults: encryption + log + backup on)
+# # Lab (no CMK):
+# atlas_integrations = { encryption = { enabled = false } }
+# # Disable encryption + log + backup (PrivateLink still on):
+# atlas_integrations = {
+#   encryption      = { enabled = false }
+#   log_integration = { enabled = false }
+#   backup_export   = { enabled = false }
+# }
+# # Other patterns (BYO KMS, skip KMS PE, s3_force_destroy): see README FAQ.
 #
 # # --- AWS Lambda (optional) ---
 # ecr_repositories = {

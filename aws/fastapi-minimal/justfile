@@ -6,7 +6,7 @@ default:
 build-push tag="0.0.1":
     #!/usr/bin/env bash
     set -euo pipefail
-    root="$(cd "{{justfile_directory}}" && pwd)"
+    root="$(cd "{{justfile_directory()}}" && pwd)"
     ecr_key="${ECR_KEY:-api}"
     repo_url="$(terraform -chdir="${root}/01_lz" output -json ecr_repositories 2>/dev/null | jq -r --arg k "$ecr_key" '.[$k] // empty' || true)"
     if [[ -z "${repo_url}" ]]; then
