@@ -11,10 +11,8 @@ output "atlas" {
     cluster_name              = module.atlas_cluster.cluster_name
     connection_string_private = local.mongo_private_connection_string
     privatelink               = module.atlas_aws.privatelink
-    integrations = {
-      log_bucket_name    = try(module.atlas_aws.log_integration.bucket_name, null)
-      backup_bucket_name = try(module.atlas_aws.backup_export.bucket_name, null)
-    }
+    log_bucket_name           = try(module.atlas_aws.log_integration.bucket_name, null)
+    backup_bucket_name        = try(module.atlas_aws.backup_export.bucket_name, null)
   }
 }
 
