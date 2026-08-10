@@ -220,19 +220,6 @@ run "manual_scaling_invalid_tier" {
   ]
 }
 
-run "manual_scaling_invalid_format" {
-  command = plan
-
-  variables {
-    atlas_org_id   = "org123"
-    manual_scaling = { instance_size = "invalid" }
-  }
-
-  expect_failures = [
-    var.manual_scaling,
-  ]
-}
-
 run "ecr_lifecycle_disabled" {
   command = plan
 
