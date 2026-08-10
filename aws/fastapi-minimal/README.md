@@ -148,7 +148,7 @@ Default grant: `readWrite` on database `test` (matches the FastAPI demo). To rea
 
 ```hcl
 public_debug_access = {
-  ip_address    = "203.0.113.42"
+  ip_address    = "1.2.3.4"  # your public IP; curl -fsS https://ifconfig.me
   database_name = "admin"
   role_name     = "readWriteAnyDatabase"
 }
@@ -159,7 +159,7 @@ Minimal path (demo DB only):
 1. Discover your IP: `curl -fsS https://ifconfig.me`
 2. Add to `terraform.tfvars`:
    ```hcl
-   public_debug_access = { ip_address = "203.0.113.42" }
+   public_debug_access = { ip_address = "1.2.3.4" }  # your public IP
    ```
 3. `terraform -chdir=01_lz apply`
 4. Connect: `mongosh "$(terraform -chdir=01_lz output -raw connection_string_public)"` or paste into Compass.

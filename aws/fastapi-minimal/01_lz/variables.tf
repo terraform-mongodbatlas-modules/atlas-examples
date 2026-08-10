@@ -41,7 +41,7 @@ variable "public_debug_access" {
 
   validation {
     condition     = var.public_debug_access == null || can(cidrhost("${var.public_debug_access.ip_address}/32", 0))
-    error_message = "public_debug_access.ip_address must be a single IPv4 address (e.g. 203.0.113.42)."
+    error_message = "public_debug_access.ip_address must be a single IPv4 address (e.g. 1.2.3.4)."
   }
 }
 

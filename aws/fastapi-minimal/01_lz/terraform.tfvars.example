@@ -3,7 +3,7 @@ cluster_name  = "fastapi-minimal"
 
 # # Public debug (public internet + SCRAM). Remove after testing.
 # public_debug_access = {
-#   ip_address = "203.0.113.42"  # curl -fsS https://ifconfig.me
+#   ip_address = "1.2.3.4"  # your public IP; curl -fsS https://ifconfig.me
 #   # username      = "debug"
 #   # password      = "..."      # omit to auto-generate
 #   # database_name = "test"     # default: readWrite on test
@@ -12,7 +12,7 @@ cluster_name  = "fastapi-minimal"
 #
 # # Full read/write on all databases (broader than the default test grant):
 # public_debug_access = {
-#   ip_address    = "203.0.113.42"
+#   ip_address    = "1.2.3.4"
 #   database_name = "admin"
 #   role_name     = "readWriteAnyDatabase"
 # }
