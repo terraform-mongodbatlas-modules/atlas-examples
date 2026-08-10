@@ -91,7 +91,7 @@ output "ecr_repositories" {
 }
 
 output "lambda_apps" {
-  description = "Configured Lambda apps and handoff destination. Values for 02_app_* are in infra.auto.tfvars or Secrets Manager."
+  description = "Configured Lambda apps and handoff destination. app_handoff contains values for 02_app_* when tfvars_path and secret are omitted."
   value = {
     for k, v in local.lambda_apps : k => {
       name             = v.name
@@ -102,6 +102,12 @@ output "lambda_apps" {
       secret_name      = v.secret_name
     }
   }
+}
+
+output "app_handoff" {
+  description = "Per-Lambda-app inputs for a thin 02_app_* stack when file and Secrets Manager handoff are omitted."
+  sensitive   = true
+  value       = local.app_handoff_payloads
 }
 
 output "ecs_apps" {

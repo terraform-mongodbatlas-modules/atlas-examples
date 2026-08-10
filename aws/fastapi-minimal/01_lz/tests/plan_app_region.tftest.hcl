@@ -53,6 +53,7 @@ run "app_region_west" {
         ecr_key     = "api-west"
         aws_region  = "us-west-2"
         tfvars_path = "../02_app_worker/infra.auto.tfvars"
+        secret      = {}
         roles       = [{ database_name = "jobs" }]
       }
     }
@@ -71,6 +72,16 @@ run "app_region_west" {
   assert {
     condition     = local.ecr_repositories["api-west"].region == "us-west-2"
     error_message = "West ECR repo should resolve to us-west-2"
+  }
+
+  assert {
+    condition     = aws_security_group_rule.lambda_s3["us-west-2"].region == "us-west-2"
+    error_message = "West S3 security group rule should use the app region"
+  }
+
+  assert {
+    condition     = aws_secretsmanager_secret.app["worker"].region == "us-west-2" && aws_secretsmanager_secret_version.app["worker"].region == "us-west-2"
+    error_message = "Worker secret and version should use the app region"
   }
 }
 

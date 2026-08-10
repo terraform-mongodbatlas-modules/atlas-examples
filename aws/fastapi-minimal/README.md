@@ -42,7 +42,7 @@ Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-e
 1. [Terraform](https://developer.hashicorp.com/terraform) >= 1.10
 2. Atlas credentials (prefer service account: `MONGODB_ATLAS_CLIENT_ID` / `MONGODB_ATLAS_CLIENT_SECRET`) with permission to create projects
 3. AWS credentials for the target account/region (AWS CLI for log tail)
-4. [Docker](https://docs.docker.com/) and [just](https://github.com/casey/just)
+4. [Docker](https://docs.docker.com/), [just](https://github.com/casey/just), and [jq](https://jqlang.org/) (`just build-push` and the region-change commands use jq)
 
 ## Make the example your own
 
@@ -71,7 +71,7 @@ lambda_apps = {
 }
 ```
 
-Re-apply `01_lz` after adding this block before `just build-push` and `02_app_lambda`. Each `lambda_apps` entry creates one IAM execution role and one Atlas IAM database user (`roles` default: `readWrite` on `test`). See [02_app_lambda](./02_app_lambda/) for the thin app stack.
+Re-apply `01_lz` after adding this block before `just build-push` and `02_app_lambda`. Each `lambda_apps` entry creates one IAM execution role and one Atlas IAM database user. Supply at least one `roles` entry; each entry's `role_name` defaults to `readWrite`. See [02_app_lambda](./02_app_lambda/) for the thin app stack.
 
 ### Amazon ECS
 
@@ -175,9 +175,9 @@ See [docs/lz-changes.md](./docs/lz-changes.md) (**Add a cluster region**). Pin V
 
 ### How does `01_lz` hand values to `02_app_lambda`?
 
-When `lambda_apps` includes `tfvars_path`, `01_lz` writes `02_app_lambda/infra.auto.tfvars` (includes `ecr_repository_url` and role ARN). Omit `tfvars_path` on an app to skip its file writer, then paste values from [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example).
+When `lambda_apps` includes `tfvars_path`, `01_lz` writes `02_app_lambda/infra.auto.tfvars`. To configure a thin app stack manually, omit both `tfvars_path` and `secret`, then copy the selected app payload from `terraform -chdir=01_lz output -json app_handoff` into [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example). The payload contains the app region, subnet IDs, Lambda security group ID, execution-role ARN, regional MongoDB private connection string, database name, and ECR URL.
 
-Optional Secrets Manager: set `secret = {}` (or `secret = { name = "..." }`) on that app. Re-apply `01_lz` to replace the secret version. Destroy the app stack before deleting the secret / destroying `01_lz`.
+Optional Secrets Manager: set `secret = {}` (or `secret = { name = "..." }`) on that app. `01_lz` creates the secret in the app's `aws_region`. Re-apply `01_lz` to replace the secret version. Destroy the app stack before deleting the secret / destroying `01_lz`.
 
 ### What is the cost of running this example?
 
@@ -203,4 +203,4 @@ Keep `encryption_at_rest_provider = module.atlas_aws.encryption_at_rest_provider
 
 ### What is not covered here?
 
-Custom DNS / Route 53, the Industry Solutions AI app (`aws/ai-demo` is a sibling), multi-region E2E apply, per-region Mongo connection strings in handoff, ECS from `ecs_apps`, EC2 from `ec2_apps`, and index management (this app needs none).
+Custom DNS / Route 53, the Industry Solutions AI app (`aws/ai-demo` is a sibling), multi-region E2E apply, ECS from `ecs_apps`, EC2 from `ec2_apps`, and index management (this app needs none).

@@ -36,6 +36,17 @@ locals {
     try(module.atlas_cluster.connection_strings.private_srv, ""),
     module.atlas_cluster.connection_strings.standard_srv
   )
+  mongo_private_connection_strings_by_region = {
+    for region in local.app_aws_regions : region => coalesce(
+      try([
+        for endpoint in module.atlas_cluster.connection_strings.private_endpoint :
+        endpoint.srv_connection_string
+        if can(regex(region, endpoint.srv_connection_string))
+      ][0], ""),
+      try(module.atlas_cluster.connection_strings.private_srv, ""),
+      module.atlas_cluster.connection_strings.standard_srv
+    )
+  }
 
   app_handoff_payloads = {
     for k, v in local.lambda_apps : k => {
@@ -43,7 +54,7 @@ locals {
       private_subnet_ids              = local.app_network[v.aws_region].private_subnet_ids
       lambda_security_group_id        = aws_security_group.lambda[v.aws_region].id
       lambda_execution_role_arn       = aws_iam_role.lambda_exec[k].arn
-      mongo_private_connection_string = local.mongo_private_connection_string
+      mongo_private_connection_string = local.mongo_private_connection_strings_by_region[v.aws_region]
       app_database_name               = v.primary_database
       ecr_repository_url              = aws_ecr_repository.this[v.ecr_key].repository_url
     }
@@ -161,6 +172,7 @@ resource "aws_vpc_endpoint" "s3" {
 resource "aws_security_group_rule" "lambda_s3" {
   for_each = local.app_aws_regions
 
+  region            = each.key
   type              = "egress"
   security_group_id = aws_security_group.lambda[each.key].id
   description       = "S3 via gateway VPC endpoint (ECR layers)"
@@ -197,13 +209,15 @@ resource "aws_iam_role_policy_attachment" "lambda_exec" {
 resource "aws_secretsmanager_secret" "app" {
   for_each = local.lambda_secrets
 
-  name = each.value.secret_name
-  tags = var.tags
+  region = each.value.aws_region
+  name   = each.value.secret_name
+  tags   = var.tags
 }
 
 resource "aws_secretsmanager_secret_version" "app" {
   for_each = local.lambda_secrets
 
+  region        = each.value.aws_region
   secret_id     = aws_secretsmanager_secret.app[each.key].id
   secret_string = jsonencode(local.app_handoff_payloads[each.key])
 }
