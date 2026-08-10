@@ -23,12 +23,28 @@ run "multi_region_auto_vpc" {
 
   assert {
     condition     = local.vpc_cidr_by_region["us-east-1"] == "10.0.0.0/16" && local.vpc_cidr_by_region["us-west-2"] == "10.1.0.0/16"
-    error_message = "Managed CIDRs should allocate from base_cidr by sorted region index"
+    error_message = "Managed CIDRs should allocate from base_cidr by declared region order"
   }
 
   assert {
     condition     = contains(keys(local.privatelink_subnet_ids_by_region), "us-west-2")
     error_message = "PrivateLink subnets should be wired for each cluster AWS region"
+  }
+}
+
+run "managed_vpc_preserves_declared_region_order" {
+  command = plan
+
+  variables {
+    regions = [
+      { name = "us-west-2", node_count = 2 },
+      { name = "us-east-1", node_count = 3 },
+    ]
+  }
+
+  assert {
+    condition     = local.vpc_cidr_by_region["us-west-2"] == "10.0.0.0/16" && local.vpc_cidr_by_region["us-east-1"] == "10.1.0.0/16"
+    error_message = "Managed CIDRs should preserve the declared region order so appending regions does not renumber existing VPCs"
   }
 }
 
@@ -50,6 +66,22 @@ run "multi_region_cidr_override" {
   assert {
     condition     = local.vpc_cidr_by_region["us-west-2"] == "10.42.0.0/16"
     error_message = "by_region.cidr should override auto allocation for that region"
+  }
+}
+
+run "managed_vpc_nat_gateway" {
+  command = plan
+
+  variables {
+    vpc_config = {
+      az_count           = 2
+      enable_nat_gateway = true
+    }
+  }
+
+  assert {
+    condition     = length(module.vpc["us-east-1"].natgw_ids) == 2
+    error_message = "NAT gateway configuration should create one NAT gateway per AZ"
   }
 }
 
@@ -89,6 +121,36 @@ run "vpc_byo_all_regions" {
     condition     = local.privatelink_subnet_ids_by_region["us-west-2"] == tolist(["subnet-west-a", "subnet-west-b"])
     error_message = "BYO by_region should feed PrivateLink subnets per region"
   }
+}
+
+run "vpc_managed_az_count_validation" {
+  command = plan
+
+  variables {
+    vpc_config = {
+      az_count = 1.5
+    }
+  }
+
+  expect_failures = [
+    var.vpc_config,
+  ]
+}
+
+run "vpc_managed_region_az_count_validation" {
+  command = plan
+
+  variables {
+    vpc_config = {
+      by_region = {
+        us-east-1 = { az_count = 7 }
+      }
+    }
+  }
+
+  expect_failures = [
+    var.vpc_config,
+  ]
 }
 
 run "vpc_managed_rejects_byo_fields" {

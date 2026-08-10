@@ -1,8 +1,7 @@
 locals {
-  sorted_aws_regions  = sort(local.aws_regions)
   managed_vpc_regions = var.vpc_config.create ? toset(local.aws_regions) : toset([])
   vpc_cidr_by_region = {
-    for i, region in local.sorted_aws_regions :
+    for i, region in local.aws_regions :
     region => coalesce(
       try(var.vpc_config.by_region[region].cidr, null),
       cidrsubnet(var.vpc_config.base_cidr, 8, i)

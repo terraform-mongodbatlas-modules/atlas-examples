@@ -12,9 +12,10 @@ module "vpc" {
 
   azs             = [for i in range(var.az_count) : "${var.aws_region}${local.az_letters[i]}"]
   private_subnets = [for i in range(var.az_count) : cidrsubnet(var.cidr, 4, i)]
+  public_subnets  = var.enable_nat_gateway ? [for i in range(var.az_count) : cidrsubnet(var.cidr, 4, 8 + i)] : []
 
   enable_nat_gateway            = var.enable_nat_gateway
-  create_igw                    = var.create_igw
+  create_igw                    = var.create_igw || var.enable_nat_gateway
   enable_dns_hostnames          = true
   enable_dns_support            = true
   manage_default_security_group = false

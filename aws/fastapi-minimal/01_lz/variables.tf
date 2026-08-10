@@ -116,8 +116,24 @@ variable "vpc_config" {
   default = {}
 
   validation {
-    condition     = !var.vpc_config.create || (var.vpc_config.az_count >= 1 && var.vpc_config.az_count <= 6)
-    error_message = "vpc_config.az_count must be between 1 and 6 when create = true."
+    condition = !var.vpc_config.create || (
+      var.vpc_config.az_count >= 1 &&
+      var.vpc_config.az_count <= 6 &&
+      var.vpc_config.az_count == floor(var.vpc_config.az_count)
+    )
+    error_message = "vpc_config.az_count must be a whole number between 1 and 6 when create = true."
+  }
+
+  validation {
+    condition = !var.vpc_config.create || alltrue([
+      for _, cfg in var.vpc_config.by_region :
+      cfg.az_count == null || (
+        cfg.az_count >= 1 &&
+        cfg.az_count <= 6 &&
+        cfg.az_count == floor(cfg.az_count)
+      )
+    ])
+    error_message = "vpc_config.by_region.*.az_count must be a whole number between 1 and 6 when create = true."
   }
 
   validation {
@@ -162,7 +178,7 @@ variable "vpc_config" {
   validation {
     condition = var.vpc_config.create ? (
       length(distinct([
-        for i, region in sort(distinct([for r in var.regions : replace(lower(r.name), "_", "-")])) :
+        for i, region in distinct([for r in var.regions : replace(lower(r.name), "_", "-")]) :
         coalesce(try(var.vpc_config.by_region[region].cidr, null), cidrsubnet(var.vpc_config.base_cidr, 8, i))
       ])) == length(distinct([for r in var.regions : replace(lower(r.name), "_", "-")]))
     ) : true
