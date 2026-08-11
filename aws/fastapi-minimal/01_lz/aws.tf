@@ -36,15 +36,43 @@ locals {
     try(module.atlas_cluster.connection_strings.private_srv, ""),
     module.atlas_cluster.connection_strings.standard_srv
   )
+
+  # Per-app-region PrivateLink SRV for 02_app_* handoff (MONGO_URL).
+  #
+  # Two different "endpoint" shapes show up in state/output:
+  # - module.atlas_aws.privatelink: one AWS interface endpoint per cluster AWS region
+  #   (e.g. us-east-1 and us-east-2), each with its own vpc_endpoint_id and security group.
+  # - module.atlas_cluster.connection_strings.private_endpoint: Atlas-published client
+  #   connection info. For a SHARDED cluster this is typically one MONGOS entry (type
+  #   "MONGOS") with a load-balanced SRV hostname (*-pl-0-lb.*), not one row per shard
+  #   or per VPC endpoint. endpoints[] lists which customer VPC endpoint(s) that SRV
+  #   entry is tied to, keyed by Atlas region (US_EAST_1), not the AWS region substring
+  #   in the hostname.
+  #
+  # Example (multi-region cluster, two privatelink VPC endpoints, one MONGOS SRV):
+  #   privatelink["us-east-1"].vpc_endpoint_id = vpce-...ae8
+  #   privatelink["us-east-2"].vpc_endpoint_id = vpce-...2d63
+  #   private_endpoint[0].srv_connection_string = mongodb+srv://...-pl-0-lb....
+  #   private_endpoint[0].endpoints = [{ region = "US_EAST_1", endpoint_id = vpce-...ae8 }]
+  #
+  # Do not match AWS region names inside the SRV hostname (they are not present); map
+  # app aws_region -> Atlas region and look up endpoints[].region. Regions with a VPC
+  # endpoint but no matching private_endpoint row fall back to mongo_private_connection_string
+  # (same SRV; DNS resolves via the local region's interface endpoint).
+  aws_to_atlas_region = {
+    for r in local.regions_resolved : r.aws_name => r.atlas_name
+  }
+  mongo_private_srv_by_atlas_region = merge([
+    for pe in try(module.atlas_cluster.connection_strings.private_endpoint, []) : {
+      for ep in try(pe.endpoints, []) :
+      ep.region => pe.srv_connection_string
+      if try(pe.srv_connection_string, "") != ""
+    }
+  ]...)
   mongo_private_connection_strings_by_region = {
     for region in local.app_aws_regions : region => coalesce(
-      try([
-        for endpoint in module.atlas_cluster.connection_strings.private_endpoint :
-        endpoint.srv_connection_string
-        if can(regex(region, endpoint.srv_connection_string))
-      ][0], ""),
-      try(module.atlas_cluster.connection_strings.private_srv, ""),
-      module.atlas_cluster.connection_strings.standard_srv
+      try(local.mongo_private_srv_by_atlas_region[local.aws_to_atlas_region[region]], ""),
+      local.mongo_private_connection_string
     )
   }
 
@@ -188,6 +216,37 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = local.app_network[each.key].private_route_table_ids
 
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-s3-${each.key}" })
+}
+
+# atlas-aws privatelink SGs are ingress-only; without egress, replies to VPC workloads may be dropped.
+resource "aws_security_group_rule" "atlas_pl_egress" {
+  for_each = module.atlas_aws.privatelink
+
+  region            = each.key
+  type              = "egress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  cidr_blocks = [
+    var.vpc_config.create
+    ? module.vpc[each.key].vpc_cidr_block
+    : var.vpc_config.by_region[each.key].vpc_cidr_block
+  ]
+  security_group_id = each.value.security_group_id
+  description       = "Return traffic to VPC workloads"
+}
+
+resource "aws_security_group_rule" "atlas_pl_ingress_from_lambda" {
+  for_each = local.lambda_apps
+
+  region                   = each.value.aws_region
+  type                     = "ingress"
+  from_port                = 1024
+  to_port                  = 65535
+  protocol                 = "tcp"
+  security_group_id        = module.atlas_aws.privatelink[each.value.aws_region].security_group_id
+  source_security_group_id = aws_security_group.lambda[each.value.aws_region].id
+  description              = "MongoDB Atlas PrivateLink from Lambda"
 }
 
 resource "aws_iam_role" "lambda_exec" {
