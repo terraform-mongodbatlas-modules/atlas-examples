@@ -36,6 +36,9 @@ locals {
     try(module.atlas_cluster.connection_strings.private_srv, ""),
     module.atlas_cluster.connection_strings.standard_srv
   )
+  mongo_private_connection_string_uses_standard_srv = (
+    local.mongo_private_connection_string == module.atlas_cluster.connection_strings.standard_srv
+  )
 
   # Per-app-region PrivateLink SRV for 02_app_* handoff (MONGO_URL).
   #
@@ -99,6 +102,19 @@ locals {
       app_database_name               = v.primary_database
       ecr_repository_url              = aws_ecr_repository.this[v.ecr_key].repository_url
     }
+  }
+}
+
+check "mongo_private_connection_string_standard_srv_fallback" {
+  assert {
+    condition = !local.mongo_private_connection_string_uses_standard_srv
+    error_message = <<-EOT
+      mongo_private_connection_string fell back to standard_srv (non-PrivateLink).
+      Atlas did not publish private_endpoint or private_srv SRV connection strings yet.
+      Lambda apps will receive the public Atlas SRV in MONGO_URL; traffic may not route over PrivateLink,
+      and may fail to connect to the cluster if the public internet is unreachable from the app deployment
+      and no public IPs are added to the project.
+    EOT
   }
 }
 
