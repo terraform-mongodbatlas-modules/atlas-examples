@@ -107,7 +107,7 @@ locals {
 
 check "mongo_private_connection_string_standard_srv_fallback" {
   assert {
-    condition = !local.mongo_private_connection_string_uses_standard_srv
+    condition     = !local.mongo_private_connection_string_uses_standard_srv
     error_message = <<-EOT
       mongo_private_connection_string fell back to standard_srv (non-PrivateLink).
       Atlas did not publish private_endpoint or private_srv SRV connection strings yet.
