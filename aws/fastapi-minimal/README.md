@@ -42,7 +42,7 @@ Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-e
 1. [Terraform](https://developer.hashicorp.com/terraform) >= 1.10
 2. Atlas credentials (prefer service account: `MONGODB_ATLAS_CLIENT_ID` / `MONGODB_ATLAS_CLIENT_SECRET`) with permission to create projects
 3. AWS credentials for the target account/region (AWS CLI for log tail)
-4. [Docker](https://docs.docker.com/), [just](https://github.com/casey/just), and [jq](https://jqlang.org/) (`just build-push` and the region-change commands use jq)
+4. [Docker](https://docs.docker.com/), [just](https://github.com/casey/just), and [jq](https://jqlang.org/) (region-change commands use jq)
 
 ## Make the example your own
 
@@ -106,8 +106,8 @@ Each payload includes: `aws_region`, `name_prefix`, `private_subnet_ids`, `lambd
 After handoff is in place, push an image before `02_app_lambda` apply:
 
 ```sh
-just build-push                        # ecr_repositories key "api" (default)
-ECR_KEY=worker just build-push         # another key from ecr_repositories
+repo_url="$(terraform -chdir=01_lz output -json ecr_repositories | jq -r '.api')"
+just build-push "${repo_url}"
 ```
 
 `lambda_apps` output lists configured apps and where handoff landed (`tfvars_path` or `secret_name`). Destroy the app stack before destroying `01_lz` when Secrets Manager handoff is in use.
@@ -126,9 +126,10 @@ terraform -chdir=01_lz apply
 Requires the **AWS Lambda** block in `terraform.tfvars` and a successful `01_lz` apply.
 
 ```sh
-# Login, build linux/arm64 from src/, tag 0.0.1 (override: just build-push 0.0.2), push
+# Login, build linux/arm64 from src/, tag 0.0.1 (override: tag="0.0.2"), push
 # ECR tags are IMMUTABLE by default: bump the tag on every push (or set image_tag_mutability = "MUTABLE").
-just build-push
+repo_url="$(terraform -chdir=01_lz output -json ecr_repositories | jq -r '.api')"
+just build-push "${repo_url}"
 terraform -chdir=02_app_lambda init
 # Creates Lambda + Function URL; fails if the image tag is missing. Run just build-push first.
 # Keep 02_app_lambda image_tag in sync with the tag you pushed.
