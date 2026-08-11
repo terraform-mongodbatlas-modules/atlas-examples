@@ -27,7 +27,9 @@ class PymongoParsedUrl(TypedDict):
 
 
 class Settings(BaseSettings):
-    mongo_url: str = "mongodb://user:pass@localhost:27017?retryWrites=true&w=majority&authSource=admin"
+    mongo_url: str = (
+        "mongodb://user:pass@localhost:27017?retryWrites=true&w=majority&authSource=admin"
+    )
     db_name: str = "test"
     collection_name: str = "test"
     record_id: str = "my-static-record-id"
@@ -45,14 +47,14 @@ def get_mongodb_client() -> MongoClient:
     if settings.use_iam_auth and os.getenv("AWS_EXECUTION_ENV"):
         parsed = settings.pymongo_parsed_url
         hosts = ",".join([f"{host}:{port}" for host, port in parsed["nodelist"]])
-        replica_set = parsed["options"].get("replicaset", "")
-
         params = {
             "authSource": "$external",
             "authMechanism": "MONGODB-AWS",
-            "ssl": "true",
+            "tls": "true",
         }
-        if replica_set:
+        if parsed["options"].get("loadBalanced"):
+            params["loadBalanced"] = "true"
+        elif replica_set := parsed["options"].get("replicaset"):
             params["replicaSet"] = replica_set
 
         iam_url = f"mongodb://{hosts}/?{urllib.parse.urlencode(params)}"
