@@ -31,13 +31,17 @@ locals {
     }
   }
 
-  mongo_private_connection_string = coalesce(
+  mongo_private_connection_string = try(coalesce(
     try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
     try(module.atlas_cluster.connection_strings.private_srv, ""),
     module.atlas_cluster.connection_strings.standard_srv
+  ), "NO_CONNECTION_STRING_AVAILABLE"
   )
   mongo_private_connection_string_uses_standard_srv = (
     local.mongo_private_connection_string == module.atlas_cluster.connection_strings.standard_srv
+  )
+  mongo_private_connection_string_unavailable = (
+    local.mongo_private_connection_string == "NO_CONNECTION_STRING_AVAILABLE"
   )
 
   # Per-app-region PrivateLink SRV for 02_app_* handoff (MONGO_URL).
@@ -114,6 +118,18 @@ check "mongo_private_connection_string_standard_srv_fallback" {
       Lambda apps will receive the public Atlas SRV in MONGO_URL; traffic may not route over PrivateLink,
       and may fail to connect to the cluster if the public internet is unreachable from the app deployment
       and no public IPs are added to the project.
+    EOT
+  }
+}
+
+check "mongo_private_connection_string_unavailable" {
+  assert {
+    condition     = !local.mongo_private_connection_string_unavailable
+    error_message = <<-EOT
+      mongo_private_connection_string is NO_CONNECTION_STRING_AVAILABLE.
+      Atlas did not publish private_endpoint, private_srv, or standard_srv connection strings.
+      This can happen when the cluster is paused; otherwise it should not occur (cluster state: ${module.atlas_cluster.state_name}).
+      Lambda apps will receive NO_CONNECTION_STRING_AVAILABLE in MONGO_URL and cannot connect until connection strings are published.
     EOT
   }
 }
