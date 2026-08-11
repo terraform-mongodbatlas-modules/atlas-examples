@@ -234,24 +234,6 @@ resource "aws_vpc_endpoint" "s3" {
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-s3-${each.key}" })
 }
 
-# atlas-aws privatelink SGs are ingress-only; without egress, replies to VPC workloads may be dropped.
-resource "aws_security_group_rule" "atlas_pl_egress" {
-  for_each = module.atlas_aws.privatelink
-
-  region            = each.key
-  type              = "egress"
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  cidr_blocks = [
-    var.vpc_config.create
-    ? module.vpc[each.key].vpc_cidr_block
-    : var.vpc_config.by_region[each.key].vpc_cidr_block
-  ]
-  security_group_id = each.value.security_group_id
-  description       = "Return traffic to VPC workloads"
-}
-
 resource "aws_security_group_rule" "atlas_pl_ingress_from_lambda" {
   for_each = local.lambda_apps
 
