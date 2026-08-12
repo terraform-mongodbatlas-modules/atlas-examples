@@ -1,7 +1,12 @@
 default:
     @just --list
 
-# ECR login, build linux/arm64 from src/, tag, and push.
+# Debug ecs_apps: CloudFront, ALB target health, ECS tasks, ECR image, HTTP probes, logs.
+# Set AWS_PROFILE (defaults to ai). Optional app key filters to one ecs_apps entry.
+health-check app="":
+    "{{justfile_directory()}}/scripts/aws_health_check.sh" "{{app}}"
+
+# ECR login, build linux/arm64 Lambda image from src/Dockerfile, tag, and push.
 build-push repo_url tag="0.0.1":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -12,5 +17,19 @@ build-push repo_url tag="0.0.1":
       | docker login --username AWS --password-stdin "${repo_url%/*}"
     image_uri="${repo_url}:{{tag}}"
     docker build --platform linux/arm64 -t "${image_uri}" "${root}/src"
+    docker push "${image_uri}"
+    echo "Pushed ${image_uri}"
+
+# ECR login, build linux/arm64 ECS image from src/Dockerfile.ecs, tag, and push.
+build-push-ecs repo_url tag="0.0.1":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="$(cd "{{justfile_directory()}}" && pwd)"
+    repo_url="{{repo_url}}"
+    region="$(echo "${repo_url}" | cut -d. -f4)"
+    aws ecr get-login-password --region "${region}" \
+      | docker login --username AWS --password-stdin "${repo_url%/*}"
+    image_uri="${repo_url}:{{tag}}"
+    docker build --platform linux/arm64 -f "${root}/src/Dockerfile.ecs" -t "${image_uri}" "${root}/src"
     docker push "${image_uri}"
     echo "Pushed ${image_uri}"
