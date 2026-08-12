@@ -35,7 +35,7 @@ build-push-backend repo_url tag="0.0.1": clone-hybridrag
       | docker login --username AWS --password-stdin "${repo_url%/*}"
     image_uri="${repo_url}:{{tag}}"
     docker build --platform linux/arm64 \
-      -f "{{hybridrag_dir}}/Dockerfile" \
+      -f "{{justfile_directory()}}/docker/Dockerfile.hybridrag" \
       --target production \
       -t "${image_uri}" \
       "{{hybridrag_dir}}"

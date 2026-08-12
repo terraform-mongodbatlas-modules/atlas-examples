@@ -10,6 +10,8 @@ Minimal deploy path for the upstream [Hybrid-Search-RAG](https://github.com/romi
 
 ## Deploy
 
+The ECS image is built from upstream HybridRAG sources plus `docker/Dockerfile.hybridrag`, which adds `pymongo[aws]` so `authMechanism=MONGODB-AWS` works with the ECS task role.
+
 ```sh
 # 1. Landing zone + Voyage key + handoff secret (hybridrag-app)
 terraform -chdir=01_lz apply
