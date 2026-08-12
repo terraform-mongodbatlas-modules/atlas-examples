@@ -1,3 +1,4 @@
 *.auto.tfvars
 *.auto.tfvars.json
 secrets/
+.vendor/

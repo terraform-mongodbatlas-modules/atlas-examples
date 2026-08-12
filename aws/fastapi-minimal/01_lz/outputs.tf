@@ -172,41 +172,41 @@ output "ecr_repositories" {
 }
 
 output "lambda_apps" {
-  description = "Configured Lambda apps and handoff destination. app_handoff contains values for 02_app_* when tfvars_path and secret are omitted."
+  description = "Configured Lambda apps and handoff destination. app_handoff contains values for 02_app_* when tfvars_path and handoff_secret are omitted."
   value = {
     for k, v in local.lambda_apps : k => {
-      name             = v.name
-      aws_region       = v.aws_region
-      primary_database = v.primary_database
-      ecr_key          = v.ecr_key
-      tfvars_path      = v.tfvars_path
-      secret_name      = v.secret_name
+      name                = v.name
+      aws_region          = v.aws_region
+      primary_database    = v.primary_database
+      ecr_key             = v.ecr_key
+      tfvars_path         = v.tfvars_path
+      handoff_secret_name = v.handoff_secret_name
     }
   }
 }
 
 output "app_handoff" {
-  description = "Sensitive per-app payload for thin 02_app_* stacks when tfvars_path and secret are omitted. mongo_private_connection_string includes IAM auth query params; task/Lambda role still required at runtime."
+  description = "Sensitive per-app payload for thin 02_app_* stacks when tfvars_path and handoff_secret are omitted. mongo_private_connection_string includes IAM auth query params; task/Lambda role still required at runtime."
   sensitive   = true
   value       = local.app_handoff_payloads
 }
 
 output "ecs_apps" {
-  description = "Configured ECS apps and handoff destination. ecs_app_handoff contains values for 02_app_ecs when tfvars_path and secret are omitted."
+  description = "Configured ECS apps and handoff destination. ecs_app_handoff contains values for 02_app_ecs when tfvars_path and handoff_secret are omitted."
   value = {
     for k, v in local.ecs_apps : k => {
-      name             = v.name
-      aws_region       = v.aws_region
-      primary_database = v.primary_database
-      ecr_key          = v.ecr_key
-      tfvars_path      = v.tfvars_path
-      secret_name      = v.secret_name
+      name                = v.name
+      aws_region          = v.aws_region
+      primary_database    = v.primary_database
+      ecr_key             = v.ecr_key
+      tfvars_path         = v.tfvars_path
+      handoff_secret_name = v.handoff_secret_name
     }
   }
 }
 
 output "ecs_app_handoff" {
-  description = "Sensitive per-app payload for 02_app_ecs when tfvars_path and secret are omitted."
+  description = "Sensitive per-app payload for 02_app_ecs when tfvars_path and handoff_secret are omitted."
   sensitive   = true
   value       = local.ecs_app_handoff_payloads
 }

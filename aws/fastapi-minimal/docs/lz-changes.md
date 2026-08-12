@@ -60,7 +60,7 @@ TODO: optional YAML file paths for large `*_apps` maps (follow-up PR).
 
 ## Move from file handoff to Secrets Manager
 
-Set `secret = {}` (or `secret = { name = "..." }`) on a `lambda_apps` entry. Re-apply `01_lz` to write the secret version. Destroy the app stack before destroying `01_lz` when secrets are in use.
+Set `handoff_secret = {}` (or `handoff_secret = { name = "..." }`) on a `lambda_apps` entry. Re-apply `01_lz` to write the secret version. Destroy the app stack before destroying `01_lz` when secrets are in use.
 
 ## ECS HTTP edge tear-down
 

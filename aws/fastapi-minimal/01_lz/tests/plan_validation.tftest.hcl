@@ -163,9 +163,9 @@ run "lambda_apps_two_shared_ecr" {
         tfvars_path = "../02_app_lambda/infra.auto.tfvars"
       }
       worker = {
-        ecr_key     = "api"
-        tfvars_path = "../02_app_worker/infra.auto.tfvars"
-        secret      = { name = "demo-worker-app" }
+        ecr_key        = "api"
+        tfvars_path    = "../02_app_worker/infra.auto.tfvars"
+        handoff_secret = { name = "demo-worker-app" }
         roles = [
           { database_name = "jobs" },
           { database_name = "jobs_archive", role_name = "read" },
@@ -307,17 +307,17 @@ run "create_app_secret" {
     ecr_repositories = { api = {} }
     lambda_apps = {
       default = {
-        ecr_key     = "api"
-        roles       = [{ database_name = "test" }]
-        tfvars_path = "../02_app_lambda/infra.auto.tfvars"
-        secret      = {}
+        ecr_key        = "api"
+        roles          = [{ database_name = "test" }]
+        tfvars_path    = "../02_app_lambda/infra.auto.tfvars"
+        handoff_secret = {}
       }
     }
   }
 
   assert {
     condition     = length(aws_secretsmanager_secret.app) == 1 && length(aws_secretsmanager_secret_version.app) == 1
-    error_message = "secret = {} should plan secret and version with derived name"
+    error_message = "handoff_secret = {} should plan secret and version with derived name"
   }
 
   assert {

@@ -6,6 +6,42 @@ default:
 health-check app="":
     "{{justfile_directory()}}/scripts/aws_health_check.sh" "{{app}}"
 
+hybridrag_repo := "https://github.com/romiluz13/Hybrid-Search-RAG.git"
+hybridrag_ref := "e4ab6bc"
+hybridrag_dir := justfile_directory() + "/.vendor/Hybrid-Search-RAG"
+
+# Clone or update the pinned HybridRAG upstream repo under .vendor/.
+clone-hybridrag:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="{{hybridrag_dir}}"
+    ref="{{hybridrag_ref}}"
+    if [[ -d "${dir}/.git" ]]; then
+      git -C "${dir}" fetch --depth 1 origin "${ref}" || git -C "${dir}" fetch --depth 1 origin
+      git -C "${dir}" checkout "${ref}"
+    else
+      mkdir -p "$(dirname "${dir}")"
+      git clone "{{hybridrag_repo}}" "${dir}"
+      git -C "${dir}" checkout "${ref}"
+    fi
+
+# ECR login, build linux/arm64 HybridRAG API image, tag, and push.
+build-push-backend repo_url tag="0.0.1": clone-hybridrag
+    #!/usr/bin/env bash
+    set -euo pipefail
+    repo_url="{{repo_url}}"
+    region="$(echo "${repo_url}" | cut -d. -f4)"
+    aws ecr get-login-password --region "${region}" \
+      | docker login --username AWS --password-stdin "${repo_url%/*}"
+    image_uri="${repo_url}:{{tag}}"
+    docker build --platform linux/arm64 \
+      -f "{{hybridrag_dir}}/Dockerfile" \
+      --target production \
+      -t "${image_uri}" \
+      "{{hybridrag_dir}}"
+    docker push "${image_uri}"
+    echo "Pushed ${image_uri}"
+
 # ECR login, build linux/arm64 Lambda image from src/Dockerfile, tag, and push.
 build-push repo_url tag="0.0.1":
     #!/usr/bin/env bash

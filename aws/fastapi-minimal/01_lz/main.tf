@@ -24,15 +24,15 @@ locals {
       primary_database = coalesce(v.primary_database, v.roles[0].database_name)
       roles            = v.roles
       tfvars_path      = v.tfvars_path != null && v.tfvars_path != "" ? v.tfvars_path : null
-      secret_name = (
-        v.secret == null
+      handoff_secret_name = (
+        v.handoff_secret == null
         ? null
-        : coalesce(v.secret.name, "${coalesce(v.name, k)}-app")
+        : coalesce(v.handoff_secret.name, "${coalesce(v.name, k)}-app")
       )
     }
   }
   lambda_tfvars  = { for k, v in local.lambda_apps : k => v if v.tfvars_path != null }
-  lambda_secrets = { for k, v in local.lambda_apps : k => v if v.secret_name != null }
+  lambda_secrets = { for k, v in local.lambda_apps : k => v if v.handoff_secret_name != null }
 
   ecs_apps = {
     for k, v in var.ecs_apps : k => {
@@ -42,18 +42,21 @@ locals {
       primary_database = coalesce(v.primary_database, v.roles[0].database_name)
       roles            = v.roles
       tfvars_path      = v.tfvars_path != null && v.tfvars_path != "" ? v.tfvars_path : null
-      secret_name = (
-        v.secret == null
+      handoff_secret_name = (
+        v.handoff_secret == null
         ? null
-        : coalesce(v.secret.name, "${coalesce(v.name, k)}-app")
+        : coalesce(v.handoff_secret.name, "${coalesce(v.name, k)}-app")
       )
+      container_env_vars     = v.container_env_vars
+      container_secrets      = v.container_secrets
+      atlas_ai_model_api_key = v.atlas_ai_model_api_key
       routing = v.routing != null ? {
         edge              = v.routing.edge
         listener_priority = v.routing.listener_priority
         path_pattern      = v.routing.path_pattern
         host_header       = v.routing.host_header
         container_port    = coalesce(v.routing.container_port, 8000)
-        health_check_path = coalesce(v.routing.health_check_path, "/")
+        health_check_path = coalesce(v.routing.health_check_path, "/health")
       } : null
     }
   }
@@ -70,7 +73,7 @@ locals {
   }
   ecs_alb_regions = toset([for edge in local.http_edges : edge.aws_region])
   ecs_tfvars      = { for k, v in local.ecs_apps : k => v if v.tfvars_path != null }
-  ecs_secrets     = { for k, v in local.ecs_apps : k => v if v.secret_name != null }
+  ecs_secrets     = { for k, v in local.ecs_apps : k => v if v.handoff_secret_name != null }
   ecs_aws_regions = toset([for app in local.ecs_apps : app.aws_region])
 
   ecs_execution_managed_policies = {
@@ -295,6 +298,23 @@ resource "mongodbatlas_database_user" "ecs" {
   }
 
   depends_on = [module.atlas_cluster]
+}
+
+module "atlas_ai_model_api_key" {
+  for_each = {
+    for k, v in local.ecs_apps : k => v
+    if v.atlas_ai_model_api_key != null
+  }
+
+  source = "./modules/atlas_ai_model_api_key"
+
+  project_id  = module.atlas_project.id
+  key_name    = each.value.atlas_ai_model_api_key.key_name
+  secret_name = "${each.value.name}-voyage"
+  aws_region  = each.value.aws_region
+  tags        = var.tags
+
+  depends_on = [module.atlas_project]
 }
 
 resource "random_password" "public_debug" {

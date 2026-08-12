@@ -57,9 +57,33 @@ cluster_name  = "fastapi-minimal"
 #     ecr_key     = "api"
 #     roles       = [{ database_name = "test" }]
 #     tfvars_path = "../02_app_lambda/infra.auto.tfvars"
-#     # secret = { name = "fastapi-minimal-app" }  # null-gate; omit name to derive <app>-app
+#     # handoff_secret = { name = "fastapi-minimal-app" }  # null-gate; omit name to derive <app>-app
 #   }
 # }
+#
+# # --- HybridRAG ECS (SM handoff default) ---
+# ecr_repositories = {
+#   hybridrag = { name = "fastapi-minimal-hybridrag" }
+# }
+#
+# http_edges = { main = {} }
+#
+# ecs_apps = {
+#   hybridrag = {
+#     ecr_key                = "hybridrag"
+#     routing                = { edge = "main", path_pattern = ["/*"], listener_priority = 100 }
+#     roles                  = [{ database_name = "hybridrag" }]
+#     handoff_secret         = {}
+#     atlas_ai_model_api_key = { key_name = "fastapi-minimal-voyage" }
+#     container_env_vars = {
+#       ENABLE_LLM = "false"
+#     }
+#   }
+# }
+#
+# Then in 02_app_ecs/terraform.tfvars: handoff_secret_name = "hybridrag-app", image_tag = "0.0.1"
+# Build: just build-push-backend "$(terraform -chdir=01_lz output -json ecr_repositories | jq -r '.hybridrag')"
+# See docs/hybridrag-backend.md.
 #
 # # --- Amazon ECS (optional) ---
 # ecr_repositories = { api = {} }
@@ -72,7 +96,7 @@ cluster_name  = "fastapi-minimal"
 #     routing     = { edge = "main", path_pattern = ["/*"], listener_priority = 100 }
 #     roles       = [{ database_name = "test" }]
 #     tfvars_path = "../02_app_ecs/infra.auto.tfvars"
-#     # secret = { name = "fastapi-minimal-ecs-app" }
+#     # handoff_secret = { name = "fastapi-minimal-ecs-app" }
 #   }
 # }
 #

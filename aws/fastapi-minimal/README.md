@@ -36,6 +36,7 @@ Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-e
 │   ├── terraform.tfvars.example
 │   └── ...
 ├── docs
+│   ├── hybridrag-backend.md
 │   └── lz-changes.md
 ├── justfile
 └── src
@@ -103,7 +104,7 @@ ecs_apps = {
 
 Re-apply `01_lz` before `just build-push` and `02_app_ecs`. Each `ecs_apps` entry creates ECS task + execution roles and an Atlas IAM database user bound to the **task role**. Omit `routing` for private ECS tasks (no ALB listener rule). `02_app_ecs` creates the target group and listener rule only. See [02_app_ecs](./02_app_ecs/). `http_edges` adds a small IGW cost per affected region.
 
-HybridRAG (and other Voyage-backed demos) need an Atlas AI Model API key before the ECS app stack. Apply [00_atlas_ai_keys](./00_atlas_ai_keys/) after `01_lz` (same `project_id`; separate state). See that README for handoff to `VOYAGE_API_KEY` / `VOYAGE_BASE_URL`.
+For HybridRAG, use SM handoff (`handoff_secret = {}` in `01_lz`; `handoff_secret_name` in `02_app_ecs`) and `atlas_ai_model_api_key` for Voyage. See [docs/hybridrag-backend.md](./docs/hybridrag-backend.md). The standalone [00_atlas_ai_keys](./00_atlas_ai_keys/) stack remains for labs that want a separate Voyage key state.
 
 Shared domain (two apps, one edge): one `http_edges` entry and per-app `routing` (path or host rules). Custom hostname: add `aliases` and a us-east-1 `acm_certificate_arn`, then CNAME to `cloudfront_domain` from `terraform output`. See [01_lz/terraform.tfvars.example](./01_lz/terraform.tfvars.example).
 
@@ -128,8 +129,8 @@ Toggle encryption, log export, and backup export with `atlas_integrations` in tf
 Pick one handoff path per `lambda_apps` entry:
 
 - **File (FastAPI demo default):** Set `tfvars_path` (for example `../02_app_lambda/infra.auto.tfvars`). Re-apply `01_lz` to write a gitignored auto-vars file consumed by `02_app_lambda` on the next apply.
-- **Secrets Manager:** Omit `tfvars_path` and set `secret = {}` (optional `name`). Re-apply `01_lz` to publish a JSON secret in the app's `aws_region`. Your app stack reads the secret instead of a local file.
-- **Manual:** Omit both `tfvars_path` and `secret`. Copy one app payload from `terraform -chdir=01_lz output -json app_handoff` into [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example) fields.
+- **Secrets Manager:** Omit `tfvars_path` and set `handoff_secret = {}` (optional `name`). Re-apply `01_lz` to publish a JSON secret in the app's `aws_region`. Your app stack reads the secret instead of a local file.
+- **Manual:** Omit both `tfvars_path` and `handoff_secret`. Copy one app payload from `terraform -chdir=01_lz output -json app_handoff` into [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example) fields.
 
 Each payload includes: `aws_region`, `name_prefix`, `private_subnet_ids`, `lambda_security_group_id`, `lambda_execution_role_arn`, `mongo_private_connection_string`, `app_database_name`, and `ecr_repository_url`. `mongo_private_connection_string` is the PrivateLink SRV with `authSource=$external` and `authMechanism=MONGODB-AWS` query params; the task/Lambda role supplies credentials at connect. HybridRAG can use the same value as `MONGODB_URI`.
 
@@ -140,7 +141,7 @@ repo_url="$(terraform -chdir=01_lz output -json ecr_repositories | jq -r '.api')
 just build-push "${repo_url}"
 ```
 
-`lambda_apps` output lists configured apps and where handoff landed (`tfvars_path` or `secret_name`). Destroy the app stack before destroying `01_lz` when Secrets Manager handoff is in use.
+`lambda_apps` output lists configured apps and where handoff landed (`tfvars_path` or `handoff_secret_name`). Destroy the app stack before destroying `01_lz` when Secrets Manager handoff is in use.
 
 ## Deploy Atlas and AWS LZ
 
@@ -179,7 +180,7 @@ aws logs tail "$(terraform -chdir=02_app_lambda output -raw lambda_log_group_nam
 
 ## Tear down
 
-Destroy the app stack before LZ when Lambda or ECS was deployed. App ENIs stay attached to the LZ security group until `02_app_*` is gone; destroying LZ first hangs or fails on SG/VPC teardown. For ECS, destroy all `02_app_ecs` stacks (listener rules) before `01_lz` (CloudFront + ALB). If an app sets `secret`, destroy that app stack before destroying `01_lz`.
+Destroy the app stack before LZ when Lambda or ECS was deployed. App ENIs stay attached to the LZ security group until `02_app_*` is gone; destroying LZ first hangs or fails on SG/VPC teardown. For ECS, destroy all `02_app_ecs` stacks (listener rules) before `01_lz` (CloudFront + ALB). If an app sets `handoff_secret`, destroy that app stack before destroying `01_lz`.
 
 ```sh
 terraform -chdir=02_app_lambda destroy   # or 02_app_ecs
@@ -237,7 +238,7 @@ lambda_apps = {
   worker = {
     ecr_key     = "api"
     tfvars_path = "../02_app_worker/infra.auto.tfvars"
-    secret      = {}
+    handoff_secret      = {}
     roles = [
       { database_name = "jobs" },
       { database_name = "jobs_archive", role_name = "read" },

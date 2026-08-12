@@ -418,7 +418,7 @@ variable "lambda_apps" {
     roles maps to mongodbatlas_database_user.roles (multi-database / multi-role). role_name defaults to readWrite.
     primary_database is the DB_NAME for the app stack; defaults to roles[0].database_name.
     tfvars_path: relative path for a per-app infra.auto.tfvars writer; null/omit disables the file for that app.
-    secret: null-gated Secrets Manager handoff for that app ({ name = optional } ; name defaults to <app-name>-app).
+    handoff_secret: null-gated Secrets Manager handoff for that app ({ name = optional } ; name defaults to <app-name>-app).
     Auth is IAM ROLE only in this example (no password, OIDC, or X.509).
   EOT
   type = map(object({
@@ -427,7 +427,7 @@ variable "lambda_apps" {
     aws_region       = optional(string)
     primary_database = optional(string)
     tfvars_path      = optional(string)
-    secret = optional(object({
+    handoff_secret = optional(object({
       name = optional(string)
     }))
     roles = list(object({
@@ -492,8 +492,11 @@ variable "ecs_apps" {
     Each entry creates one ECS task role, one execution role, and one Atlas IAM database user (username = task role ARN).
     ecr_key selects an entry in ecr_repositories. routing attaches the app to an http_edges ALB (02_app_ecs creates TG + listener rule).
     Omit routing for private/worker tasks or ECS without public HTTP. routing requires explicit edge, listener_priority, and path_pattern or host_header.
-    tfvars_path: relative path for a per-app infra.auto.tfvars writer; null/omit disables the file for that app.
-    secret: null-gated Secrets Manager handoff ({ name = optional } ; name defaults to <app-name>-app).
+    tfvars_path: relative path for a per-app infra.auto.tfvars writer; null/omit disables the file for that app. Mutually exclusive with handoff_secret.
+    handoff_secret: null-gated Secrets Manager handoff ({ name = optional } ; name defaults to <app-name>-app).
+    container_env_vars: plain ECS environment entries merged into handoff (after Mongo aliases and Voyage base URL).
+    container_secrets: BYO SM secret name lookups; resolved to ARNs in handoff with execution-role GetSecretValue.
+    atlas_ai_model_api_key: when set, creates Atlas Voyage key + SM secret and wires VOYAGE_API_KEY / VOYAGE_BASE_URL into handoff.
   EOT
   type = map(object({
     name             = optional(string)
@@ -507,10 +510,18 @@ variable "ecs_apps" {
       path_pattern      = optional(list(string))
       host_header       = optional(list(string))
       container_port    = optional(number, 8000)
-      health_check_path = optional(string, "/")
+      health_check_path = optional(string, "/health")
     }))
-    secret = optional(object({
+    handoff_secret = optional(object({
       name = optional(string)
+    }))
+    container_env_vars = optional(map(string), {})
+    container_secrets = optional(map(object({
+      name     = string
+      json_key = optional(string)
+    })), {})
+    atlas_ai_model_api_key = optional(object({
+      key_name = optional(string, "fastapi-minimal-voyage")
     }))
     roles = list(object({
       role_name       = optional(string, "readWrite")
@@ -598,6 +609,14 @@ variable "ecs_apps" {
     ])
     error_message = "ecs_apps routing listener_priority must be unique per http_edges key."
   }
+
+  validation {
+    condition = alltrue([
+      for _, app in var.ecs_apps :
+      app.tfvars_path == null || app.tfvars_path == "" || app.handoff_secret == null
+    ])
+    error_message = "ecs_apps: tfvars_path and handoff_secret are mutually exclusive."
+  }
 }
 
 variable "ec2_apps" {
@@ -608,7 +627,7 @@ variable "ec2_apps" {
     aws_region       = optional(string)
     primary_database = optional(string)
     tfvars_path      = optional(string)
-    secret = optional(object({
+    handoff_secret = optional(object({
       name = optional(string)
     }))
     roles = list(object({

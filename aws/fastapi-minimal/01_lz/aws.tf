@@ -157,9 +157,64 @@ locals {
     }
   }
 
+  ecs_container_secret_specs = merge([
+    for app_key, app in local.ecs_apps : {
+      for env_name, spec in app.container_secrets :
+      "${app_key}/${env_name}" => {
+        app_key     = app_key
+        env_name    = env_name
+        secret_name = spec.name
+        json_key    = spec.json_key
+        aws_region  = app.aws_region
+      }
+    }
+  ]...)
+
+  ecs_container_secret_env_vars_by_app = {
+    for app_key, app in local.ecs_apps : app_key => merge(
+      app.atlas_ai_model_api_key != null ? {
+        VOYAGE_API_KEY = module.atlas_ai_model_api_key[app_key].secret_arn
+      } : {},
+      {
+        for env_name, spec in app.container_secrets :
+        env_name => (
+          spec.json_key != null
+          ? "${data.aws_secretsmanager_secret.ecs_container["${app_key}/${env_name}"].arn}:${spec.json_key}::"
+          : data.aws_secretsmanager_secret.ecs_container["${app_key}/${env_name}"].arn
+        )
+      }
+    )
+  }
+
+  ecs_app_container_env_vars = {
+    for k, app in local.ecs_apps : k => merge(
+      {
+        MONGODB_URI      = local.ecs_app_handoff_base[k].mongo_private_connection_string
+        MONGODB_DATABASE = local.ecs_app_handoff_base[k].app_database_name
+      },
+      app.atlas_ai_model_api_key != null ? {
+        VOYAGE_BASE_URL = module.atlas_ai_model_api_key[k].voyage_base_url
+      } : {},
+      app.container_env_vars
+    )
+  }
+
+  ecs_execution_secret_arns_by_app = {
+    for app_key, app in local.ecs_apps : app_key => distinct(concat(
+      app.atlas_ai_model_api_key != null ? [module.atlas_ai_model_api_key[app_key].secret_arn] : [],
+      [
+        for env_name, spec in app.container_secrets :
+        data.aws_secretsmanager_secret.ecs_container["${app_key}/${env_name}"].arn
+      ]
+    ))
+  }
+
   ecs_app_handoff_payloads = {
     for k, v in local.ecs_app_handoff_base :
-    k => merge(v, try(local.ecs_app_handoff_http[k], {}))
+    k => merge(v, try(local.ecs_app_handoff_http[k], {}), {
+      container_env_vars        = local.ecs_app_container_env_vars[k]
+      container_secret_env_vars = local.ecs_container_secret_env_vars_by_app[k]
+    })
   }
 
   ecs_container_ports_by_region = {
@@ -432,11 +487,37 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
   policy_arn = each.value.policy_arn
 }
 
+data "aws_secretsmanager_secret" "ecs_container" {
+  for_each = local.ecs_container_secret_specs
+
+  region = each.value.aws_region
+  name   = each.value.secret_name
+}
+
+resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
+  for_each = {
+    for app_key, arns in local.ecs_execution_secret_arns_by_app :
+    app_key => arns if length(arns) > 0
+  }
+
+  name = "${each.key}-ecs-exec-secrets"
+  role = aws_iam_role.ecs_task_execution[each.key].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = each.value
+    }]
+  })
+}
+
 resource "aws_secretsmanager_secret" "app" {
   for_each = local.lambda_secrets
 
   region = each.value.aws_region
-  name   = each.value.secret_name
+  name   = each.value.handoff_secret_name
   tags   = var.tags
 }
 
@@ -468,7 +549,7 @@ resource "aws_secretsmanager_secret" "ecs_app" {
   for_each = local.ecs_secrets
 
   region = each.value.aws_region
-  name   = each.value.secret_name
+  name   = each.value.handoff_secret_name
   tags   = var.tags
 }
 
@@ -502,5 +583,7 @@ resource "local_file" "ecs_app_tfvars" {
   "container_port                  = ${local.ecs_app_handoff_payloads[each.key].container_port}",
   "health_check_path               = \"${local.ecs_app_handoff_payloads[each.key].health_check_path}\"",
 ]) : ""}
+    container_env_vars              = ${jsonencode(local.ecs_app_handoff_payloads[each.key].container_env_vars)}
+    container_secret_env_vars       = ${jsonencode(local.ecs_app_handoff_payloads[each.key].container_secret_env_vars)}
   EOT
 }

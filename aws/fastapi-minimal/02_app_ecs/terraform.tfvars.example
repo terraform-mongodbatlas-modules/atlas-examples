@@ -1,23 +1,19 @@
-# Prefer the generated infra.auto.tfvars handoff from 01_lz (ecs_apps.*.tfvars_path).
+# Prefer SM handoff from 01_lz (ecs_apps.*.handoff_secret = {}).
 
-aws_region                      = "us-east-1"
-private_subnet_ids              = ["subnet-aaa", "subnet-bbb"]
-ecs_security_group_id           = "sg-xxx"
-ecs_task_role_arn               = "arn:aws:iam::123456789012:role/fastapi-minimal-ecs-task"
-ecs_task_execution_role_arn     = "arn:aws:iam::123456789012:role/fastapi-minimal-ecs-exec"
-mongo_private_connection_string = "mongodb+srv://pl-0-us-east-1.xxxxx.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
-ecr_repository_url              = "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-minimal"
-alb_listener_arn                = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
-alb_dns_name                    = "example-123.us-east-1.elb.amazonaws.com"
-listener_priority               = 100
-path_pattern                    = ["/*"]
+handoff_secret_name = "hybridrag-app"
+image_tag           = "0.0.1"
 
-# Optional overrides:
-# name_prefix       = "fastapi-minimal"
-# image_tag         = "0.0.1"
-# app_database_name = "test"
-# container_port    = 8000
-# health_check_path = "/"
-# host_header       = ["api.example.com"]
-# wait_for_steady_state             = true
-# health_check_grace_period_seconds = 120
+# Legacy flat handoff (01_lz ecs_apps.*.tfvars_path writes infra.auto.tfvars):
+#
+# aws_region                      = "us-east-1"
+# private_subnet_ids              = ["subnet-aaa", "subnet-bbb"]
+# ecs_security_group_id           = "sg-xxx"
+# ecs_task_role_arn               = "arn:aws:iam::123456789012:role/fastapi-minimal-ecs-task"
+# ecs_task_execution_role_arn     = "arn:aws:iam::123456789012:role/fastapi-minimal-ecs-exec"
+# mongo_private_connection_string = "mongodb+srv://pl-0-us-east-1.xxxxx.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
+# ecr_repository_url              = "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-minimal"
+# alb_listener_arn                = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
+# alb_dns_name                    = "example-123.us-east-1.elb.amazonaws.com"
+# listener_priority               = 100
+# path_pattern                    = ["/*"]
+# health_check_path               = "/health"
