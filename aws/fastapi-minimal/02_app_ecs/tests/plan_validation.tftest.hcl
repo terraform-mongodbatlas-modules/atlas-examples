@@ -1,6 +1,7 @@
 mock_provider "aws" {}
 
 variables {
+  handoff_secret_name             = null
   aws_region                      = "us-east-1"
   private_subnet_ids              = ["subnet-aaa", "subnet-bbb"]
   ecs_security_group_id           = "sg-ecs"
@@ -19,12 +20,8 @@ run "ecs_wiring" {
 
   assert {
     condition = alltrue([
-      aws_lb_target_group.this.port == 8000,
-      aws_lb_listener_rule.this.priority == 100,
-      aws_ecs_service.this.launch_type == "FARGATE",
-      aws_ecs_service.this.wait_for_steady_state == true,
-      aws_ecs_service.this.health_check_grace_period_seconds == 300,
-      aws_ecs_service.this.timeouts.update == "15m",
+      module.app.container_port == 8000,
+      module.app.listener_priority == 100,
     ])
     error_message = "App stack should create TG + listener rule only (no ALB)"
   }

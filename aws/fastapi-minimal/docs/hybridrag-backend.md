@@ -1,23 +1,22 @@
 # HybridRAG backend (ECS)
 
-Minimal deploy path for the upstream [Hybrid-Search-RAG](https://github.com/romiluz13/Hybrid-Search-RAG) API on ECS. See the main [README](../README.md) for Landing Zone setup.
+Minimal deploy path for the [EspenAlbert/Hybrid-Search-RAG](https://github.com/EspenAlbert/Hybrid-Search-RAG) API on ECS. See the main [README](../README.md) for Landing Zone setup. For the Chainlit UI, see [hybridrag-ui.md](hybridrag-ui.md).
 
 ## Prerequisites
 
-- `01_lz` applied with `ecs_apps.hybridrag`, `handoff_secret = {}`, `api_key_secret = {}`, `atlas_ai_model_api_key`, and `internet_egress = true` (see `01_lz/terraform.tfvars.example`). `internet_egress` creates a NAT gateway and allows HTTPS egress so HybridRAG can download tiktoken encodings and call the Voyage API. By default `vpc_config.single_nat_gateway` is `true` (one shared NAT across AZs).
+- `01_lz` applied with `ecs_apps.hybridrag`, `handoff_secret = {}`, `api_key_secret = {}`, `atlas_ai_model_api_key`, and `internet_egress = true` (see `01_lz/terraform.tfvars.example`). `internet_egress` creates a NAT gateway and allows HTTPS egress so HybridRAG can download tiktoken encodings and call the Voyage API.
 - AWS CLI, Docker, `just`, and `jq`.
 - **Provider:** `atlas_ai_model_api_key` needs mongodbatlas provider **2.16+** (unreleased on the registry at time of writing). For local apply, build provider `master` and copy [`.terraformrc.example`](../.terraformrc.example) to `~/.terraformrc` (adjust the binary path).
 
 ## Deploy
 
-The ECS image is built from upstream HybridRAG sources plus `docker/Dockerfile.hybridrag`, which adds `pymongo[aws]` so `authMechanism=MONGODB-AWS` works with the ECS task role.
+The ECS image is built from the pinned fork via `just clone-hybridrag` and `Dockerfile --target production` (includes `pymongo[aws]` for IAM auth).
 
 ```sh
 # 1. Landing zone + Voyage key + API key + handoff secret (hybridrag-app)
 terraform -chdir=01_lz apply
 
 # 2. Build and push image
-just clone-hybridrag
 just build-push-backend "$(terraform -chdir=01_lz output -json ecr_repositories | jq -r '.hybridrag')"
 
 # 3. ECS service (reads handoff from SM; set handoff_secret_name in 02_app_ecs/terraform.tfvars)

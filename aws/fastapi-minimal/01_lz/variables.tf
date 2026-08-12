@@ -498,6 +498,9 @@ variable "ecs_apps" {
     container_env_vars: plain ECS environment entries merged into handoff (after Mongo aliases and Voyage base URL).
     container_secrets: BYO SM secret name lookups; resolved to ARNs in handoff with execution-role GetSecretValue.
     api_key_secret: null-gated managed HYBRIDRAG_API_KEY in SM (name defaults to <app-name>-api-key). Mutually exclusive with container_secrets.HYBRIDRAG_API_KEY.
+    chainlit_auth_secret: null-gated CHAINLIT_AUTH_SECRET in SM (name defaults to <app-name>-chainlit-auth). Mutually exclusive with container_secrets.CHAINLIT_AUTH_SECRET.
+    ui_demo_credentials: null-gated CHAINLIT_DEMO_PASSWORD in SM (name defaults to <app-name>-demo-password). Mutually exclusive with container_secrets.CHAINLIT_DEMO_PASSWORD.
+    task_cpu / task_memory: Fargate task size in handoff (defaults 512 / 1024).
     atlas_ai_model_api_key: when set, creates Atlas Voyage key + SM secret and wires VOYAGE_API_KEY / VOYAGE_BASE_URL into handoff.
     internet_egress: when true, enables a NAT gateway in the app's AWS region (managed VPC) and allows HTTPS egress to the public internet from the shared app security group.
   EOT
@@ -526,6 +529,14 @@ variable "ecs_apps" {
     api_key_secret = optional(object({
       name = optional(string)
     }))
+    chainlit_auth_secret = optional(object({
+      name = optional(string)
+    }))
+    ui_demo_credentials = optional(object({
+      name = optional(string)
+    }))
+    task_cpu    = optional(string, "512")
+    task_memory = optional(string, "1024")
     atlas_ai_model_api_key = optional(object({
       key_name = optional(string, "fastapi-minimal-voyage")
     }))
@@ -631,6 +642,22 @@ variable "ecs_apps" {
       app.api_key_secret == null || !contains(keys(app.container_secrets), "HYBRIDRAG_API_KEY")
     ])
     error_message = "ecs_apps: api_key_secret and container_secrets.HYBRIDRAG_API_KEY are mutually exclusive."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, app in var.ecs_apps :
+      app.chainlit_auth_secret == null || !contains(keys(app.container_secrets), "CHAINLIT_AUTH_SECRET")
+    ])
+    error_message = "ecs_apps: chainlit_auth_secret and container_secrets.CHAINLIT_AUTH_SECRET are mutually exclusive."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, app in var.ecs_apps :
+      app.ui_demo_credentials == null || !contains(keys(app.container_secrets), "CHAINLIT_DEMO_PASSWORD")
+    ])
+    error_message = "ecs_apps: ui_demo_credentials and container_secrets.CHAINLIT_DEMO_PASSWORD are mutually exclusive."
   }
 }
 

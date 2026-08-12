@@ -140,6 +140,8 @@ locals {
       mongo_private_connection_string = local.mongo_iam_connection_strings_by_region[v.aws_region]
       app_database_name               = v.primary_database
       ecr_repository_url              = aws_ecr_repository.this[v.ecr_key].repository_url
+      task_cpu                        = v.task_cpu
+      task_memory                     = v.task_memory
     }
   }
 
@@ -178,6 +180,12 @@ locals {
       app.api_key_secret != null ? {
         HYBRIDRAG_API_KEY = module.ecs_api_key_secret[app_key].secret_arn
       } : {},
+      app.chainlit_auth_secret != null ? {
+        CHAINLIT_AUTH_SECRET = module.ecs_chainlit_auth_secret[app_key].secret_arn
+      } : {},
+      app.ui_demo_credentials != null ? {
+        CHAINLIT_DEMO_PASSWORD = module.ecs_ui_demo_password[app_key].secret_arn
+      } : {},
       {
         for env_name, spec in app.container_secrets :
         env_name => (
@@ -204,13 +212,15 @@ locals {
 
   ecs_apps_with_execution_secrets = {
     for app_key, app in local.ecs_apps : app_key => app
-    if app.atlas_ai_model_api_key != null || length(app.container_secrets) > 0 || app.api_key_secret != null
+    if app.atlas_ai_model_api_key != null || length(app.container_secrets) > 0 || app.api_key_secret != null || app.chainlit_auth_secret != null || app.ui_demo_credentials != null
   }
 
   ecs_execution_secret_arns_by_app = {
     for app_key, app in local.ecs_apps : app_key => distinct(concat(
       app.atlas_ai_model_api_key != null ? [module.atlas_ai_model_api_key[app_key].secret_arn] : [],
       app.api_key_secret != null ? [module.ecs_api_key_secret[app_key].secret_arn] : [],
+      app.chainlit_auth_secret != null ? [module.ecs_chainlit_auth_secret[app_key].secret_arn] : [],
+      app.ui_demo_credentials != null ? [module.ecs_ui_demo_password[app_key].secret_arn] : [],
       [
         for env_name, spec in app.container_secrets :
         data.aws_secretsmanager_secret.ecs_container["${app_key}/${env_name}"].arn

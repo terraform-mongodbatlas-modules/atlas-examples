@@ -50,6 +50,10 @@ locals {
       container_env_vars     = v.container_env_vars
       container_secrets      = v.container_secrets
       api_key_secret         = v.api_key_secret
+      chainlit_auth_secret   = v.chainlit_auth_secret
+      ui_demo_credentials    = v.ui_demo_credentials
+      task_cpu               = v.task_cpu
+      task_memory            = v.task_memory
       atlas_ai_model_api_key = v.atlas_ai_model_api_key
       internet_egress        = v.internet_egress
       routing = v.routing != null ? {
@@ -328,6 +332,32 @@ module "ecs_api_key_secret" {
   source = "./modules/ecs_api_key_secret"
 
   secret_name = coalesce(each.value.api_key_secret.name, "${each.value.name}-api-key")
+  aws_region  = each.value.aws_region
+  tags        = var.tags
+}
+
+module "ecs_chainlit_auth_secret" {
+  for_each = {
+    for k, v in local.ecs_apps : k => v
+    if v.chainlit_auth_secret != null
+  }
+
+  source = "./modules/ecs_api_key_secret"
+
+  secret_name = coalesce(each.value.chainlit_auth_secret.name, "${each.value.name}-chainlit-auth")
+  aws_region  = each.value.aws_region
+  tags        = var.tags
+}
+
+module "ecs_ui_demo_password" {
+  for_each = {
+    for k, v in local.ecs_apps : k => v
+    if v.ui_demo_credentials != null
+  }
+
+  source = "./modules/ecs_api_key_secret"
+
+  secret_name = coalesce(each.value.ui_demo_credentials.name, "${each.value.name}-demo-password")
   aws_region  = each.value.aws_region
   tags        = var.tags
 }

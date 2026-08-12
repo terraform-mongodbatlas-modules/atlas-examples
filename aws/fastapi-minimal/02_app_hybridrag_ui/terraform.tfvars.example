@@ -1,0 +1,5 @@
+handoff_secret_name = "hybridrag-ui-app"
+image_tag           = "0.0.1"
+
+# UI cold start can exceed 2 minutes; default is 300.
+# health_check_grace_period_seconds = 300

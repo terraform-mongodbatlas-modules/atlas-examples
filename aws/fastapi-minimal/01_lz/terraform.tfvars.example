@@ -63,7 +63,8 @@ cluster_name  = "fastapi-minimal"
 #
 # # --- HybridRAG ECS (SM handoff default) ---
 # ecr_repositories = {
-#   hybridrag = { name = "fastapi-minimal-hybridrag" }
+#   hybridrag    = { name = "fastapi-minimal-hybridrag" }
+#   hybridrag_ui = { name = "fastapi-minimal-hybridrag-ui" }
 # }
 #
 # http_edges = { main = {} }
@@ -71,21 +72,48 @@ cluster_name  = "fastapi-minimal"
 # ecs_apps = {
 #   hybridrag = {
 #     ecr_key                = "hybridrag"
-#     routing                = { edge = "main", path_pattern = ["/*"], listener_priority = 100 }
+#     routing = {
+#       edge              = "main"
+#       listener_priority = 100
+#       path_pattern      = ["/health", "/docs", "/docs/*", "/openapi.json", "/redoc", "/redoc/*", "/v1", "/v1/*"]
+#     }
 #     roles                  = [{ database_name = "hybridrag" }]
 #     handoff_secret         = {}
 #     api_key_secret         = {}
-#     atlas_ai_model_api_key = { key_name = "fastapi-minimal-voyage" }
-#     internet_egress        = true  # NAT + HTTPS egress for tiktoken + Voyage API
+#     atlas_ai_model_api_key = { key_name = "fastapi-minimal-voyage-api" }
+#     internet_egress        = true
 #     container_env_vars = {
 #       ENABLE_LLM = "false"
+#     }
+#   }
+#   hybridrag_ui = {
+#     ecr_key                = "hybridrag_ui"
+#     routing = {
+#       edge              = "main"
+#       listener_priority = 200
+#       path_pattern      = ["/*"]
+#       container_port    = 8001
+#       health_check_path = "/"
+#     }
+#     roles                  = [{ database_name = "hybridrag" }]
+#     handoff_secret         = { name = "hybridrag-ui-app" }
+#     atlas_ai_model_api_key = { key_name = "fastapi-minimal-voyage-ui" }
+#     internet_egress        = true
+#     chainlit_auth_secret   = {}
+#     ui_demo_credentials    = {}
+#     task_cpu               = "1024"
+#     task_memory            = "2048"
+#     container_env_vars = {
+#       ENABLE_LLM             = "false"
+#       CHAINLIT_DEMO_USERNAME = "demo"
 #     }
 #   }
 # }
 #
 # Then in 02_app_ecs/terraform.tfvars: handoff_secret_name = "hybridrag-app", image_tag = "0.0.1"
-# Build: just build-push-backend "$(terraform -chdir=01_lz output -json ecr_repositories | jq -r '.hybridrag')"
-# See docs/hybridrag-backend.md.
+# And 02_app_hybridrag_ui/terraform.tfvars: handoff_secret_name = "hybridrag-ui-app", image_tag = "0.0.1"
+# Build: just build-push-backend / just build-push-ui (fork Dockerfile; see docs/hybridrag-backend.md)
+# See docs/hybridrag-ui.md.
 #
 # # --- Amazon ECS (optional) ---
 # ecr_repositories = { api = {} }

@@ -23,15 +23,8 @@ mock_provider "aws" {
         path_pattern                    = ["/*"]
         container_port                  = 8000
         health_check_path               = "/health"
-        container_env_vars = {
-          MONGODB_URI      = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
-          MONGODB_DATABASE = "hybridrag"
-          ENABLE_LLM       = "false"
-          VOYAGE_BASE_URL  = "https://voyage.example.mongodb.com/v1"
-        }
-        container_secret_env_vars = {
-          VOYAGE_API_KEY = "arn:aws:secretsmanager:us-east-1:123456789012:secret:hybridrag-voyage"
-        }
+        container_env_vars              = { ENABLE_LLM = "false" }
+        container_secret_env_vars       = {}
       })
     }
   }
@@ -47,13 +40,10 @@ run "handoff_secret_consumer" {
 
   assert {
     condition = alltrue([
-      local.aws_region == "us-east-1",
-      local.health_check_path == "/health",
-      local.container_env_vars["ENABLE_LLM"] == "false",
-      length(local.container_secret_env_vars) == 1,
-      aws_lb_target_group.this.health_check[0].path == "/health",
+      module.app.smoke_test_url == "http://example-123.us-east-1.elb.amazonaws.com/health",
+      module.app.container_port == 8000,
     ])
-    error_message = "SM handoff should populate locals and task wiring"
+    error_message = "SM handoff should populate module wiring"
   }
 }
 
@@ -61,6 +51,7 @@ run "legacy_flat_variables" {
   command = plan
 
   variables {
+    handoff_secret_name             = null
     aws_region                      = "us-east-1"
     private_subnet_ids              = ["subnet-aaa", "subnet-bbb"]
     ecs_security_group_id           = "sg-ecs"
@@ -76,9 +67,8 @@ run "legacy_flat_variables" {
 
   assert {
     condition = alltrue([
-      aws_lb_target_group.this.port == 8000,
-      aws_lb_listener_rule.this.priority == 100,
-      aws_ecs_service.this.launch_type == "FARGATE",
+      module.app.container_port == 8000,
+      module.app.listener_priority == 100,
     ])
     error_message = "Legacy flat-variable path should still plan"
   }

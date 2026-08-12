@@ -1,59 +1,59 @@
 output "alb_dns_name" {
   description = "Internet-facing ALB DNS name for smoke tests (from 01_lz)"
-  value       = module.app.alb_dns_name
+  value       = module.ecs.alb_dns_name
 }
 
 output "ecs_cluster_name" {
   description = "ECS cluster name"
-  value       = module.app.ecs_cluster_name
+  value       = module.ecs.ecs_cluster_name
 }
 
 output "ecs_service_name" {
   description = "ECS service name"
-  value       = module.app.ecs_service_name
+  value       = module.ecs.ecs_service_name
 }
 
 output "image_uri" {
   description = "Full image URI including tag"
-  value       = module.app.image_uri
+  value       = module.ecs.image_uri
 }
 
 output "ecs_log_group_name" {
   description = "CloudWatch log group name"
-  value       = module.app.ecs_log_group_name
+  value       = module.ecs.ecs_log_group_name
 }
 
 output "target_group_arn" {
   description = "ALB target group ARN for this app"
-  value       = module.app.target_group_arn
+  value       = module.ecs.target_group_arn
 }
 
 output "task_definition_arn" {
   description = "Active ECS task definition ARN"
-  value       = module.app.task_definition_arn
+  value       = module.ecs.task_definition_arn
 }
 
 output "smoke_test_url" {
-  description = "Direct ALB URL for smoke tests (same path as the target group health check)"
-  value       = module.app.smoke_test_url
+  description = "Direct ALB URL for smoke tests"
+  value       = module.ecs.smoke_test_url
 }
 
 output "task_cpu" {
   description = "Fargate task CPU units"
-  value       = module.app.task_cpu
+  value       = module.ecs.task_cpu
 }
 
 output "task_memory" {
   description = "Fargate task memory (MiB)"
-  value       = module.app.task_memory
+  value       = module.ecs.task_memory
 }
 
 output "container_port" {
   description = "ALB target group and container port"
-  value       = module.app.container_port
+  value       = module.ecs.container_port
 }
 
 output "operations" {
-  description = "Copy-paste commands for post-apply checks. Run from the fastapi-minimal example root."
-  value       = module.app.operations
+  description = "Copy-paste commands for post-apply checks"
+  value       = module.ecs.operations
 }

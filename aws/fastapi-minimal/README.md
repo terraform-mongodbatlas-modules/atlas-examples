@@ -35,8 +35,12 @@ Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-e
 ├── 02_app_ecs
 │   ├── terraform.tfvars.example
 │   └── ...
+├── 02_app_hybridrag_ui
+│   ├── terraform.tfvars.example
+│   └── ...
 ├── docs
 │   ├── hybridrag-backend.md
+│   ├── hybridrag-ui.md
 │   └── lz-changes.md
 ├── justfile
 └── src
