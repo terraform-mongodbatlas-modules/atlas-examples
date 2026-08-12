@@ -91,6 +91,19 @@ locals {
     )
   }
 
+  mongo_iam_auth_query = "authSource=%24external&authMechanism=MONGODB-AWS"
+
+  mongo_iam_connection_strings_by_region = {
+    for region, srv in local.mongo_private_connection_strings_by_region :
+    region => (
+      srv == "" || srv == "NO_CONNECTION_STRING_AVAILABLE"
+      ? srv
+      : strcontains(srv, "?")
+      ? "${srv}&${local.mongo_iam_auth_query}"
+      : "${srv}/?${local.mongo_iam_auth_query}"
+    )
+  }
+
   public_debug_password = var.public_debug_access != null ? coalesce(
     try(var.public_debug_access.password, null),
     try(random_password.public_debug[0].result, null)
@@ -110,7 +123,7 @@ locals {
       private_subnet_ids              = local.app_network[v.aws_region].private_subnet_ids
       lambda_security_group_id        = aws_security_group.lambda[v.aws_region].id
       lambda_execution_role_arn       = aws_iam_role.lambda_exec[k].arn
-      mongo_private_connection_string = local.mongo_private_connection_strings_by_region[v.aws_region]
+      mongo_private_connection_string = local.mongo_iam_connection_strings_by_region[v.aws_region]
       app_database_name               = v.primary_database
       ecr_repository_url              = aws_ecr_repository.this[v.ecr_key].repository_url
     }
@@ -124,7 +137,7 @@ locals {
       ecs_security_group_id           = aws_security_group.lambda[v.aws_region].id
       ecs_task_role_arn               = aws_iam_role.ecs_task[k].arn
       ecs_task_execution_role_arn     = aws_iam_role.ecs_task_execution[k].arn
-      mongo_private_connection_string = local.mongo_private_connection_strings_by_region[v.aws_region]
+      mongo_private_connection_string = local.mongo_iam_connection_strings_by_region[v.aws_region]
       app_database_name               = v.primary_database
       ecr_repository_url              = aws_ecr_repository.this[v.ecr_key].repository_url
     }

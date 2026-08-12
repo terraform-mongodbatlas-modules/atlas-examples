@@ -5,7 +5,7 @@ variables {
   private_subnet_ids              = ["subnet-aaa", "subnet-bbb"]
   lambda_security_group_id        = "sg-lambda"
   lambda_execution_role_arn       = "arn:aws:iam::123456789012:role/fastapi-minimal-lambda-exec"
-  mongo_private_connection_string = "mongodb+srv://pl-0.example.mongodb.net"
+  mongo_private_connection_string = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
   ecr_repository_url              = "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-minimal"
 }
 
@@ -14,11 +14,10 @@ run "lambda_wiring" {
 
   assert {
     condition = alltrue([
-      aws_lambda_function.app.environment[0].variables["USE_IAM_AUTH"] == "true",
       aws_lambda_function.app.environment[0].variables["DB_NAME"] == "test",
       aws_lambda_function.app.environment[0].variables["MONGO_URL"] == var.mongo_private_connection_string,
     ])
-    error_message = "Lambda env should set USE_IAM_AUTH, DB_NAME, MONGO_URL"
+    error_message = "Lambda env should set DB_NAME and MONGO_URL from handoff"
   }
 
   assert {

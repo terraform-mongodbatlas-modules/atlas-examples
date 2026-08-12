@@ -5,7 +5,7 @@ output "connection_string_public" {
 }
 
 output "atlas" {
-  description = "Atlas project, cluster, connectivity, and module-managed integrations. connection_string_private is hostnames only (PrivateLink); IAM auth supplies credentials at runtime."
+  description = "Atlas project, cluster, connectivity, and module-managed integrations. connection_string_private is hostname-only PrivateLink SRV (diagnostic); app handoff appends IAM auth query params."
   value = {
     project_id                = module.atlas_project.id
     cluster_name              = module.atlas_cluster.cluster_name
@@ -186,7 +186,7 @@ output "lambda_apps" {
 }
 
 output "app_handoff" {
-  description = "Sensitive per-app payload for thin 02_app_* stacks when tfvars_path and secret are omitted: aws_region, name_prefix, private_subnet_ids, lambda_security_group_id, lambda_execution_role_arn, mongo_private_connection_string, app_database_name, ecr_repository_url."
+  description = "Sensitive per-app payload for thin 02_app_* stacks when tfvars_path and secret are omitted. mongo_private_connection_string includes IAM auth query params; task/Lambda role still required at runtime."
   sensitive   = true
   value       = local.app_handoff_payloads
 }

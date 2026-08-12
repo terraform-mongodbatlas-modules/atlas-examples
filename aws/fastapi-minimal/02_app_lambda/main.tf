@@ -25,9 +25,8 @@ resource "aws_lambda_function" "app" {
 
   environment {
     variables = {
-      MONGO_URL    = var.mongo_private_connection_string
-      USE_IAM_AUTH = "true"
-      DB_NAME      = var.app_database_name
+      MONGO_URL = var.mongo_private_connection_string
+      DB_NAME   = var.app_database_name
     }
   }
 

@@ -1,29 +1,15 @@
 import logging
-import os
-import urllib.parse
 from datetime import datetime
-from typing import TypedDict
 
 from fastapi import FastAPI
 from fastapi.requests import Request
 from pydantic_settings import BaseSettings
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
-from pymongo.uri_parser import parse_uri
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
-
-
-class PymongoParsedUrl(TypedDict):
-    nodelist: list[tuple[str, int]]
-    username: str | None
-    password: str | None
-    database: str | None
-    collection: str | None
-    options: dict
-    fqdn: str | None
 
 
 class Settings(BaseSettings):
@@ -33,35 +19,12 @@ class Settings(BaseSettings):
     db_name: str = "test"
     collection_name: str = "test"
     record_id: str = "my-static-record-id"
-    use_iam_auth: bool = False
-
-    @property
-    def pymongo_parsed_url(self) -> PymongoParsedUrl:
-        return parse_uri(self.mongo_url)  # type: ignore
 
 
 settings = Settings()
 
 
 def get_mongodb_client() -> MongoClient:
-    if settings.use_iam_auth and os.getenv("AWS_EXECUTION_ENV"):
-        parsed = settings.pymongo_parsed_url
-        hosts = ",".join([f"{host}:{port}" for host, port in parsed["nodelist"]])
-        params = {
-            "authSource": "$external",
-            "authMechanism": "MONGODB-AWS",
-            "tls": "true",
-        }
-        if parsed["options"].get("loadBalanced"):
-            params["loadBalanced"] = "true"
-        elif replica_set := parsed["options"].get("replicaset"):
-            params["replicaSet"] = replica_set
-
-        iam_url = f"mongodb://{hosts}/?{urllib.parse.urlencode(params)}"
-        logger.info("Using IAM authentication for MongoDB Atlas")
-        return MongoClient(iam_url, serverSelectionTimeoutMS=5000)
-
-    logger.info("Using regular MongoDB authentication")
     return MongoClient(settings.mongo_url, serverSelectionTimeoutMS=5000)
 
 

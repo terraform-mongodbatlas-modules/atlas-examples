@@ -6,7 +6,7 @@ variables {
   ecs_security_group_id           = "sg-ecs"
   ecs_task_role_arn               = "arn:aws:iam::123456789012:role/fastapi-minimal-ecs-task"
   ecs_task_execution_role_arn     = "arn:aws:iam::123456789012:role/fastapi-minimal-ecs-exec"
-  mongo_private_connection_string = "mongodb+srv://pl-0.example.mongodb.net"
+  mongo_private_connection_string = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
   ecr_repository_url              = "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-minimal"
   alb_listener_arn                = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
   alb_dns_name                    = "example-123.us-east-1.elb.amazonaws.com"

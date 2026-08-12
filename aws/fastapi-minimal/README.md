@@ -131,7 +131,7 @@ Pick one handoff path per `lambda_apps` entry:
 - **Secrets Manager:** Omit `tfvars_path` and set `secret = {}` (optional `name`). Re-apply `01_lz` to publish a JSON secret in the app's `aws_region`. Your app stack reads the secret instead of a local file.
 - **Manual:** Omit both `tfvars_path` and `secret`. Copy one app payload from `terraform -chdir=01_lz output -json app_handoff` into [02_app_lambda/terraform.tfvars.example](./02_app_lambda/terraform.tfvars.example) fields.
 
-Each payload includes: `aws_region`, `name_prefix`, `private_subnet_ids`, `lambda_security_group_id`, `lambda_execution_role_arn`, `mongo_private_connection_string`, `app_database_name`, and `ecr_repository_url`. The connection string is PrivateLink hostnames only; Lambda uses IAM auth at runtime (`USE_IAM_AUTH=true` in `02_app_lambda`).
+Each payload includes: `aws_region`, `name_prefix`, `private_subnet_ids`, `lambda_security_group_id`, `lambda_execution_role_arn`, `mongo_private_connection_string`, `app_database_name`, and `ecr_repository_url`. `mongo_private_connection_string` is the PrivateLink SRV with `authSource=$external` and `authMechanism=MONGODB-AWS` query params; the task/Lambda role supplies credentials at connect. HybridRAG can use the same value as `MONGODB_URI`.
 
 After handoff is in place, push an image before `02_app_lambda` apply:
 
@@ -166,7 +166,7 @@ terraform -chdir=02_app_lambda init
 terraform -chdir=02_app_lambda apply
 ```
 
-What the Lambda does: receives HTTP on a Function URL (`authorization_type = NONE`; anyone with the URL can call it), connects to Atlas over PrivateLink with IAM auth (`USE_IAM_AUTH=true`), and uses database `test` by default. Mongo stays private; the Function URL is the public smoke-test surface.
+What the Lambda does: receives HTTP on a Function URL (`authorization_type = NONE`; anyone with the URL can call it), connects to Atlas over PrivateLink with IAM auth (query params in `MONGO_URL` from handoff), and uses database `test` by default. Mongo stays private; the Function URL is the public smoke-test surface.
 
 ## Call the app and read logs
 
@@ -190,7 +190,7 @@ terraform -chdir=01_lz destroy
 
 ### How does the app reach MongoDB?
 
-Private subnets only (no NAT/IGW by default). When `lambda_apps` is non-empty, VPC endpoints cover `ecr.api`, `ecr.dkr`, `s3` (gateway), `logs`, and `sts` per distinct app region. Lambda SG egress is limited to the VPC CIDR and the S3 prefix list. Each `lambda_apps` entry gets its own IAM execution role and Atlas IAM database user. Image registries live in `ecr_repositories` and are selected with `ecr_key`. Env set by `02_app_lambda`: `MONGO_URL` (private connection string), `USE_IAM_AUTH=true`, `DB_NAME` (primary app `primary_database`, default `test`).
+Private subnets only (no NAT/IGW by default). When `lambda_apps` is non-empty, VPC endpoints cover `ecr.api`, `ecr.dkr`, `s3` (gateway), `logs`, and `sts` per distinct app region. Lambda SG egress is limited to the VPC CIDR and the S3 prefix list. Each `lambda_apps` entry gets its own IAM execution role and Atlas IAM database user. Image registries live in `ecr_repositories` and are selected with `ecr_key`. Env set by `02_app_lambda`: `MONGO_URL` (handoff URI with IAM query params), `DB_NAME` (primary app `primary_database`, default `test`). `02_app_ecs` passes the same handoff string as `MONGO_URL`.
 
 ### How do I connect from my laptop?
 

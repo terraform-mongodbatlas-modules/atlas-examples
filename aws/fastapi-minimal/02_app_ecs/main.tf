@@ -86,7 +86,6 @@ resource "aws_ecs_task_definition" "this" {
     }]
     environment = [
       { name = "MONGO_URL", value = var.mongo_private_connection_string },
-      { name = "USE_IAM_AUTH", value = "true" },
       { name = "DB_NAME", value = var.app_database_name },
     ]
     logConfiguration = {

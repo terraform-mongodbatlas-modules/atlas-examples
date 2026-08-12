@@ -5,7 +5,7 @@ aws_region                      = "us-east-1"
 private_subnet_ids              = ["subnet-aaa", "subnet-bbb"]
 lambda_security_group_id        = "sg-xxx"
 lambda_execution_role_arn       = "arn:aws:iam::123456789012:role/fastapi-minimal-lambda-exec"
-mongo_private_connection_string = "mongodb+srv://pl-0-us-east-1.xxxxx.mongodb.net"
+mongo_private_connection_string = "mongodb+srv://pl-0-us-east-1.xxxxx.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
 ecr_repository_url              = "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-minimal"
 
 # Optional overrides:

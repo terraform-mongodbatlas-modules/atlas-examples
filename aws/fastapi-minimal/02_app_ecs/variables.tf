@@ -29,7 +29,7 @@ variable "ecs_task_execution_role_arn" {
 }
 
 variable "mongo_private_connection_string" {
-  description = "Private endpoint MongoDB connection string"
+  description = "PrivateLink MongoDB SRV from 01_lz handoff with authSource=$external and authMechanism=MONGODB-AWS query params"
   type        = string
   sensitive   = true
 }
