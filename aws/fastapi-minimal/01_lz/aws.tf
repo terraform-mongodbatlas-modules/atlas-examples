@@ -199,6 +199,11 @@ locals {
     )
   }
 
+  ecs_apps_with_execution_secrets = {
+    for app_key, app in local.ecs_apps : app_key => app
+    if app.atlas_ai_model_api_key != null || length(app.container_secrets) > 0
+  }
+
   ecs_execution_secret_arns_by_app = {
     for app_key, app in local.ecs_apps : app_key => distinct(concat(
       app.atlas_ai_model_api_key != null ? [module.atlas_ai_model_api_key[app_key].secret_arn] : [],
@@ -495,10 +500,7 @@ data "aws_secretsmanager_secret" "ecs_container" {
 }
 
 resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
-  for_each = {
-    for app_key, arns in local.ecs_execution_secret_arns_by_app :
-    app_key => arns if length(arns) > 0
-  }
+  for_each = local.ecs_apps_with_execution_secrets
 
   name = "${each.key}-ecs-exec-secrets"
   role = aws_iam_role.ecs_task_execution[each.key].id
@@ -508,7 +510,7 @@ resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["secretsmanager:GetSecretValue"]
-      Resource = each.value
+      Resource = local.ecs_execution_secret_arns_by_app[each.key]
     }]
   })
 }
