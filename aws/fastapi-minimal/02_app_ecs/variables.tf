@@ -88,6 +88,23 @@ variable "health_check_path" {
   default     = "/"
 }
 
+variable "wait_for_steady_state" {
+  description = "When true, block apply until the ECS service reaches steady state (running tasks and healthy ALB targets)."
+  type        = bool
+  default     = true
+}
+
+variable "health_check_grace_period_seconds" {
+  description = "Seconds to ignore failing ALB health checks after a task starts (uvicorn/Mongo startup)."
+  type        = number
+  default     = 120
+
+  validation {
+    condition     = var.health_check_grace_period_seconds >= 0
+    error_message = "health_check_grace_period_seconds must be zero or positive."
+  }
+}
+
 variable "name_prefix" {
   description = "Prefix for ECS resource names"
   type        = string

@@ -19,3 +19,5 @@ path_pattern                    = ["/*"]
 # container_port    = 8000
 # health_check_path = "/"
 # host_header       = ["api.example.com"]
+# wait_for_steady_state             = true
+# health_check_grace_period_seconds = 120

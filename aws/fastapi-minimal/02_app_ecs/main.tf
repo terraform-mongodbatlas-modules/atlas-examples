@@ -109,6 +109,10 @@ resource "aws_ecs_service" "this" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  # Block apply until ECS reports steady state (includes ALB target health when load_balancer is set).
+  wait_for_steady_state             = var.wait_for_steady_state
+  health_check_grace_period_seconds = var.health_check_grace_period_seconds
+
   network_configuration {
     subnets          = var.private_subnet_ids
     security_groups  = [var.ecs_security_group_id]
