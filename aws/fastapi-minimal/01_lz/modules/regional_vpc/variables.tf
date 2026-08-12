@@ -24,6 +24,11 @@ variable "enable_nat_gateway" {
   default = false
 }
 
+variable "single_nat_gateway" {
+  type    = bool
+  default = true
+}
+
 variable "create_igw" {
   type    = bool
   default = false

@@ -145,12 +145,13 @@ variable "manual_scaling" {
 # ----------------------------------------------------
 
 variable "vpc_config" {
-  description = "App VPC for PrivateLink and Lambda. create=true manages one private VPC per cluster AWS region; create=false requires a full by_region entry per region."
+  description = "App VPC for PrivateLink and Lambda. create=true manages one private VPC per cluster AWS region; create=false requires a full by_region entry per region. enable_nat_gateway turns on NAT in every managed region; single_nat_gateway shares one NAT across AZs (default true; set false for per-AZ HA). ecs_apps.*.internet_egress enables NAT per app region and HTTPS egress from the app security group."
   type = object({
     create             = optional(bool, true)
     base_cidr          = optional(string, "10.0.0.0/8")
     az_count           = optional(number, 2)
-    enable_nat_gateway = optional(bool, false)
+    enable_nat_gateway  = optional(bool, false)
+    single_nat_gateway  = optional(bool, true)
     create_igw         = optional(bool, false)
     by_region = optional(map(object({
       cidr                    = optional(string)
@@ -497,6 +498,7 @@ variable "ecs_apps" {
     container_env_vars: plain ECS environment entries merged into handoff (after Mongo aliases and Voyage base URL).
     container_secrets: BYO SM secret name lookups; resolved to ARNs in handoff with execution-role GetSecretValue.
     atlas_ai_model_api_key: when set, creates Atlas Voyage key + SM secret and wires VOYAGE_API_KEY / VOYAGE_BASE_URL into handoff.
+    internet_egress: when true, enables a NAT gateway in the app's AWS region (managed VPC) and allows HTTPS egress to the public internet from the shared app security group.
   EOT
   type = map(object({
     name             = optional(string)
@@ -523,6 +525,7 @@ variable "ecs_apps" {
     atlas_ai_model_api_key = optional(object({
       key_name = optional(string, "fastapi-minimal-voyage")
     }))
+    internet_egress = optional(bool, false)
     roles = list(object({
       role_name       = optional(string, "readWrite")
       database_name   = string

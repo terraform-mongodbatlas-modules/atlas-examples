@@ -85,8 +85,25 @@ run "managed_vpc_nat_gateway" {
   }
 
   assert {
+    condition     = length(module.vpc["us-east-1"].natgw_ids) == 1
+    error_message = "Default single_nat_gateway should create one shared NAT gateway"
+  }
+}
+
+run "managed_vpc_nat_gateway_per_az" {
+  command = plan
+
+  variables {
+    vpc_config = {
+      az_count            = 2
+      enable_nat_gateway  = true
+      single_nat_gateway  = false
+    }
+  }
+
+  assert {
     condition     = length(module.vpc["us-east-1"].natgw_ids) == 2
-    error_message = "NAT gateway configuration should create one NAT gateway per AZ"
+    error_message = "single_nat_gateway = false should create one NAT gateway per AZ"
   }
 }
 

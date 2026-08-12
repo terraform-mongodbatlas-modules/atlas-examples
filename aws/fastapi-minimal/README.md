@@ -104,7 +104,7 @@ ecs_apps = {
 
 Re-apply `01_lz` before `just build-push` and `02_app_ecs`. Each `ecs_apps` entry creates ECS task + execution roles and an Atlas IAM database user bound to the **task role**. Omit `routing` for private ECS tasks (no ALB listener rule). `02_app_ecs` creates the target group and listener rule only. See [02_app_ecs](./02_app_ecs/). `http_edges` adds a small IGW cost per affected region.
 
-For HybridRAG, use SM handoff (`handoff_secret = {}` in `01_lz`; `handoff_secret_name` in `02_app_ecs`) and `atlas_ai_model_api_key` for Voyage. See [docs/hybridrag-backend.md](./docs/hybridrag-backend.md). The standalone [00_atlas_ai_keys](./00_atlas_ai_keys/) stack remains for labs that want a separate Voyage key state.
+For HybridRAG, use SM handoff (`handoff_secret = {}` in `01_lz`; `handoff_secret_name` in `02_app_ecs`), `atlas_ai_model_api_key` for Voyage, and `internet_egress = true` so the task can reach tiktoken and the Voyage API over HTTPS via NAT. See [docs/hybridrag-backend.md](./docs/hybridrag-backend.md). The standalone [00_atlas_ai_keys](./00_atlas_ai_keys/) stack remains for labs that want a separate Voyage key state.
 
 Shared domain (two apps, one edge): one `http_edges` entry and per-app `routing` (path or host rules). Custom hostname: add `aliases` and a us-east-1 `acm_certificate_arn`, then CNAME to `cloudfront_domain` from `terraform output`. See [01_lz/terraform.tfvars.example](./01_lz/terraform.tfvars.example).
 

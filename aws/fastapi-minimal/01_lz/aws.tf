@@ -230,6 +230,19 @@ locals {
     ])
   }
 
+  ecs_internet_egress_regions = toset([
+    for app in local.ecs_apps : app.aws_region
+    if app.internet_egress
+  ])
+  enable_nat_gateway_by_region = {
+    for region in local.managed_vpc_regions :
+    region => var.vpc_config.enable_nat_gateway || contains(local.ecs_internet_egress_regions, region)
+  }
+  app_regions_with_internet_egress = toset(concat(
+    var.vpc_config.enable_nat_gateway ? tolist(local.app_aws_regions) : [],
+    tolist(local.ecs_internet_egress_regions)
+  ))
+
   ecs_ingress_from_alb_rules = merge([
     for region, ports in local.ecs_container_ports_by_region : {
       for pair in setproduct(
@@ -278,7 +291,8 @@ module "vpc" {
   cidr       = local.vpc_cidr_by_region[each.key]
   az_count   = local.vpc_az_count_by_region[each.key]
 
-  enable_nat_gateway    = var.vpc_config.enable_nat_gateway
+  enable_nat_gateway    = local.enable_nat_gateway_by_region[each.key]
+  single_nat_gateway    = var.vpc_config.single_nat_gateway
   create_igw            = var.vpc_config.create_igw
   create_public_subnets = contains(local.ecs_alb_regions, each.key)
   tags                  = var.tags
@@ -371,7 +385,7 @@ resource "aws_security_group" "vpc_endpoints" {
 
 resource "aws_vpc_endpoint" "interface" {
   for_each = {
-    for pair in setproduct(tolist(local.app_aws_regions), ["ecr.api", "ecr.dkr", "logs", "sts"]) :
+    for pair in setproduct(tolist(local.app_aws_regions), ["ecr.api", "ecr.dkr", "logs", "secretsmanager", "sts"]) :
     "${pair[0]}-${pair[1]}" => {
       region  = pair[0]
       service = pair[1]
@@ -399,6 +413,19 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = local.app_network[each.key].private_route_table_ids
 
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-s3-${each.key}" })
+}
+
+resource "aws_security_group_rule" "app_internet_https_egress" {
+  for_each = local.app_regions_with_internet_egress
+
+  region            = each.key
+  type              = "egress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  security_group_id = aws_security_group.lambda[each.key].id
+  cidr_blocks       = ["0.0.0.0/0"]
+  description       = "Internet HTTPS via NAT (ecs_apps internet_egress or vpc_config.enable_nat_gateway)"
 }
 
 resource "aws_security_group_rule" "ecs_ingress_from_alb" {

@@ -101,7 +101,7 @@ run "lambda_and_ecs_shared_region" {
   assert {
     condition = alltrue([
       length(aws_security_group.lambda) == 1,
-      length(aws_vpc_endpoint.interface) == 4,
+      length(aws_vpc_endpoint.interface) == 5,
       length(aws_vpc_endpoint.s3) == 1,
     ])
     error_message = "Lambda and ECS in one region should share one SG and one endpoint set"

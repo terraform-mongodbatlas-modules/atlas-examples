@@ -60,6 +60,7 @@ run "hybridrag_handoff_payload" {
         roles                  = [{ database_name = "hybridrag" }]
         handoff_secret         = {}
         atlas_ai_model_api_key = { key_name = "fastapi-minimal-voyage" }
+        internet_egress        = true
         container_env_vars = {
           ENABLE_LLM = "false"
         }
@@ -72,11 +73,15 @@ run "hybridrag_handoff_payload" {
       local.ecs_apps["hybridrag"].routing.health_check_path == "/health",
       local.ecs_apps["hybridrag"].container_env_vars["ENABLE_LLM"] == "false",
       local.ecs_apps["hybridrag"].atlas_ai_model_api_key.key_name == "fastapi-minimal-voyage",
+      local.ecs_apps["hybridrag"].internet_egress,
+      local.enable_nat_gateway_by_region["us-east-1"],
+      length(aws_security_group_rule.app_internet_https_egress) == 1,
+      length(module.vpc["us-east-1"].natgw_ids) == 1,
       length(aws_iam_role_policy.ecs_task_execution_secrets) == 1,
       length(aws_secretsmanager_secret.ecs_app) == 1,
       length(module.atlas_ai_model_api_key) == 1,
     ])
-    error_message = "HybridRAG ecs_apps should wire Voyage module, SM handoff, and /health default"
+    error_message = "HybridRAG ecs_apps should wire Voyage module, SM handoff, NAT, internet egress, and /health default"
   }
 }
 

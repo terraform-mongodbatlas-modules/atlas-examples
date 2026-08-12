@@ -75,6 +75,7 @@ cluster_name  = "fastapi-minimal"
 #     roles                  = [{ database_name = "hybridrag" }]
 #     handoff_secret         = {}
 #     atlas_ai_model_api_key = { key_name = "fastapi-minimal-voyage" }
+#     internet_egress        = true  # NAT + HTTPS egress for tiktoken + Voyage API
 #     container_env_vars = {
 #       ENABLE_LLM = "false"
 #     }
@@ -147,8 +148,9 @@ cluster_name  = "fastapi-minimal"
 # # vpc_config = {
 # #   base_cidr          = "10.0.0.0/8"
 # #   az_count           = 2
-# #   enable_nat_gateway = false
-# #   create_igw         = false
+# #   enable_nat_gateway  = false
+# #   single_nat_gateway  = true   # one NAT shared across AZs (default); false = one per AZ
+# #   create_igw          = false
 # #   # by_region = { us-west-2 = { cidr = "10.42.0.0/16", az_count = 3 } }
 # # }
 #

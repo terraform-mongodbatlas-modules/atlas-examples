@@ -50,6 +50,7 @@ locals {
       container_env_vars     = v.container_env_vars
       container_secrets      = v.container_secrets
       atlas_ai_model_api_key = v.atlas_ai_model_api_key
+      internet_egress      = v.internet_egress
       routing = v.routing != null ? {
         edge              = v.routing.edge
         listener_priority = v.routing.listener_priority

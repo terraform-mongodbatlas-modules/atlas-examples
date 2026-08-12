@@ -4,7 +4,7 @@ Minimal deploy path for the upstream [Hybrid-Search-RAG](https://github.com/romi
 
 ## Prerequisites
 
-- `01_lz` applied with `ecs_apps.hybridrag`, `handoff_secret = {}`, and `atlas_ai_model_api_key` configured (see `01_lz/terraform.tfvars.example`).
+- `01_lz` applied with `ecs_apps.hybridrag`, `handoff_secret = {}`, `atlas_ai_model_api_key`, and `internet_egress = true` (see `01_lz/terraform.tfvars.example`). `internet_egress` creates a NAT gateway and allows HTTPS egress so HybridRAG can download tiktoken encodings and call the Voyage API. By default `vpc_config.single_nat_gateway` is `true` (one shared NAT across AZs).
 - AWS CLI, Docker, `just`, and `jq`.
 - **Provider:** `atlas_ai_model_api_key` needs mongodbatlas provider **2.16+** (unreleased on the registry at time of writing). For local apply, build provider `master` and copy [`.terraformrc.example`](../.terraformrc.example) to `~/.terraformrc` (adjust the binary path).
 
