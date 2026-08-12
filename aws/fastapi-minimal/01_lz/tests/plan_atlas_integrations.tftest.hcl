@@ -1,14 +1,41 @@
-mock_provider "mongodbatlas" {}
+mock_provider "mongodbatlas" {
+  override_during = plan
+}
 mock_provider "aws" {
+  override_during = plan
   mock_data "aws_availability_zones" {
     defaults = { names = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e", "us-east-1f"] }
   }
 }
 mock_provider "local" {}
 
+# Cluster connection strings are computed; stub known PrivateLink SRV so plan-time
+# check blocks in aws.tf do not fail terraform test with "known after apply".
+override_module {
+  target          = module.atlas_cluster
+  override_during = plan
+  outputs = {
+    cluster_name = "fastapi-minimal"
+    state_name   = "IDLE"
+    connection_strings = {
+      standard_srv = "mongodb+srv://cluster.example.mongodb.net"
+      private_srv  = ""
+      private_endpoint = [{
+        srv_connection_string = "mongodb+srv://pl-0.example.mongodb.net"
+        endpoints             = []
+      }]
+    }
+  }
+}
+
 variables {
-  atlas_org_id = "org123"
-  cluster_name = "fastapi-minimal"
+  atlas_org_id       = "org123"
+  cluster_name       = "fastapi-minimal"
+  regions            = [{ name = "us-east-1", node_count = 3 }]
+  manual_scaling     = null
+  ecr_repositories   = {}
+  lambda_apps        = {}
+  atlas_integrations = {}
 }
 
 run "defaults_all_enabled" {
@@ -18,11 +45,34 @@ run "defaults_all_enabled" {
     condition = (
       local.atlas_aws_encryption.enabled &&
       local.atlas_aws_encryption.create_kms_key.enabled &&
+      local.atlas_aws_encryption.create_kms_key.multi_region == true &&
+      length(local.atlas_aws_encryption.create_kms_key.replica_regions) == 0 &&
       toset(local.atlas_aws_encryption.private_endpoint_regions) == toset(local.aws_regions) &&
       local.atlas_aws_log_integration.enabled &&
       local.atlas_aws_backup_export.enabled
     )
-    error_message = "Omit atlas_integrations: encryption/log/backup enabled with module-managed CMK and KMS PE in every cluster AWS region"
+    error_message = "Omit atlas_integrations: encryption/log/backup enabled with module-managed CMK defaults (multi_region=true, replica_regions=[]) and KMS PE in every cluster AWS region"
+  }
+}
+
+run "encryption_omitted_create_kms_key_defaults" {
+  command = plan
+
+  variables {
+    # encryption object present without create_kms_key; optional defaults must still populate multi_region / replica_regions
+    atlas_integrations = { encryption = {} }
+  }
+
+  assert {
+    condition = (
+      local.atlas_aws_encryption.enabled &&
+      local.atlas_aws_encryption.create_kms_key.enabled &&
+      local.atlas_aws_encryption.create_kms_key.multi_region == true &&
+      length(local.atlas_aws_encryption.create_kms_key.replica_regions) == 0 &&
+      local.atlas_aws_encryption.create_kms_key.deletion_window_in_days == 7 &&
+      local.atlas_aws_encryption.create_kms_key.enable_key_rotation == true
+    )
+    error_message = "encryption = {} without create_kms_key should use optional create_kms_key defaults without try()"
   }
 }
 

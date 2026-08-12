@@ -67,6 +67,15 @@ cluster_name  = "fastapi-minimal"
 # # ec2_apps = { ... }  # same shape as lambda_apps; no resources in 01_lz yet
 #
 # # Multi-region: see docs/lz-changes.md before editing regions order.
+# # regions = [{ name = "us-east-1" }, { name = "us-east-2", node_count = 2 }]
+# # atlas_integrations = {
+# #   encryption = {
+# #     create_kms_key = {
+# #       replica_regions = ["us-east-2"]
+# #       # multi_region = false  # single-Region CMK lab only; replica_regions must be []
+# #     }
+# #   }
+# # }
 # # vpc_config = {
 # #   base_cidr          = "10.0.0.0/8"
 # #   az_count           = 2

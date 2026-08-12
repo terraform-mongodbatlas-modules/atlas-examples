@@ -88,6 +88,8 @@ locals {
         enabled                 = true
         deletion_window_in_days = var.atlas_integrations.encryption.create_kms_key.deletion_window_in_days
         enable_key_rotation     = var.atlas_integrations.encryption.create_kms_key.enable_key_rotation
+        multi_region            = var.atlas_integrations.encryption.create_kms_key.multi_region
+        replica_regions         = var.atlas_integrations.encryption.create_kms_key.replica_regions
       }
       : null
     )
@@ -144,7 +146,7 @@ module "atlas_project" {
 
 module "atlas_aws" {
   # Temporary: use the upstream main branch until the AWS provider 6 deprecation fix is released.
-  source = "git::https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws.git?ref=main"
+  source = "git::https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws.git?ref=CLOUDP-433803_allow-module-managed-kms-key-t"
 
   project_id = module.atlas_project.id
 
