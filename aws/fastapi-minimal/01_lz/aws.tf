@@ -21,11 +21,19 @@ locals {
   vpc_cidr_block          = var.vpc_config.create ? module.vpc[local.aws_region].vpc_cidr_block : var.vpc_config.by_region[local.aws_region].vpc_cidr_block
   private_route_table_ids = var.vpc_config.create ? module.vpc[local.aws_region].private_route_table_ids : var.vpc_config.by_region[local.aws_region].private_route_table_ids
 
-  app_aws_regions = toset([for app in local.lambda_apps : app.aws_region]) # ECS/EC2 union in follow-up PR
+  app_aws_regions = setunion(
+    toset([for app in local.lambda_apps : app.aws_region]),
+    toset([for app in local.ecs_apps : app.aws_region])
+  )
   app_network = {
     for region in local.app_aws_regions : region => {
-      vpc_id                  = var.vpc_config.create ? module.vpc[region].vpc_id : var.vpc_config.by_region[region].vpc_id
-      private_subnet_ids      = var.vpc_config.create ? module.vpc[region].private_subnets : var.vpc_config.by_region[region].private_subnet_ids
+      vpc_id             = var.vpc_config.create ? module.vpc[region].vpc_id : var.vpc_config.by_region[region].vpc_id
+      private_subnet_ids = var.vpc_config.create ? module.vpc[region].private_subnets : var.vpc_config.by_region[region].private_subnet_ids
+      public_subnet_ids = var.vpc_config.create ? (
+        contains(local.ecs_aws_regions, region) ? module.vpc[region].public_subnets : []
+        ) : (
+        try(var.vpc_config.by_region[region].public_subnet_ids, [])
+      )
       vpc_cidr_block          = var.vpc_config.create ? module.vpc[region].vpc_cidr_block : var.vpc_config.by_region[region].vpc_cidr_block
       private_route_table_ids = var.vpc_config.create ? module.vpc[region].private_route_table_ids : var.vpc_config.by_region[region].private_route_table_ids
     }
@@ -107,6 +115,21 @@ locals {
       ecr_repository_url              = aws_ecr_repository.this[v.ecr_key].repository_url
     }
   }
+
+  ecs_app_handoff_payloads = {
+    for k, v in local.ecs_apps : k => {
+      aws_region                      = v.aws_region
+      name_prefix                     = v.name
+      public_subnet_ids               = local.app_network[v.aws_region].public_subnet_ids
+      private_subnet_ids              = local.app_network[v.aws_region].private_subnet_ids
+      ecs_security_group_id           = aws_security_group.lambda[v.aws_region].id
+      ecs_task_role_arn               = aws_iam_role.ecs_task[k].arn
+      ecs_task_execution_role_arn     = aws_iam_role.ecs_task_execution[k].arn
+      mongo_private_connection_string = local.mongo_private_connection_strings_by_region[v.aws_region]
+      app_database_name               = v.primary_database
+      ecr_repository_url              = aws_ecr_repository.this[v.ecr_key].repository_url
+    }
+  }
 }
 
 check "mongo_private_connection_string_standard_srv_fallback" {
@@ -143,9 +166,10 @@ module "vpc" {
   cidr       = local.vpc_cidr_by_region[each.key]
   az_count   = local.vpc_az_count_by_region[each.key]
 
-  enable_nat_gateway = var.vpc_config.enable_nat_gateway
-  create_igw         = var.vpc_config.create_igw
-  tags               = var.tags
+  enable_nat_gateway    = var.vpc_config.enable_nat_gateway
+  create_igw            = var.vpc_config.create_igw
+  create_public_subnets = contains(local.ecs_aws_regions, each.key)
+  tags                  = var.tags
 }
 
 resource "aws_security_group" "lambda" {
@@ -250,17 +274,17 @@ resource "aws_vpc_endpoint" "s3" {
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-s3-${each.key}" })
 }
 
-resource "aws_security_group_rule" "atlas_pl_ingress_from_lambda" {
-  for_each = local.lambda_apps
+resource "aws_security_group_rule" "atlas_pl_ingress_from_app" {
+  for_each = local.app_aws_regions
 
-  region                   = each.value.aws_region
+  region                   = each.key
   type                     = "ingress"
   from_port                = 1024
   to_port                  = 65535
   protocol                 = "tcp"
-  security_group_id        = module.atlas_aws.privatelink[each.value.aws_region].security_group_id
-  source_security_group_id = aws_security_group.lambda[each.value.aws_region].id
-  description              = "MongoDB Atlas PrivateLink from Lambda"
+  security_group_id        = module.atlas_aws.privatelink[each.key].security_group_id
+  source_security_group_id = aws_security_group.lambda[each.key].id
+  description              = "MongoDB Atlas PrivateLink from app SG"
 }
 
 resource "aws_iam_role" "lambda_exec" {
@@ -284,6 +308,47 @@ resource "aws_iam_role_policy_attachment" "lambda_exec" {
   for_each = local.lambda_role_policy_attachments
 
   role       = aws_iam_role.lambda_exec[each.value.app_key].name
+  policy_arn = each.value.policy_arn
+}
+
+resource "aws_iam_role" "ecs_task" {
+  for_each = local.ecs_apps
+
+  name = "${each.value.name}-ecs-task"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+    }]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role" "ecs_task_execution" {
+  for_each = local.ecs_apps
+
+  name = "${each.value.name}-ecs-exec"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+    }]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
+  for_each = local.ecs_execution_role_policy_attachments
+
+  role       = aws_iam_role.ecs_task_execution[each.value.app_key].name
   policy_arn = each.value.policy_arn
 }
 
@@ -316,5 +381,39 @@ resource "local_file" "app_tfvars" {
     mongo_private_connection_string = "${local.app_handoff_payloads[each.key].mongo_private_connection_string}"
     app_database_name               = "${local.app_handoff_payloads[each.key].app_database_name}"
     ecr_repository_url              = "${local.app_handoff_payloads[each.key].ecr_repository_url}"
+  EOT
+}
+
+resource "aws_secretsmanager_secret" "ecs_app" {
+  for_each = local.ecs_secrets
+
+  region = each.value.aws_region
+  name   = each.value.secret_name
+  tags   = var.tags
+}
+
+resource "aws_secretsmanager_secret_version" "ecs_app" {
+  for_each = local.ecs_secrets
+
+  region        = each.value.aws_region
+  secret_id     = aws_secretsmanager_secret.ecs_app[each.key].id
+  secret_string = jsonencode(local.ecs_app_handoff_payloads[each.key])
+}
+
+resource "local_file" "ecs_app_tfvars" {
+  for_each = local.ecs_tfvars
+
+  filename = each.value.tfvars_path
+  content  = <<-EOT
+    aws_region                      = "${local.ecs_app_handoff_payloads[each.key].aws_region}"
+    name_prefix                     = "${local.ecs_app_handoff_payloads[each.key].name_prefix}"
+    public_subnet_ids               = ${jsonencode(local.ecs_app_handoff_payloads[each.key].public_subnet_ids)}
+    private_subnet_ids              = ${jsonencode(local.ecs_app_handoff_payloads[each.key].private_subnet_ids)}
+    ecs_security_group_id           = "${local.ecs_app_handoff_payloads[each.key].ecs_security_group_id}"
+    ecs_task_role_arn               = "${local.ecs_app_handoff_payloads[each.key].ecs_task_role_arn}"
+    ecs_task_execution_role_arn     = "${local.ecs_app_handoff_payloads[each.key].ecs_task_execution_role_arn}"
+    mongo_private_connection_string = "${local.ecs_app_handoff_payloads[each.key].mongo_private_connection_string}"
+    app_database_name               = "${local.ecs_app_handoff_payloads[each.key].app_database_name}"
+    ecr_repository_url              = "${local.ecs_app_handoff_payloads[each.key].ecr_repository_url}"
   EOT
 }

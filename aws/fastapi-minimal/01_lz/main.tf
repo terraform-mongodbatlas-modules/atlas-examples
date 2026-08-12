@@ -34,6 +34,36 @@ locals {
   lambda_tfvars  = { for k, v in local.lambda_apps : k => v if v.tfvars_path != null }
   lambda_secrets = { for k, v in local.lambda_apps : k => v if v.secret_name != null }
 
+  ecs_apps = {
+    for k, v in var.ecs_apps : k => {
+      name             = coalesce(v.name, k)
+      ecr_key          = v.ecr_key
+      aws_region       = coalesce(v.aws_region, local.aws_region)
+      primary_database = coalesce(v.primary_database, v.roles[0].database_name)
+      roles            = v.roles
+      tfvars_path      = v.tfvars_path != null && v.tfvars_path != "" ? v.tfvars_path : null
+      secret_name = (
+        v.secret == null
+        ? null
+        : coalesce(v.secret.name, "${coalesce(v.name, k)}-app")
+      )
+    }
+  }
+  ecs_tfvars      = { for k, v in local.ecs_apps : k => v if v.tfvars_path != null }
+  ecs_secrets     = { for k, v in local.ecs_apps : k => v if v.secret_name != null }
+  ecs_aws_regions = toset([for app in local.ecs_apps : app.aws_region])
+
+  ecs_execution_managed_policies = {
+    execution = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+  }
+  ecs_execution_role_policy_attachments = {
+    for pair in setproduct(keys(local.ecs_apps), keys(local.ecs_execution_managed_policies)) :
+    "${pair[0]}-${pair[1]}" => {
+      app_key    = pair[0]
+      policy_arn = local.ecs_execution_managed_policies[pair[1]]
+    }
+  }
+
   ecr_repositories = {
     for k, v in var.ecr_repositories : k => {
       name                 = coalesce(v.name, k)
@@ -210,6 +240,27 @@ resource "mongodbatlas_database_user" "lambda" {
 
   project_id         = module.atlas_project.id
   username           = aws_iam_role.lambda_exec[each.key].arn
+  auth_database_name = "$external"
+  aws_iam_type       = "ROLE"
+
+  dynamic "roles" {
+    for_each = each.value.roles
+
+    content {
+      role_name       = roles.value.role_name
+      database_name   = roles.value.database_name
+      collection_name = roles.value.collection_name
+    }
+  }
+
+  depends_on = [module.atlas_cluster]
+}
+
+resource "mongodbatlas_database_user" "ecs" {
+  for_each = local.ecs_apps
+
+  project_id         = module.atlas_project.id
+  username           = aws_iam_role.ecs_task[each.key].arn
   auth_database_name = "$external"
   aws_iam_type       = "ROLE"
 

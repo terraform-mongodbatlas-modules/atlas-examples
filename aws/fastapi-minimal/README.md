@@ -13,8 +13,8 @@ Success bar: both groups leave with something running and a clear next edit.
 
 - **Atlas (`01_lz`):** Project, PrivateLink endpoint(s), customer-key encryption-at-rest, log + backup-export integrations, sharded cluster (`SHARDED`, `shard_count = 2` by default)
 - **AWS platform (`01_lz`):** PrivateLink VPC endpoint(s), Cloud Provider Access, module-managed KMS CMK, log + backup-export S3 buckets, VPC (create or BYO) per cluster AWS region
-- **Optional app targets (`01_lz`):** ECR, Lambda execution roles, Atlas IAM DB users, Lambda security groups + VPC endpoints per distinct app region (enable via **AWS Lambda** in tfvars)
-- **AWS (`02_app_lambda`):** Lambda, Function URL, CloudWatch (requires Lambda target configured and image pushed)
+- **Optional app targets (`01_lz`):** ECR, Lambda execution roles, Atlas IAM DB users, app security groups + VPC endpoints per distinct app region (enable via **AWS Lambda** or **Amazon ECS** in tfvars)
+- **AWS (`02_app_lambda` or `02_app_ecs`):** Lambda Function URL or ECS Fargate + ALB, CloudWatch (requires app target configured and image pushed)
 - **App:** FastAPI image in `src/` (IAM auth to Mongo over PrivateLink)
 
 Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-examples) only. App source is in `src/`. Run all commands from this directory with `terraform -chdir=…` (do not `cd` into the stacks).
@@ -28,6 +28,9 @@ Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-e
 │   ├── versions.tf
 │   └── ...
 ├── 02_app_lambda
+│   ├── terraform.tfvars.example
+│   └── ...
+├── 02_app_ecs
 │   ├── terraform.tfvars.example
 │   └── ...
 ├── docs
@@ -75,7 +78,23 @@ Re-apply `01_lz` after adding this block before `just build-push` and `02_app_la
 
 ### Amazon ECS
 
-TODO: same variable shape as `lambda_apps` (`ecs_apps`); no resources in `01_lz` yet (follow-up PR).
+Uncomment and apply this block for Fargate + internet-facing ALB (public subnets and IGW are created automatically; no NAT):
+
+```hcl
+ecr_repositories = {
+  api = {}
+}
+
+ecs_apps = {
+  api = {
+    ecr_key     = "api"
+    roles       = [{ database_name = "test" }]
+    tfvars_path = "../02_app_ecs/infra.auto.tfvars"
+  }
+}
+```
+
+Re-apply `01_lz` before `just build-push` and `02_app_ecs`. Each `ecs_apps` entry creates ECS task + execution roles and an Atlas IAM database user bound to the **task role** (not the execution role). Tasks stay in private subnets; the ALB sits in auto-created public subnets. See [02_app_ecs](./02_app_ecs/). Enabling ECS adds a small IGW cost per affected region.
 
 ### Amazon EC2
 
@@ -268,4 +287,4 @@ Optionally set `retain_backups_enabled = false` on the cluster for cleaner destr
 
 ### What is not covered here?
 
-Custom DNS / Route 53, the Industry Solutions AI app (`aws/ai-demo` is a sibling), multi-region E2E apply, ECS from `ecs_apps`, EC2 from `ec2_apps`, and index management (this app needs none).
+Custom DNS / Route 53, the Industry Solutions AI app (`aws/ai-demo` is a sibling), multi-region E2E apply, EC2 from `ec2_apps`, and index management (this app needs none).

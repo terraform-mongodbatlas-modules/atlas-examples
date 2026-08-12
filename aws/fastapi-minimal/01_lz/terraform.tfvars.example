@@ -60,8 +60,17 @@ cluster_name  = "fastapi-minimal"
 #   }
 # }
 #
-# # --- Amazon ECS (TODO) ---
-# # ecs_apps = { ... }  # same shape as lambda_apps; no resources in 01_lz yet
+# # --- Amazon ECS (optional) ---
+# ecr_repositories = { api = {} }
+#
+# ecs_apps = {
+#   api = {
+#     ecr_key     = "api"
+#     roles       = [{ database_name = "test" }]
+#     tfvars_path = "../02_app_ecs/infra.auto.tfvars"
+#     # secret = { name = "fastapi-minimal-ecs-app" }
+#   }
+# }
 #
 # # --- Amazon EC2 (TODO) ---
 # # ec2_apps = { ... }  # same shape as lambda_apps; no resources in 01_lz yet

@@ -146,6 +146,7 @@ variable "vpc_config" {
       az_count                = optional(number)
       vpc_id                  = optional(string)
       private_subnet_ids      = optional(list(string), [])
+      public_subnet_ids       = optional(list(string), [])
       vpc_cidr_block          = optional(string)
       private_route_table_ids = optional(list(string), [])
     })), {})
@@ -186,6 +187,7 @@ variable "vpc_config" {
       for _, cfg in var.vpc_config.by_region :
       cfg.vpc_id == null &&
       length(cfg.private_subnet_ids) == 0 &&
+      length(cfg.public_subnet_ids) == 0 &&
       cfg.vpc_cidr_block == null &&
       length(cfg.private_route_table_ids) == 0
     ]) : true
@@ -225,6 +227,14 @@ variable "vpc_config" {
   validation {
     condition     = !var.vpc_config.create || length(distinct([for r in var.regions : replace(lower(r.name), "_", "-")])) <= 256
     error_message = "Too many cluster AWS regions for vpc_config.base_cidr (max 256 /16 blocks from a /8 base)."
+  }
+
+  validation {
+    condition = !var.vpc_config.create ? alltrue([
+      for region in distinct([for app in var.ecs_apps : coalesce(app.aws_region, replace(lower(var.regions[0].name), "_", "-"))]) :
+      length(var.vpc_config.by_region[region].public_subnet_ids) > 0
+    ]) : true
+    error_message = "When vpc_config.create = false and ecs_apps is set, public_subnet_ids is required in by_region for each ECS app region."
   }
 }
 
@@ -408,7 +418,13 @@ variable "lambda_apps" {
 }
 
 variable "ecs_apps" {
-  description = "Optional ECS deployment targets (same shape as lambda_apps). No resources are created from this map yet."
+  description = <<-EOT
+    Optional ECS deployment targets. Map keys are stable identities.
+    Each entry creates one ECS task role, one execution role, and one Atlas IAM database user (username = task role ARN).
+    ecr_key selects an entry in ecr_repositories. When non-empty, managed VPCs auto-create IGW + public subnets (no NAT) per ECS app region for ALB placement in 02_app_ecs.
+    tfvars_path: relative path for a per-app infra.auto.tfvars writer; null/omit disables the file for that app.
+    secret: null-gated Secrets Manager handoff ({ name = optional } ; name defaults to <app-name>-app).
+  EOT
   type = map(object({
     name             = optional(string)
     ecr_key          = string
@@ -427,6 +443,30 @@ variable "ecs_apps" {
   default = {}
 
   validation {
+    condition     = alltrue([for _, app in var.ecs_apps : length(app.roles) > 0])
+    error_message = "Each ecs_apps entry must include at least one roles entry."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, app in var.ecs_apps :
+      contains(keys(var.ecr_repositories), app.ecr_key)
+    ])
+    error_message = "Each ecs_apps.*.ecr_key must exist in ecr_repositories."
+  }
+
+  validation {
+    condition = length(distinct([
+      for _, app in var.ecs_apps : app.tfvars_path
+      if app.tfvars_path != null && app.tfvars_path != ""
+      ])) == length([
+      for _, app in var.ecs_apps : app.tfvars_path
+      if app.tfvars_path != null && app.tfvars_path != ""
+    ])
+    error_message = "ecs_apps.*.tfvars_path values must be unique when set."
+  }
+
+  validation {
     condition = alltrue([
       for _, app in var.ecs_apps :
       contains(
@@ -435,6 +475,18 @@ variable "ecs_apps" {
       )
     ])
     error_message = "ecs_apps.*.aws_region must be a cluster AWS region from regions."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, app in var.ecs_apps :
+      coalesce(app.aws_region, replace(lower(var.regions[0].name), "_", "-")) ==
+      coalesce(
+        try(var.ecr_repositories[app.ecr_key].region, null),
+        replace(lower(var.regions[0].name), "_", "-")
+      )
+    ])
+    error_message = "ecs_apps.*.aws_region must match ecr_repositories[ecr_key].region (after defaults)."
   }
 }
 

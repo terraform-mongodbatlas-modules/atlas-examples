@@ -29,6 +29,11 @@ variable "create_igw" {
   default = false
 }
 
+variable "create_public_subnets" {
+  type    = bool
+  default = false
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

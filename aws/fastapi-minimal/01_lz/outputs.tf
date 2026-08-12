@@ -50,12 +50,14 @@ output "aws" {
       for region in local.aws_regions : region => {
         vpc_id             = module.vpc[region].vpc_id
         private_subnet_ids = module.vpc[region].private_subnets
+        public_subnet_ids  = contains(local.ecs_aws_regions, region) ? module.vpc[region].public_subnets : []
         vpc_cidr_block     = module.vpc[region].vpc_cidr_block
       }
       } : {
       for region, cfg in var.vpc_config.by_region : region => {
         vpc_id             = cfg.vpc_id
         private_subnet_ids = cfg.private_subnet_ids
+        public_subnet_ids  = cfg.public_subnet_ids
         vpc_cidr_block     = cfg.vpc_cidr_block
       }
     }
@@ -68,6 +70,14 @@ output "aws" {
 
     lambda_roles = {
       for k in keys(local.lambda_apps) : k => aws_iam_role.lambda_exec[k].arn
+    }
+
+    ecs_task_roles = {
+      for k in keys(local.ecs_apps) : k => aws_iam_role.ecs_task[k].arn
+    }
+
+    ecs_task_execution_roles = {
+      for k in keys(local.ecs_apps) : k => aws_iam_role.ecs_task_execution[k].arn
     }
   }
 }
@@ -98,6 +108,20 @@ output "database_users" {
       for k, app in local.lambda_apps : {
         id               = k
         username         = aws_iam_role.lambda_exec[k].arn
+        primary_database = app.primary_database
+        grants = [
+          for r in app.roles : {
+            database_name   = r.database_name
+            role_name       = r.role_name
+            collection_name = try(r.collection_name, null)
+          }
+        ]
+      }
+    ],
+    [
+      for k, app in local.ecs_apps : {
+        id               = k
+        username         = aws_iam_role.ecs_task[k].arn
         primary_database = app.primary_database
         grants = [
           for r in app.roles : {
@@ -151,8 +175,23 @@ output "app_handoff" {
 }
 
 output "ecs_apps" {
-  description = "Configured ECS apps and handoff destination. Empty until ECS resources land."
-  value       = {}
+  description = "Configured ECS apps and handoff destination. ecs_app_handoff contains values for 02_app_ecs when tfvars_path and secret are omitted."
+  value = {
+    for k, v in local.ecs_apps : k => {
+      name             = v.name
+      aws_region       = v.aws_region
+      primary_database = v.primary_database
+      ecr_key          = v.ecr_key
+      tfvars_path      = v.tfvars_path
+      secret_name      = v.secret_name
+    }
+  }
+}
+
+output "ecs_app_handoff" {
+  description = "Sensitive per-app payload for 02_app_ecs when tfvars_path and secret are omitted."
+  sensitive   = true
+  value       = local.ecs_app_handoff_payloads
 }
 
 output "ec2_apps" {
