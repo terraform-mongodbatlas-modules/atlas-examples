@@ -51,7 +51,7 @@ run "defaults_all_enabled" {
       local.atlas_aws_log_integration.enabled &&
       local.atlas_aws_backup_export.enabled
     )
-    error_message = "Omit atlas_integrations: encryption/log/backup enabled with module-managed CMK defaults (multi_region=true, replica_regions=[]) and KMS PE in every cluster AWS region"
+    error_message = "Omit atlas_integrations: encryption/log/backup enabled with module-managed CMK defaults (multi_region=true, inferred replica_regions=[], region=regions[0]) and KMS PE in every cluster AWS region"
   }
 }
 
@@ -69,10 +69,81 @@ run "encryption_omitted_create_kms_key_defaults" {
       local.atlas_aws_encryption.create_kms_key.enabled &&
       local.atlas_aws_encryption.create_kms_key.multi_region == true &&
       length(local.atlas_aws_encryption.create_kms_key.replica_regions) == 0 &&
+      local.atlas_aws_encryption.region == local.aws_region &&
       local.atlas_aws_encryption.create_kms_key.deletion_window_in_days == 7 &&
       local.atlas_aws_encryption.create_kms_key.enable_key_rotation == true
     )
     error_message = "encryption = {} without create_kms_key should use optional create_kms_key defaults without try()"
+  }
+}
+
+run "multi_region_inferred_kms_replicas" {
+  command = plan
+
+  variables {
+    regions = [
+      { name = "us-east-1", node_count = 3 },
+      { name = "us-east-2", node_count = 2 },
+    ]
+    atlas_integrations = { encryption = {} }
+  }
+
+  assert {
+    condition = (
+      local.atlas_aws_encryption.region == "us-east-1" &&
+      local.atlas_aws_encryption.create_kms_key.multi_region == true &&
+      local.atlas_aws_encryption.create_kms_key.replica_regions == toset(["us-east-2"])
+    )
+    error_message = "Multi-region cluster should infer replica_regions from cluster AWS regions except the primary"
+  }
+}
+
+run "kms_primary_region_override" {
+  command = plan
+
+  variables {
+    regions = [
+      { name = "us-east-1", node_count = 3 },
+      { name = "us-east-2", node_count = 2 },
+    ]
+    atlas_integrations = {
+      encryption = {
+        create_kms_key = { region = "us-east-2" }
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      local.atlas_aws_encryption.region == "us-east-2" &&
+      local.atlas_aws_encryption.create_kms_key.replica_regions == toset(["us-east-1"])
+    )
+    error_message = "create_kms_key.region should override the primary KMS region and re-infer replica_regions"
+  }
+}
+
+run "kms_replica_regions_override" {
+  command = plan
+
+  variables {
+    regions = [
+      { name = "us-east-1", node_count = 3 },
+      { name = "us-east-2", node_count = 2 },
+      { name = "us-west-2", node_count = 2 },
+    ]
+    atlas_integrations = {
+      encryption = {
+        create_kms_key = { replica_regions = ["us-west-2"] }
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      local.atlas_aws_encryption.region == "us-east-1" &&
+      local.atlas_aws_encryption.create_kms_key.replica_regions == toset(["us-west-2"])
+    )
+    error_message = "Explicit replica_regions should override inference"
   }
 }
 

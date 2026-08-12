@@ -236,8 +236,9 @@ variable "atlas_integrations" {
     Atlas AWS integrations (encryption, log export, backup export). Omit for production defaults (all enabled).
     encryption.kms_key_arn: BYO KMS; when set, create_kms_key is ignored.
     encryption.skip_private_endpoints: when true, omit Atlas KMS PrivateLink (private_endpoint_regions = []); default false enables KMS PE in every cluster AWS region.
+    encryption.create_kms_key.region: primary KMS AWS region; defaults to regions[0] when omitted.
     encryption.create_kms_key.multi_region: defaults true (multi-Region primary CMK). Set false for a single-Region key; replica_regions must be empty.
-    encryption.create_kms_key.replica_regions: required for multi-region clusters; list every cluster AWS region except regions[0]. Not inferred from regions.
+    encryption.create_kms_key.replica_regions: inferred from cluster AWS regions except the primary when omitted; set explicitly to override.
     Log and backup export always use module-managed S3 buckets (name_prefix derived from default_resource_name_prefix).
     expiration_days maps to create_s3_bucket.expiration_days in atlas-aws.
     s3_force_destroy applies to both module-managed log and backup buckets (true for ephemeral demos; false for shared accounts that must retain objects).
@@ -251,7 +252,8 @@ variable "atlas_integrations" {
         deletion_window_in_days = optional(number, 7)
         enable_key_rotation     = optional(bool, true)
         multi_region            = optional(bool, true)
-        replica_regions         = optional(set(string), [])
+        region                  = optional(string)
+        replica_regions         = optional(set(string))
       }), {})
     }), {})
 

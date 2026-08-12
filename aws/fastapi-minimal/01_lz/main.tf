@@ -70,6 +70,20 @@ locals {
     }
   }
 
+  kms_primary_region = lower(replace(coalesce(
+    var.atlas_integrations.encryption.create_kms_key.region,
+    local.aws_region
+  ), "_", "-"))
+  kms_replica_regions = (
+    var.atlas_integrations.encryption.create_kms_key.multi_region
+    ? (
+      var.atlas_integrations.encryption.create_kms_key.replica_regions != null
+      ? var.atlas_integrations.encryption.create_kms_key.replica_regions
+      : toset([for r in local.aws_regions : r if r != local.kms_primary_region])
+    )
+    : toset([])
+  )
+
   atlas_aws_encryption = {
     enabled = var.atlas_integrations.encryption.enabled
     private_endpoint_regions = (
@@ -82,6 +96,11 @@ locals {
       ? var.atlas_integrations.encryption.kms_key_arn
       : null
     )
+    region = (
+      var.atlas_integrations.encryption.enabled && var.atlas_integrations.encryption.kms_key_arn == null
+      ? local.kms_primary_region
+      : null
+    )
     create_kms_key = (
       var.atlas_integrations.encryption.enabled && var.atlas_integrations.encryption.kms_key_arn == null
       ? {
@@ -89,7 +108,7 @@ locals {
         deletion_window_in_days = var.atlas_integrations.encryption.create_kms_key.deletion_window_in_days
         enable_key_rotation     = var.atlas_integrations.encryption.create_kms_key.enable_key_rotation
         multi_region            = var.atlas_integrations.encryption.create_kms_key.multi_region
-        replica_regions         = var.atlas_integrations.encryption.create_kms_key.replica_regions
+        replica_regions         = local.kms_replica_regions
       }
       : null
     )

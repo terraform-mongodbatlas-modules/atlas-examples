@@ -71,7 +71,8 @@ cluster_name  = "fastapi-minimal"
 # # atlas_integrations = {
 # #   encryption = {
 # #     create_kms_key = {
-# #       replica_regions = ["us-east-2"]
+# #       # region = "us-east-2"  # optional; defaults to regions[0]
+# #       # replica_regions = ["us-east-1"]  # optional; inferred from cluster regions except primary
 # #       # multi_region = false  # single-Region CMK lab only; replica_regions must be []
 # #     }
 # #   }

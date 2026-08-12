@@ -35,7 +35,7 @@ locals {
     try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
     try(module.atlas_cluster.connection_strings.private_srv, ""),
     module.atlas_cluster.connection_strings.standard_srv
-  ), "NO_CONNECTION_STRING_AVAILABLE"
+    ), "NO_CONNECTION_STRING_AVAILABLE"
   )
   mongo_private_connection_string_uses_standard_srv = (
     local.mongo_private_connection_string == module.atlas_cluster.connection_strings.standard_srv
