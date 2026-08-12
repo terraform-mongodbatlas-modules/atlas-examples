@@ -1,4 +1,0 @@
-project_id = "<PROJECT_ID_FROM_01_lz>"
-
-# key_name = "fastapi-minimal-voyage"
-# output_path = "../secrets/voyage.auto.tfvars.json"
