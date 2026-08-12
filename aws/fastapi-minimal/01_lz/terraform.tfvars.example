@@ -74,6 +74,7 @@ cluster_name  = "fastapi-minimal"
 #     routing                = { edge = "main", path_pattern = ["/*"], listener_priority = 100 }
 #     roles                  = [{ database_name = "hybridrag" }]
 #     handoff_secret         = {}
+#     api_key_secret         = {}
 #     atlas_ai_model_api_key = { key_name = "fastapi-minimal-voyage" }
 #     internet_egress        = true  # NAT + HTTPS egress for tiktoken + Voyage API
 #     container_env_vars = {

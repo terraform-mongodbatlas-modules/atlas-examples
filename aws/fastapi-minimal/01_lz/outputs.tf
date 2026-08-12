@@ -48,11 +48,11 @@ output "aws" {
 
     vpcs = var.vpc_config.create ? {
       for region in local.aws_regions : region => {
-        vpc_id               = module.vpc[region].vpc_id
-        private_subnet_ids   = module.vpc[region].private_subnets
-        public_subnet_ids    = module.vpc[region].public_subnets
-        nat_gateway_enabled  = local.enable_nat_gateway_by_region[region]
-        vpc_cidr_block       = module.vpc[region].vpc_cidr_block
+        vpc_id              = module.vpc[region].vpc_id
+        private_subnet_ids  = module.vpc[region].private_subnets
+        public_subnet_ids   = module.vpc[region].public_subnets
+        nat_gateway_enabled = local.enable_nat_gateway_by_region[region]
+        vpc_cidr_block      = module.vpc[region].vpc_cidr_block
       }
       } : {
       for region, cfg in var.vpc_config.by_region : region => {

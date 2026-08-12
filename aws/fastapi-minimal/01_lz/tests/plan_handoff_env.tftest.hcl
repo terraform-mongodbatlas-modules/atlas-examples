@@ -85,6 +85,62 @@ run "hybridrag_handoff_payload" {
   }
 }
 
+run "hybridrag_api_key_secret" {
+  command = plan
+
+  variables {
+    lambda_apps      = {}
+    ecr_repositories = { hybridrag = {} }
+    http_edges       = { main = {} }
+    ecs_apps = {
+      hybridrag = {
+        ecr_key                = "hybridrag"
+        routing                = { edge = "main", path_pattern = ["/*"], listener_priority = 100 }
+        roles                  = [{ database_name = "hybridrag" }]
+        handoff_secret         = {}
+        api_key_secret         = {}
+        atlas_ai_model_api_key = { key_name = "fastapi-minimal-voyage" }
+        internet_egress        = true
+      }
+    }
+  }
+
+  assert {
+    condition = alltrue([
+      length(module.ecs_api_key_secret) == 1,
+      contains(keys(local.ecs_app_handoff_payloads["hybridrag"].container_secret_env_vars), "HYBRIDRAG_API_KEY"),
+      length(aws_iam_role_policy.ecs_task_execution_secrets) == 1,
+    ])
+    error_message = "api_key_secret should create SM secret, handoff HYBRIDRAG_API_KEY, and execution role policy"
+  }
+}
+
+run "api_key_secret_byo_exclusive" {
+  command = plan
+
+  variables {
+    lambda_apps      = {}
+    ecr_repositories = { api = {} }
+    http_edges       = { main = {} }
+    ecs_apps = {
+      api = {
+        ecr_key        = "api"
+        routing        = { edge = "main", path_pattern = ["/*"], listener_priority = 100 }
+        roles          = [{ database_name = "test" }]
+        handoff_secret = {}
+        api_key_secret = {}
+        container_secrets = {
+          HYBRIDRAG_API_KEY = { name = "byo-secret" }
+        }
+      }
+    }
+  }
+
+  expect_failures = [
+    var.ecs_apps,
+  ]
+}
+
 run "ecs_tfvars_and_secret_exclusive" {
   command = plan
 

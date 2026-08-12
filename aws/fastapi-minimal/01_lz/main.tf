@@ -49,8 +49,9 @@ locals {
       )
       container_env_vars     = v.container_env_vars
       container_secrets      = v.container_secrets
+      api_key_secret         = v.api_key_secret
       atlas_ai_model_api_key = v.atlas_ai_model_api_key
-      internet_egress      = v.internet_egress
+      internet_egress        = v.internet_egress
       routing = v.routing != null ? {
         edge              = v.routing.edge
         listener_priority = v.routing.listener_priority
@@ -316,6 +317,19 @@ module "atlas_ai_model_api_key" {
   tags        = var.tags
 
   depends_on = [module.atlas_project]
+}
+
+module "ecs_api_key_secret" {
+  for_each = {
+    for k, v in local.ecs_apps : k => v
+    if v.api_key_secret != null
+  }
+
+  source = "./modules/ecs_api_key_secret"
+
+  secret_name = coalesce(each.value.api_key_secret.name, "${each.value.name}-api-key")
+  aws_region  = each.value.aws_region
+  tags        = var.tags
 }
 
 resource "random_password" "public_debug" {

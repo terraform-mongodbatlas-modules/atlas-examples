@@ -95,9 +95,9 @@ run "managed_vpc_nat_gateway_per_az" {
 
   variables {
     vpc_config = {
-      az_count            = 2
-      enable_nat_gateway  = true
-      single_nat_gateway  = false
+      az_count           = 2
+      enable_nat_gateway = true
+      single_nat_gateway = false
     }
   }
 

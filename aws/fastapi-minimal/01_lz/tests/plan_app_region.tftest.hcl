@@ -55,11 +55,11 @@ run "app_region_west" {
         tfvars_path = "../02_app_lambda/infra.auto.tfvars"
       }
       worker = {
-        ecr_key     = "api-west"
-        aws_region  = "us-west-2"
-        tfvars_path = "../02_app_worker/infra.auto.tfvars"
-        handoff_secret      = {}
-        roles       = [{ database_name = "jobs" }]
+        ecr_key        = "api-west"
+        aws_region     = "us-west-2"
+        tfvars_path    = "../02_app_worker/infra.auto.tfvars"
+        handoff_secret = {}
+        roles          = [{ database_name = "jobs" }]
       }
     }
   }

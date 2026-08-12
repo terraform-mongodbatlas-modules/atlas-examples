@@ -150,8 +150,8 @@ variable "vpc_config" {
     create             = optional(bool, true)
     base_cidr          = optional(string, "10.0.0.0/8")
     az_count           = optional(number, 2)
-    enable_nat_gateway  = optional(bool, false)
-    single_nat_gateway  = optional(bool, true)
+    enable_nat_gateway = optional(bool, false)
+    single_nat_gateway = optional(bool, true)
     create_igw         = optional(bool, false)
     by_region = optional(map(object({
       cidr                    = optional(string)
@@ -497,6 +497,7 @@ variable "ecs_apps" {
     handoff_secret: null-gated Secrets Manager handoff ({ name = optional } ; name defaults to <app-name>-app).
     container_env_vars: plain ECS environment entries merged into handoff (after Mongo aliases and Voyage base URL).
     container_secrets: BYO SM secret name lookups; resolved to ARNs in handoff with execution-role GetSecretValue.
+    api_key_secret: null-gated managed HYBRIDRAG_API_KEY in SM (name defaults to <app-name>-api-key). Mutually exclusive with container_secrets.HYBRIDRAG_API_KEY.
     atlas_ai_model_api_key: when set, creates Atlas Voyage key + SM secret and wires VOYAGE_API_KEY / VOYAGE_BASE_URL into handoff.
     internet_egress: when true, enables a NAT gateway in the app's AWS region (managed VPC) and allows HTTPS egress to the public internet from the shared app security group.
   EOT
@@ -522,6 +523,9 @@ variable "ecs_apps" {
       name     = string
       json_key = optional(string)
     })), {})
+    api_key_secret = optional(object({
+      name = optional(string)
+    }))
     atlas_ai_model_api_key = optional(object({
       key_name = optional(string, "fastapi-minimal-voyage")
     }))
@@ -619,6 +623,14 @@ variable "ecs_apps" {
       app.tfvars_path == null || app.tfvars_path == "" || app.handoff_secret == null
     ])
     error_message = "ecs_apps: tfvars_path and handoff_secret are mutually exclusive."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, app in var.ecs_apps :
+      app.api_key_secret == null || !contains(keys(app.container_secrets), "HYBRIDRAG_API_KEY")
+    ])
+    error_message = "ecs_apps: api_key_secret and container_secrets.HYBRIDRAG_API_KEY are mutually exclusive."
   }
 }
 
