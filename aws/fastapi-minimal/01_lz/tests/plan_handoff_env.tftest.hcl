@@ -75,7 +75,10 @@ run "hybridrag_handoff_payload" {
       local.ecs_apps["hybridrag"].atlas_ai_model_api_key.key_name == "fastapi-minimal-voyage",
       local.ecs_apps["hybridrag"].internet_egress,
       local.enable_nat_gateway_by_region["us-east-1"],
-      length(aws_security_group_rule.app_internet_https_egress) == 1,
+      length([
+        for e in aws_security_group.lambda["us-east-1"].egress : e
+        if e.description == "Internet HTTPS via NAT (ecs_apps internet_egress or vpc_config.enable_nat_gateway)"
+      ]) == 1,
       length(module.vpc["us-east-1"].natgw_ids) == 1,
       length(aws_iam_role_policy.ecs_task_execution_secrets) == 1,
       length(aws_secretsmanager_secret.ecs_app) == 1,

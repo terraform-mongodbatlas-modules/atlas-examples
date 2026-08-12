@@ -357,6 +357,17 @@ resource "aws_security_group" "lambda" {
     prefix_list_ids = [aws_vpc_endpoint.s3[each.key].prefix_list_id]
   }
 
+  dynamic "egress" {
+    for_each = contains(local.app_regions_with_internet_egress, each.key) ? [1] : []
+    content {
+      description = "Internet HTTPS via NAT (ecs_apps internet_egress or vpc_config.enable_nat_gateway)"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-lambda-${each.key}" })
 
   lifecycle {
@@ -417,19 +428,6 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = local.app_network[each.key].private_route_table_ids
 
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-s3-${each.key}" })
-}
-
-resource "aws_security_group_rule" "app_internet_https_egress" {
-  for_each = local.app_regions_with_internet_egress
-
-  region            = each.key
-  type              = "egress"
-  from_port         = 443
-  to_port           = 443
-  protocol          = "tcp"
-  security_group_id = aws_security_group.lambda[each.key].id
-  cidr_blocks       = ["0.0.0.0/0"]
-  description       = "Internet HTTPS via NAT (ecs_apps internet_egress or vpc_config.enable_nat_gateway)"
 }
 
 resource "aws_security_group_rule" "ecs_ingress_from_alb" {
