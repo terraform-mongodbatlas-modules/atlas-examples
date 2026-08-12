@@ -6,11 +6,11 @@ default:
 health-check app="":
     "{{justfile_directory()}}/scripts/aws_health_check.sh" "{{app}}"
 
-hybridrag_repo := "https://github.com/romiluz13/Hybrid-Search-RAG.git"
-hybridrag_ref := "e4ab6bc"
+hybridrag_repo := "https://github.com/EspenAlbert/Hybrid-Search-RAG.git"
+hybridrag_ref := "lz-module-demo"
 hybridrag_dir := justfile_directory() + "/.vendor/Hybrid-Search-RAG"
 
-# Clone or update the pinned HybridRAG upstream repo under .vendor/.
+# Clone or update the pinned HybridRAG fork under .vendor/.
 clone-hybridrag:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -35,8 +35,25 @@ build-push-backend repo_url tag="0.0.1": clone-hybridrag
       | docker login --username AWS --password-stdin "${repo_url%/*}"
     image_uri="${repo_url}:{{tag}}"
     docker build --platform linux/arm64 \
-      -f "{{justfile_directory()}}/docker/Dockerfile.hybridrag" \
+      -f Dockerfile \
       --target production \
+      -t "${image_uri}" \
+      "{{hybridrag_dir}}"
+    docker push "${image_uri}"
+    echo "Pushed ${image_uri}"
+
+# ECR login, build linux/arm64 HybridRAG UI image, tag, and push.
+build-push-ui repo_url tag="0.0.1": clone-hybridrag
+    #!/usr/bin/env bash
+    set -euo pipefail
+    repo_url="{{repo_url}}"
+    region="$(echo "${repo_url}" | cut -d. -f4)"
+    aws ecr get-login-password --region "${region}" \
+      | docker login --username AWS --password-stdin "${repo_url%/*}"
+    image_uri="${repo_url}:{{tag}}"
+    docker build --platform linux/arm64 \
+      -f Dockerfile \
+      --target production-ui \
       -t "${image_uri}" \
       "{{hybridrag_dir}}"
     docker push "${image_uri}"

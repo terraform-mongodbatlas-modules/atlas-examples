@@ -3,6 +3,9 @@
 handoff_secret_name = "hybridrag-app"
 image_tag           = "0.0.1"
 
+# HybridRAG cold start can exceed 2 minutes; default is 300.
+# health_check_grace_period_seconds = 300
+
 # Legacy flat handoff (01_lz ecs_apps.*.tfvars_path writes infra.auto.tfvars):
 #
 # aws_region                      = "us-east-1"

@@ -158,9 +158,9 @@ variable "deployment_timeout" {
 }
 
 variable "health_check_grace_period_seconds" {
-  description = "Seconds to ignore failing ALB health checks after a task starts (uvicorn/Mongo startup)."
+  description = "Seconds to ignore failing ALB health checks after a task starts. HybridRAG cold start can exceed 2 minutes (tiktoken download, Mongo init)."
   type        = number
-  default     = 120
+  default     = 300
 
   validation {
     condition     = var.health_check_grace_period_seconds >= 0
