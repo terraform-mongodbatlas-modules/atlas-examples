@@ -63,14 +63,42 @@ cluster_name  = "fastapi-minimal"
 # # --- Amazon ECS (optional) ---
 # ecr_repositories = { api = {} }
 #
+# http_edges = { main = {} }
+#
 # ecs_apps = {
 #   api = {
 #     ecr_key     = "api"
+#     routing     = { edge = "main", path_pattern = ["/*"], listener_priority = 100 }
 #     roles       = [{ database_name = "test" }]
 #     tfvars_path = "../02_app_ecs/infra.auto.tfvars"
 #     # secret = { name = "fastapi-minimal-ecs-app" }
 #   }
 # }
+#
+# # Private ECS (no ALB):
+# # ecs_apps = {
+# #   worker = {
+# #     ecr_key = "worker"
+# #     roles   = [{ database_name = "jobs" }]
+# #   }
+# # }
+#
+# # Shared domain (two apps, one ALB):
+# # http_edges = { main = { acm_certificate_arn = "arn:aws:acm:us-east-1:..." } }
+# # ecs_apps = {
+# #   api = {
+# #     ecr_key = "api"
+# #     routing = { edge = "main", path_pattern = ["/api", "/api/*"], listener_priority = 100 }
+# #     roles   = [{ database_name = "test" }]
+# #     tfvars_path = "../02_app_api/infra.auto.tfvars"
+# #   }
+# #   ui = {
+# #     ecr_key = "ui"
+# #     routing = { edge = "main", path_pattern = ["/*"], listener_priority = 200 }
+# #     roles   = [{ database_name = "test" }]
+# #     tfvars_path = "../02_app_ui/infra.auto.tfvars"
+# #   }
+# # }
 #
 # # --- Amazon EC2 (TODO) ---
 # # ec2_apps = { ... }  # same shape as lambda_apps; no resources in 01_lz yet

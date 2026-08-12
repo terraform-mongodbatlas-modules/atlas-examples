@@ -1,15 +1,21 @@
 # Prefer the generated infra.auto.tfvars handoff from 01_lz (ecs_apps.*.tfvars_path).
 
 aws_region                      = "us-east-1"
-public_subnet_ids               = ["subnet-pub-a", "subnet-pub-b"]
 private_subnet_ids              = ["subnet-aaa", "subnet-bbb"]
 ecs_security_group_id           = "sg-xxx"
 ecs_task_role_arn               = "arn:aws:iam::123456789012:role/fastapi-minimal-ecs-task"
 ecs_task_execution_role_arn     = "arn:aws:iam::123456789012:role/fastapi-minimal-ecs-exec"
 mongo_private_connection_string = "mongodb+srv://pl-0-us-east-1.xxxxx.mongodb.net"
 ecr_repository_url              = "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-minimal"
+alb_listener_arn                = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
+alb_dns_name                    = "example-123.us-east-1.elb.amazonaws.com"
+listener_priority               = 100
+path_pattern                    = ["/*"]
 
 # Optional overrides:
 # name_prefix       = "fastapi-minimal"
 # image_tag         = "0.0.1"
 # app_database_name = "test"
+# container_port    = 8000
+# health_check_path = "/"
+# host_header       = ["api.example.com"]

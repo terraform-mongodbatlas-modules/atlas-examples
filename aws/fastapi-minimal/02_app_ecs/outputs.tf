@@ -1,6 +1,6 @@
 output "alb_dns_name" {
-  description = "Internet-facing ALB DNS name for smoke tests"
-  value       = aws_lb.this.dns_name
+  description = "Internet-facing ALB DNS name for smoke tests (from 01_lz)"
+  value       = var.alb_dns_name
 }
 
 output "ecs_cluster_name" {

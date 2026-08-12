@@ -3,16 +3,6 @@ variable "aws_region" {
   type        = string
 }
 
-variable "public_subnet_ids" {
-  description = "Public subnet IDs for internet-facing ALB"
-  type        = list(string)
-
-  validation {
-    condition     = length(var.public_subnet_ids) > 0
-    error_message = "public_subnet_ids must contain at least one subnet."
-  }
-}
-
 variable "private_subnet_ids" {
   description = "Private subnet IDs for ECS tasks"
   type        = list(string)
@@ -59,8 +49,47 @@ variable "ecr_repository_url" {
   }
 }
 
+variable "alb_listener_arn" {
+  description = "ALB listener ARN from 01_lz http_edges handoff"
+  type        = string
+}
+
+variable "alb_dns_name" {
+  description = "ALB DNS name from 01_lz (for smoke tests)"
+  type        = string
+}
+
+variable "listener_priority" {
+  description = "ALB listener rule priority from 01_lz routing"
+  type        = number
+}
+
+variable "path_pattern" {
+  description = "ALB path patterns from 01_lz routing"
+  type        = list(string)
+  default     = []
+}
+
+variable "host_header" {
+  description = "ALB host headers from 01_lz routing"
+  type        = list(string)
+  default     = []
+}
+
+variable "container_port" {
+  description = "Container port from 01_lz routing"
+  type        = number
+  default     = 8000
+}
+
+variable "health_check_path" {
+  description = "Target group health check path from 01_lz routing"
+  type        = string
+  default     = "/"
+}
+
 variable "name_prefix" {
-  description = "Prefix for ECS and ALB resource names"
+  description = "Prefix for ECS resource names"
   type        = string
   default     = "fastapi-minimal"
 }

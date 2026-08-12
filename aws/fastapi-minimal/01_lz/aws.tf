@@ -30,7 +30,7 @@ locals {
       vpc_id             = var.vpc_config.create ? module.vpc[region].vpc_id : var.vpc_config.by_region[region].vpc_id
       private_subnet_ids = var.vpc_config.create ? module.vpc[region].private_subnets : var.vpc_config.by_region[region].private_subnet_ids
       public_subnet_ids = var.vpc_config.create ? (
-        contains(local.ecs_aws_regions, region) ? module.vpc[region].public_subnets : []
+        contains(local.ecs_alb_regions, region) ? module.vpc[region].public_subnets : []
         ) : (
         try(var.vpc_config.by_region[region].public_subnet_ids, [])
       )
@@ -116,11 +116,10 @@ locals {
     }
   }
 
-  ecs_app_handoff_payloads = {
+  ecs_app_handoff_base = {
     for k, v in local.ecs_apps : k => {
       aws_region                      = v.aws_region
       name_prefix                     = v.name
-      public_subnet_ids               = local.app_network[v.aws_region].public_subnet_ids
       private_subnet_ids              = local.app_network[v.aws_region].private_subnet_ids
       ecs_security_group_id           = aws_security_group.lambda[v.aws_region].id
       ecs_task_role_arn               = aws_iam_role.ecs_task[k].arn
@@ -130,6 +129,46 @@ locals {
       ecr_repository_url              = aws_ecr_repository.this[v.ecr_key].repository_url
     }
   }
+
+  ecs_app_handoff_http = {
+    for k, app in local.ecs_routing_apps : k => {
+      alb_arn               = module.http_edge[app.routing.edge].alb_arn
+      alb_listener_arn      = module.http_edge[app.routing.edge].listener_arn
+      alb_security_group_id = module.http_edge[app.routing.edge].alb_security_group_id
+      alb_dns_name          = module.http_edge[app.routing.edge].alb_dns_name
+      listener_priority     = app.routing.listener_priority
+      path_pattern          = app.routing.path_pattern
+      host_header           = coalesce(app.routing.host_header, [])
+      container_port        = app.routing.container_port
+      health_check_path     = app.routing.health_check_path
+    }
+  }
+
+  ecs_app_handoff_payloads = {
+    for k, v in local.ecs_app_handoff_base :
+    k => merge(v, try(local.ecs_app_handoff_http[k], {}))
+  }
+
+  ecs_container_ports_by_region = {
+    for region in local.ecs_alb_regions : region => distinct([
+      for app in local.ecs_routing_apps :
+      app.routing.container_port
+      if local.http_edges[app.routing.edge].aws_region == region
+    ])
+  }
+
+  ecs_ingress_from_alb_rules = merge([
+    for region, ports in local.ecs_container_ports_by_region : {
+      for pair in setproduct(
+        ports,
+        [for edge_key, edge in local.http_edges : edge_key if edge.aws_region == region]
+        ) : "${region}-${pair[0]}-${pair[1]}" => {
+        region = region
+        port   = pair[0]
+        alb_sg = module.http_edge[pair[1]].alb_security_group_id
+      }
+    }
+  ]...)
 }
 
 check "mongo_private_connection_string_standard_srv_fallback" {
@@ -168,8 +207,22 @@ module "vpc" {
 
   enable_nat_gateway    = var.vpc_config.enable_nat_gateway
   create_igw            = var.vpc_config.create_igw
-  create_public_subnets = contains(local.ecs_aws_regions, each.key)
+  create_public_subnets = contains(local.ecs_alb_regions, each.key)
   tags                  = var.tags
+}
+
+module "http_edge" {
+  for_each = local.http_edges
+
+  source              = "./modules/http_edge"
+  aws_region          = each.value.aws_region
+  name                = "${var.default_resource_name_prefix}-${each.key}"
+  security_group_name = "${var.default_resource_name_prefix}-alb-${each.key}"
+  vpc_id              = local.app_network[each.value.aws_region].vpc_id
+  public_subnet_ids   = local.app_network[each.value.aws_region].public_subnet_ids
+  acm_certificate_arn = each.value.acm_certificate_arn
+  idle_timeout        = each.value.idle_timeout
+  tags                = var.tags
 }
 
 resource "aws_security_group" "lambda" {
@@ -272,6 +325,19 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = local.app_network[each.key].private_route_table_ids
 
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-s3-${each.key}" })
+}
+
+resource "aws_security_group_rule" "ecs_ingress_from_alb" {
+  for_each = local.ecs_ingress_from_alb_rules
+
+  region                   = each.value.region
+  type                     = "ingress"
+  from_port                = each.value.port
+  to_port                  = each.value.port
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.lambda[each.value.region].id
+  source_security_group_id = each.value.alb_sg
+  description              = "ECS tasks from HTTP edge ALB"
 }
 
 resource "aws_security_group_rule" "atlas_pl_ingress_from_app" {
@@ -404,10 +470,9 @@ resource "local_file" "ecs_app_tfvars" {
   for_each = local.ecs_tfvars
 
   filename = each.value.tfvars_path
-  content  = <<-EOT
+  content = <<-EOT
     aws_region                      = "${local.ecs_app_handoff_payloads[each.key].aws_region}"
     name_prefix                     = "${local.ecs_app_handoff_payloads[each.key].name_prefix}"
-    public_subnet_ids               = ${jsonencode(local.ecs_app_handoff_payloads[each.key].public_subnet_ids)}
     private_subnet_ids              = ${jsonencode(local.ecs_app_handoff_payloads[each.key].private_subnet_ids)}
     ecs_security_group_id           = "${local.ecs_app_handoff_payloads[each.key].ecs_security_group_id}"
     ecs_task_role_arn               = "${local.ecs_app_handoff_payloads[each.key].ecs_task_role_arn}"
@@ -415,5 +480,13 @@ resource "local_file" "ecs_app_tfvars" {
     mongo_private_connection_string = "${local.ecs_app_handoff_payloads[each.key].mongo_private_connection_string}"
     app_database_name               = "${local.ecs_app_handoff_payloads[each.key].app_database_name}"
     ecr_repository_url              = "${local.ecs_app_handoff_payloads[each.key].ecr_repository_url}"
+    ${contains(keys(local.ecs_app_handoff_http), each.key) ? join("\n", [
+  "alb_listener_arn                = \"${local.ecs_app_handoff_payloads[each.key].alb_listener_arn}\"",
+  "alb_dns_name                    = \"${local.ecs_app_handoff_payloads[each.key].alb_dns_name}\"",
+  "listener_priority               = ${local.ecs_app_handoff_payloads[each.key].listener_priority}",
+  "path_pattern                    = ${jsonencode(local.ecs_app_handoff_payloads[each.key].path_pattern)}",
+  "container_port                  = ${local.ecs_app_handoff_payloads[each.key].container_port}",
+  "health_check_path               = \"${local.ecs_app_handoff_payloads[each.key].health_check_path}\"",
+]) : ""}
   EOT
 }

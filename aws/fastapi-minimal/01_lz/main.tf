@@ -47,8 +47,27 @@ locals {
         ? null
         : coalesce(v.secret.name, "${coalesce(v.name, k)}-app")
       )
+      routing = v.routing != null ? {
+        edge              = v.routing.edge
+        listener_priority = v.routing.listener_priority
+        path_pattern      = v.routing.path_pattern
+        host_header       = v.routing.host_header
+        container_port    = coalesce(v.routing.container_port, 8000)
+        health_check_path = coalesce(v.routing.health_check_path, "/")
+      } : null
     }
   }
+  ecs_routing_apps = {
+    for k, v in local.ecs_apps : k => v if v.routing != null
+  }
+  http_edges = {
+    for k, v in var.http_edges : k => {
+      aws_region          = coalesce(v.aws_region, local.aws_region)
+      acm_certificate_arn = v.acm_certificate_arn
+      idle_timeout        = v.idle_timeout
+    }
+  }
+  ecs_alb_regions = toset([for edge in local.http_edges : edge.aws_region])
   ecs_tfvars      = { for k, v in local.ecs_apps : k => v if v.tfvars_path != null }
   ecs_secrets     = { for k, v in local.ecs_apps : k => v if v.secret_name != null }
   ecs_aws_regions = toset([for app in local.ecs_apps : app.aws_region])

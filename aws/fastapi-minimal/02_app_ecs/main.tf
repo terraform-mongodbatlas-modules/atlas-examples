@@ -1,12 +1,12 @@
 locals {
   name           = var.name_prefix
   image_uri      = "${var.ecr_repository_url}:${var.image_tag}"
-  container_port = 8000
+  container_port = var.container_port
   log_group_name = "/ecs/${local.name}"
 }
 
-data "aws_subnet" "first_public" {
-  id = var.public_subnet_ids[0]
+data "aws_subnet" "first_private" {
+  id = var.private_subnet_ids[0]
 }
 
 resource "aws_cloudwatch_log_group" "ecs" {
@@ -20,71 +20,45 @@ resource "aws_ecs_cluster" "this" {
   tags = var.tags
 }
 
-resource "aws_security_group" "alb" {
-  name_prefix = "${var.name_prefix}-alb-"
-  vpc_id      = data.aws_subnet.first_public.vpc_id
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port       = local.container_port
-    to_port         = local.container_port
-    protocol        = "tcp"
-    security_groups = [var.ecs_security_group_id]
-  }
-
-  tags = var.tags
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_security_group_rule" "ecs_ingress_from_alb" {
-  type                     = "ingress"
-  from_port                = local.container_port
-  to_port                  = local.container_port
-  protocol                 = "tcp"
-  security_group_id        = var.ecs_security_group_id
-  source_security_group_id = aws_security_group.alb.id
-}
-
-resource "aws_lb" "this" {
-  name               = local.name
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
-  subnets            = var.public_subnet_ids
-  tags               = var.tags
-}
-
 resource "aws_lb_target_group" "this" {
   name        = local.name
   port        = local.container_port
   protocol    = "HTTP"
-  vpc_id      = data.aws_subnet.first_public.vpc_id
+  vpc_id      = data.aws_subnet.first_private.vpc_id
   target_type = "ip"
 
   health_check {
-    path = "/"
+    path = var.health_check_path
   }
 
   tags = var.tags
 }
 
-resource "aws_lb_listener" "this" {
-  load_balancer_arn = aws_lb.this.arn
-  port              = 80
-  protocol          = "HTTP"
+resource "aws_lb_listener_rule" "this" {
+  listener_arn = var.alb_listener_arn
+  priority     = var.listener_priority
 
-  default_action {
+  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.this.arn
+  }
+
+  dynamic "condition" {
+    for_each = length(var.path_pattern) > 0 ? [1] : []
+    content {
+      path_pattern {
+        values = var.path_pattern
+      }
+    }
+  }
+
+  dynamic "condition" {
+    for_each = length(var.host_header) > 0 ? [1] : []
+    content {
+      host_header {
+        values = var.host_header
+      }
+    }
   }
 }
 
@@ -147,7 +121,7 @@ resource "aws_ecs_service" "this" {
     container_port   = local.container_port
   }
 
-  depends_on = [aws_lb_listener.this]
+  depends_on = [aws_lb_listener_rule.this]
 
   tags = var.tags
 }

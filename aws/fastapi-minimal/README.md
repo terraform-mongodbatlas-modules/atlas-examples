@@ -14,7 +14,7 @@ Success bar: both groups leave with something running and a clear next edit.
 - **Atlas (`01_lz`):** Project, PrivateLink endpoint(s), customer-key encryption-at-rest, log + backup-export integrations, sharded cluster (`SHARDED`, `shard_count = 2` by default)
 - **AWS platform (`01_lz`):** PrivateLink VPC endpoint(s), Cloud Provider Access, module-managed KMS CMK, log + backup-export S3 buckets, VPC (create or BYO) per cluster AWS region
 - **Optional app targets (`01_lz`):** ECR, Lambda execution roles, Atlas IAM DB users, app security groups + VPC endpoints per distinct app region (enable via **AWS Lambda** or **Amazon ECS** in tfvars)
-- **AWS (`02_app_lambda` or `02_app_ecs`):** Lambda Function URL or ECS Fargate + ALB, CloudWatch (requires app target configured and image pushed)
+- **AWS (`02_app_lambda` or `02_app_ecs`):** Lambda Function URL or ECS Fargate + target group/listener rule, CloudWatch (requires app target configured and image pushed)
 - **App:** FastAPI image in `src/` (IAM auth to Mongo over PrivateLink)
 
 Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-examples) only. App source is in `src/`. Run all commands from this directory with `terraform -chdir=…` (do not `cd` into the stacks).
@@ -78,23 +78,30 @@ Re-apply `01_lz` after adding this block before `just build-push` and `02_app_la
 
 ### Amazon ECS
 
-Uncomment and apply this block for Fargate + internet-facing ALB (public subnets and IGW are created automatically; no NAT):
+Uncomment and apply this block for Fargate behind a platform-owned HTTP edge (ALB in `01_lz`; `http_edges` creates public subnets and IGW; no NAT):
 
 ```hcl
 ecr_repositories = {
   api = {}
 }
 
+http_edges = {
+  main = {}
+}
+
 ecs_apps = {
   api = {
     ecr_key     = "api"
+    routing     = { edge = "main", path_pattern = ["/*"], listener_priority = 100 }
     roles       = [{ database_name = "test" }]
     tfvars_path = "../02_app_ecs/infra.auto.tfvars"
   }
 }
 ```
 
-Re-apply `01_lz` before `just build-push` and `02_app_ecs`. Each `ecs_apps` entry creates ECS task + execution roles and an Atlas IAM database user bound to the **task role** (not the execution role). Tasks stay in private subnets; the ALB sits in auto-created public subnets. See [02_app_ecs](./02_app_ecs/). Enabling ECS adds a small IGW cost per affected region.
+Re-apply `01_lz` before `just build-push` and `02_app_ecs`. Each `ecs_apps` entry creates ECS task + execution roles and an Atlas IAM database user bound to the **task role**. Omit `routing` for private ECS tasks (no ALB listener rule). `02_app_ecs` creates the target group and listener rule only. See [02_app_ecs](./02_app_ecs/). `http_edges` adds a small IGW cost per affected region.
+
+Shared domain (two apps, one ALB): one `http_edges` entry and per-app `routing` (path or host rules). See [01_lz/terraform.tfvars.example](./01_lz/terraform.tfvars.example).
 
 ### Amazon EC2
 
@@ -168,10 +175,10 @@ aws logs tail "$(terraform -chdir=02_app_lambda output -raw lambda_log_group_nam
 
 ## Tear down
 
-Destroy the app stack before LZ when Lambda was deployed. Lambda ENIs stay attached to the LZ security group until `02_app_lambda` is gone; destroying LZ first hangs or fails on SG/VPC teardown. If an app sets `secret`, destroy that app stack before destroying `01_lz`.
+Destroy the app stack before LZ when Lambda or ECS was deployed. App ENIs stay attached to the LZ security group until `02_app_*` is gone; destroying LZ first hangs or fails on SG/VPC teardown. For ECS, destroy all `02_app_ecs` stacks (listener rules) before `01_lz` (ALB). If an app sets `secret`, destroy that app stack before destroying `01_lz`.
 
 ```sh
-terraform -chdir=02_app_lambda destroy
+terraform -chdir=02_app_lambda destroy   # or 02_app_ecs
 terraform -chdir=01_lz destroy
 ```
 

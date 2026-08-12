@@ -50,7 +50,7 @@ output "aws" {
       for region in local.aws_regions : region => {
         vpc_id             = module.vpc[region].vpc_id
         private_subnet_ids = module.vpc[region].private_subnets
-        public_subnet_ids  = contains(local.ecs_aws_regions, region) ? module.vpc[region].public_subnets : []
+        public_subnet_ids  = contains(local.ecs_alb_regions, region) ? module.vpc[region].public_subnets : []
         vpc_cidr_block     = module.vpc[region].vpc_cidr_block
       }
       } : {
@@ -65,6 +65,16 @@ output "aws" {
     compute = {
       for region in local.app_aws_regions : region => {
         lambda_security_group_id = aws_security_group.lambda[region].id
+      }
+    }
+
+    http_edges = {
+      for k, v in local.http_edges : k => {
+        aws_region          = v.aws_region
+        alb_dns_name        = module.http_edge[k].alb_dns_name
+        alb_arn             = module.http_edge[k].alb_arn
+        listener_arn        = module.http_edge[k].listener_arn
+        acm_certificate_arn = v.acm_certificate_arn
       }
     }
 

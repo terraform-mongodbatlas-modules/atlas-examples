@@ -36,9 +36,11 @@ run "ecs_fastapi_path" {
 
   variables {
     ecr_repositories = { api = {} }
+    http_edges       = { main = {} }
     ecs_apps = {
       api = {
         ecr_key     = "api"
+        routing     = { edge = "main", path_pattern = ["/*"], listener_priority = 100 }
         roles       = [{ database_name = "test" }]
         tfvars_path = "../02_app_ecs/infra.auto.tfvars"
       }
@@ -52,8 +54,9 @@ run "ecs_fastapi_path" {
       length(mongodbatlas_database_user.ecs) == 1,
       length(local_file.ecs_app_tfvars) == 1,
       length(module.vpc["us-east-1"].public_subnets) == 2,
+      length(module.http_edge) == 1,
     ])
-    error_message = "ECS path should create IAM, DB user, handoff, and public subnets"
+    error_message = "ECS path should create IAM, DB user, handoff, public subnets, and HTTP edge"
   }
 
   assert {

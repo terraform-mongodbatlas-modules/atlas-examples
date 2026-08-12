@@ -231,10 +231,13 @@ variable "vpc_config" {
 
   validation {
     condition = !var.vpc_config.create ? alltrue([
-      for region in distinct([for app in var.ecs_apps : coalesce(app.aws_region, replace(lower(var.regions[0].name), "_", "-"))]) :
+      for region in distinct([
+        for _, edge in var.http_edges :
+        coalesce(edge.aws_region, replace(lower(var.regions[0].name), "_", "-"))
+      ]) :
       length(var.vpc_config.by_region[region].public_subnet_ids) > 0
     ]) : true
-    error_message = "When vpc_config.create = false and ecs_apps is set, public_subnet_ids is required in by_region for each ECS app region."
+    error_message = "When vpc_config.create = false, public_subnet_ids is required in by_region for each http_edges region."
   }
 }
 
@@ -338,6 +341,46 @@ variable "ecr_repositories" {
   }
 }
 
+# HTTP edge (ALB)
+# ----------------------------------------------------
+
+variable "http_edges" {
+  description = <<-EOT
+    Regional HTTP edges (ALB) owned by the landing zone. Map keys are stable identities (e.g. main).
+    Public subnets and IGW are created per edge region when this map is non-empty.
+    acm_certificate_arn enables HTTPS :443 and redirects HTTP :80; omit for demo HTTP :80 only.
+  EOT
+  type = map(object({
+    aws_region          = optional(string)
+    acm_certificate_arn = optional(string)
+    idle_timeout        = optional(number, 60)
+  }))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for _, edge in var.http_edges :
+      contains(
+        distinct([for r in var.regions : replace(lower(r.name), "_", "-")]),
+        coalesce(edge.aws_region, replace(lower(var.regions[0].name), "_", "-"))
+      )
+    ])
+    error_message = "http_edges.*.aws_region must be a cluster AWS region from regions."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, edge in var.http_edges :
+      edge.acm_certificate_arn == null ||
+      element(split(":", edge.acm_certificate_arn), 5) == coalesce(
+        edge.aws_region,
+        replace(lower(var.regions[0].name), "_", "-")
+      )
+    ])
+    error_message = "http_edges.*.acm_certificate_arn must be in the same AWS region as the edge."
+  }
+}
+
 # Apps
 # ----------------------------------------------------
 
@@ -421,7 +464,8 @@ variable "ecs_apps" {
   description = <<-EOT
     Optional ECS deployment targets. Map keys are stable identities.
     Each entry creates one ECS task role, one execution role, and one Atlas IAM database user (username = task role ARN).
-    ecr_key selects an entry in ecr_repositories. When non-empty, managed VPCs auto-create IGW + public subnets (no NAT) per ECS app region for ALB placement in 02_app_ecs.
+    ecr_key selects an entry in ecr_repositories. routing attaches the app to an http_edges ALB (02_app_ecs creates TG + listener rule).
+    Omit routing for private/worker tasks or ECS without public HTTP. routing requires explicit edge, listener_priority, and path_pattern or host_header.
     tfvars_path: relative path for a per-app infra.auto.tfvars writer; null/omit disables the file for that app.
     secret: null-gated Secrets Manager handoff ({ name = optional } ; name defaults to <app-name>-app).
   EOT
@@ -431,6 +475,14 @@ variable "ecs_apps" {
     aws_region       = optional(string)
     primary_database = optional(string)
     tfvars_path      = optional(string)
+    routing = optional(object({
+      edge              = string
+      listener_priority = number
+      path_pattern      = optional(list(string))
+      host_header       = optional(list(string))
+      container_port    = optional(number, 8000)
+      health_check_path = optional(string, "/")
+    }))
     secret = optional(object({
       name = optional(string)
     }))
@@ -487,6 +539,38 @@ variable "ecs_apps" {
       )
     ])
     error_message = "ecs_apps.*.aws_region must match ecr_repositories[ecr_key].region (after defaults)."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, app in var.ecs_apps :
+      app.routing == null || contains(keys(var.http_edges), app.routing.edge)
+    ])
+    error_message = "ecs_apps.*.routing.edge must reference a key in http_edges."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, app in var.ecs_apps :
+      app.routing == null || (
+        length(coalesce(app.routing.path_pattern, [])) > 0 ||
+        length(coalesce(app.routing.host_header, [])) > 0
+      )
+    ])
+    error_message = "ecs_apps routing requires path_pattern or host_header."
+  }
+
+  validation {
+    condition = length(distinct([
+      for _, app in var.ecs_apps :
+      "${app.routing.edge}:${app.routing.listener_priority}"
+      if app.routing != null
+      ])) == length([
+      for _, app in var.ecs_apps :
+      "${app.routing.edge}:${app.routing.listener_priority}"
+      if app.routing != null
+    ])
+    error_message = "ecs_apps routing listener_priority must be unique per http_edges key."
   }
 }
 
