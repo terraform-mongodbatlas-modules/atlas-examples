@@ -109,6 +109,17 @@ variable "shard_count" {
   }
 }
 
+variable "version_release_system" {
+  description = "Atlas release channel. CONTINUOUS default keeps minor versions current (HybridRAG / vector search)."
+  type        = string
+  default     = "CONTINUOUS"
+
+  validation {
+    condition     = contains(["CONTINUOUS", "LTS"], var.version_release_system)
+    error_message = "version_release_system must be CONTINUOUS or LTS."
+  }
+}
+
 variable "manual_scaling" {
   description = <<-EOT
     Null-gated fixed compute size. Default null keeps Architecture Center compute auto-scaling (M10–M200).

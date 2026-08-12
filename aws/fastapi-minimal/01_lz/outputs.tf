@@ -116,11 +116,12 @@ output "operations" {
 }
 
 output "database_users" {
-  description = "Atlas database users and grants from *_apps maps. Empty list when no app targets."
+  description = "Atlas database users and grants from *_apps maps. compute disambiguates the same id across lambda_apps and ecs_apps. Empty list when no app targets."
   value = concat(
     [
       for k, app in local.lambda_apps : {
         id               = k
+        compute          = "lambda"
         username         = aws_iam_role.lambda_exec[k].arn
         primary_database = app.primary_database
         grants = [
@@ -135,6 +136,7 @@ output "database_users" {
     [
       for k, app in local.ecs_apps : {
         id               = k
+        compute          = "ecs"
         username         = aws_iam_role.ecs_task[k].arn
         primary_database = app.primary_database
         grants = [
@@ -149,6 +151,7 @@ output "database_users" {
     var.public_debug_access != null ? [
       {
         id               = "public_debug"
+        compute          = null
         username         = var.public_debug_access.username
         primary_database = var.public_debug_access.database_name
         grants = [{

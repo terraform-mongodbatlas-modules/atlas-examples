@@ -27,6 +27,7 @@ cluster_name  = "fastapi-minimal"
 # # shard_count is ignored for REPLICASET
 # # Pin compute (disk GB still auto-scales):
 # manual_scaling = { instance_size = "M10" }
+# # version_release_system = "LTS"  # default CONTINUOUS for HybridRAG / vector search demos
 #
 # # Atlas AWS integrations (omit for production defaults: encryption + log + backup on)
 # # Lab (no CMK):

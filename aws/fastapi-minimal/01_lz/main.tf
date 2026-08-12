@@ -245,10 +245,10 @@ module "atlas_cluster" {
   cluster_type  = var.cluster_type
   shard_count   = var.cluster_type == "SHARDED" ? var.shard_count : null
 
-  regions       = local.cluster_regions
-  instance_size = local.cluster_instance_size
-  auto_scaling  = local.cluster_auto_scaling
-
+  regions                     = local.cluster_regions
+  instance_size               = local.cluster_instance_size
+  auto_scaling                = local.cluster_auto_scaling
+  version_release_system      = var.version_release_system
   encryption_at_rest_provider = module.atlas_aws.encryption_at_rest_provider
   tags                        = var.tags
 
