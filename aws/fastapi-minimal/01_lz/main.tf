@@ -63,6 +63,7 @@ locals {
   http_edges = {
     for k, v in var.http_edges : k => {
       aws_region          = coalesce(v.aws_region, local.aws_region)
+      aliases             = coalesce(v.aliases, [])
       acm_certificate_arn = v.acm_certificate_arn
       idle_timeout        = v.idle_timeout
     }

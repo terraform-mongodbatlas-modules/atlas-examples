@@ -220,6 +220,7 @@ module "http_edge" {
   security_group_name = "${var.default_resource_name_prefix}-alb-${each.key}"
   vpc_id              = local.app_network[each.value.aws_region].vpc_id
   public_subnet_ids   = local.app_network[each.value.aws_region].public_subnet_ids
+  aliases             = each.value.aliases
   acm_certificate_arn = each.value.acm_certificate_arn
   idle_timeout        = each.value.idle_timeout
   tags                = var.tags

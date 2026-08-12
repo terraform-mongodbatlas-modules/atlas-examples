@@ -346,12 +346,14 @@ variable "ecr_repositories" {
 
 variable "http_edges" {
   description = <<-EOT
-    Regional HTTP edges (ALB) owned by the landing zone. Map keys are stable identities (e.g. main).
+    Regional HTTP edges (ALB + CloudFront) owned by the landing zone. Map keys are stable identities (e.g. main).
     Public subnets and IGW are created per edge region when this map is non-empty.
-    acm_certificate_arn enables HTTPS :443 and redirects HTTP :80; omit for demo HTTP :80 only.
+    CloudFront terminates HTTPS on the default *.cloudfront.net domain; ALB is HTTP-only origin.
+    Optional aliases + acm_certificate_arn enable a custom domain on CloudFront (cert must be in us-east-1; CNAME to cloudfront_domain).
   EOT
   type = map(object({
     aws_region          = optional(string)
+    aliases             = optional(list(string), [])
     acm_certificate_arn = optional(string)
     idle_timeout        = optional(number, 60)
   }))
@@ -371,13 +373,26 @@ variable "http_edges" {
   validation {
     condition = alltrue([
       for _, edge in var.http_edges :
-      edge.acm_certificate_arn == null ||
-      element(split(":", edge.acm_certificate_arn), 5) == coalesce(
-        edge.aws_region,
-        replace(lower(var.regions[0].name), "_", "-")
-      )
+      length(edge.aliases) == 0 || edge.acm_certificate_arn != null
     ])
-    error_message = "http_edges.*.acm_certificate_arn must be in the same AWS region as the edge."
+    error_message = "http_edges.*.aliases requires acm_certificate_arn."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, edge in var.http_edges :
+      edge.acm_certificate_arn == null || length(edge.aliases) > 0
+    ])
+    error_message = "http_edges.*.acm_certificate_arn requires aliases."
+  }
+
+  validation {
+    condition = alltrue([
+      for _, edge in var.http_edges :
+      edge.acm_certificate_arn == null ||
+      element(split(":", edge.acm_certificate_arn), 3) == "us-east-1"
+    ])
+    error_message = "http_edges.*.acm_certificate_arn must be in us-east-1 for CloudFront."
   }
 }
 

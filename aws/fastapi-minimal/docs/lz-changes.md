@@ -10,6 +10,8 @@ Use-case index for editing `01_lz` after the first apply. Config lives in [terra
 - [Run platform-only (no app targets)](#run-platform-only-no-app-targets)
 - [App config overlays](#app-config-overlays)
 - [Move from file handoff to Secrets Manager](#move-from-file-handoff-to-secrets-manager)
+- [ECS HTTP edge tear-down](#ecs-http-edge-tear-down)
+- [ECS smoke test URL](#ecs-smoke-test-url)
 
 ## Change the primary region
 
@@ -59,3 +61,22 @@ TODO: optional YAML file paths for large `*_apps` maps (follow-up PR).
 ## Move from file handoff to Secrets Manager
 
 Set `secret = {}` (or `secret = { name = "..." }`) on a `lambda_apps` entry. Re-apply `01_lz` to write the secret version. Destroy the app stack before destroying `01_lz` when secrets are in use.
+
+## ECS HTTP edge tear-down
+
+Destroy order when `http_edges` is configured:
+
+1. Destroy `02_app_ecs` stacks (removes listener rules and target groups).
+2. Destroy `01_lz` (CloudFront distribution, then ALB).
+
+CloudFront distributions can take several minutes on first deploy and destroy. `01_lz` apply waits for the distribution to deploy before completing.
+
+## ECS smoke test URL
+
+Default HTTPS URL (no custom domain):
+
+```sh
+curl -fsS "$(terraform -chdir=01_lz output -json aws | jq -r '.http_edges.main.https_url')/"
+```
+
+With `aliases`, `https_url` uses the first alias. Point DNS (CNAME) at `cloudfront_domain` from the same output.

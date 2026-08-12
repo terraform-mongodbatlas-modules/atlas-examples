@@ -75,7 +75,7 @@ run "ecs_private_with_http_edge" {
       length(module.http_edge) == 1,
       length(module.vpc["us-east-1"].public_subnets) == 2,
     ])
-    error_message = "http_edges without routed ecs_apps should still create the ALB"
+    error_message = "http_edges should create ALB, CloudFront, and public subnets"
   }
 }
 
@@ -196,4 +196,75 @@ run "routing_missing_match" {
   expect_failures = [
     var.ecs_apps,
   ]
+}
+
+run "aliases_without_cert" {
+  command = plan
+
+  variables {
+    http_edges = {
+      main = { aliases = ["api.example.com"] }
+    }
+  }
+
+  expect_failures = [
+    var.http_edges,
+  ]
+}
+
+run "cert_without_aliases" {
+  command = plan
+
+  variables {
+    http_edges = {
+      main = { acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/abc" }
+    }
+  }
+
+  expect_failures = [
+    var.http_edges,
+  ]
+}
+
+run "cert_wrong_region" {
+  command = plan
+
+  variables {
+    http_edges = {
+      main = {
+        aliases             = ["api.example.com"]
+        acm_certificate_arn = "arn:aws:acm:us-east-2:123456789012:certificate/abc"
+      }
+    }
+  }
+
+  expect_failures = [
+    var.http_edges,
+  ]
+}
+
+run "custom_domain_valid" {
+  command = plan
+
+  variables {
+    ecr_repositories = { api = {} }
+    http_edges = {
+      main = {
+        aliases             = ["api.example.com"]
+        acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/abc"
+      }
+    }
+    ecs_apps = {
+      api = {
+        ecr_key = "api"
+        routing = { edge = "main", path_pattern = ["/*"], listener_priority = 100 }
+        roles   = [{ database_name = "test" }]
+      }
+    }
+  }
+
+  assert {
+    condition     = module.http_edge["main"].https_url == "https://api.example.com"
+    error_message = "https_url should use the first alias when set"
+  }
 }

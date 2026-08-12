@@ -71,9 +71,13 @@ output "aws" {
     http_edges = {
       for k, v in local.http_edges : k => {
         aws_region          = v.aws_region
+        https_url           = module.http_edge[k].https_url
+        cloudfront_domain   = module.http_edge[k].cloudfront_domain_name
+        cloudfront_id       = module.http_edge[k].cloudfront_distribution_id
         alb_dns_name        = module.http_edge[k].alb_dns_name
         alb_arn             = module.http_edge[k].alb_arn
         listener_arn        = module.http_edge[k].listener_arn
+        aliases             = v.aliases
         acm_certificate_arn = v.acm_certificate_arn
       }
     }

@@ -18,6 +18,11 @@ variable "public_subnet_ids" {
   type = list(string)
 }
 
+variable "aliases" {
+  type    = list(string)
+  default = []
+}
+
 variable "acm_certificate_arn" {
   type    = string
   default = null

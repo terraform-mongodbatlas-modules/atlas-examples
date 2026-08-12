@@ -78,7 +78,7 @@ Re-apply `01_lz` after adding this block before `just build-push` and `02_app_la
 
 ### Amazon ECS
 
-Uncomment and apply this block for Fargate behind a platform-owned HTTP edge (ALB in `01_lz`; `http_edges` creates public subnets and IGW; no NAT):
+Uncomment and apply this block for Fargate behind a platform-owned HTTP edge (ALB + CloudFront in `01_lz`; `http_edges` creates public subnets and IGW; no NAT). Public HTTPS uses the default `*.cloudfront.net` domain unless you set `aliases` + `acm_certificate_arn` (us-east-1 ACM).
 
 ```hcl
 ecr_repositories = {
@@ -101,7 +101,7 @@ ecs_apps = {
 
 Re-apply `01_lz` before `just build-push` and `02_app_ecs`. Each `ecs_apps` entry creates ECS task + execution roles and an Atlas IAM database user bound to the **task role**. Omit `routing` for private ECS tasks (no ALB listener rule). `02_app_ecs` creates the target group and listener rule only. See [02_app_ecs](./02_app_ecs/). `http_edges` adds a small IGW cost per affected region.
 
-Shared domain (two apps, one ALB): one `http_edges` entry and per-app `routing` (path or host rules). See [01_lz/terraform.tfvars.example](./01_lz/terraform.tfvars.example).
+Shared domain (two apps, one edge): one `http_edges` entry and per-app `routing` (path or host rules). Custom hostname: add `aliases` and a us-east-1 `acm_certificate_arn`, then CNAME to `cloudfront_domain` from `terraform output`. See [01_lz/terraform.tfvars.example](./01_lz/terraform.tfvars.example).
 
 ### Amazon EC2
 
@@ -175,7 +175,7 @@ aws logs tail "$(terraform -chdir=02_app_lambda output -raw lambda_log_group_nam
 
 ## Tear down
 
-Destroy the app stack before LZ when Lambda or ECS was deployed. App ENIs stay attached to the LZ security group until `02_app_*` is gone; destroying LZ first hangs or fails on SG/VPC teardown. For ECS, destroy all `02_app_ecs` stacks (listener rules) before `01_lz` (ALB). If an app sets `secret`, destroy that app stack before destroying `01_lz`.
+Destroy the app stack before LZ when Lambda or ECS was deployed. App ENIs stay attached to the LZ security group until `02_app_*` is gone; destroying LZ first hangs or fails on SG/VPC teardown. For ECS, destroy all `02_app_ecs` stacks (listener rules) before `01_lz` (CloudFront + ALB). If an app sets `secret`, destroy that app stack before destroying `01_lz`.
 
 ```sh
 terraform -chdir=02_app_lambda destroy   # or 02_app_ecs

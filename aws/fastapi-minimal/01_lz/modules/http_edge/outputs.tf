@@ -11,5 +11,17 @@ output "alb_security_group_id" {
 }
 
 output "listener_arn" {
-  value = var.acm_certificate_arn != null ? aws_lb_listener.https[0].arn : aws_lb_listener.http[0].arn
+  value = aws_lb_listener.http.arn
+}
+
+output "cloudfront_domain_name" {
+  value = aws_cloudfront_distribution.this.domain_name
+}
+
+output "cloudfront_distribution_id" {
+  value = aws_cloudfront_distribution.this.id
+}
+
+output "https_url" {
+  value = length(var.aliases) > 0 ? "https://${var.aliases[0]}" : "https://${aws_cloudfront_distribution.this.domain_name}"
 }

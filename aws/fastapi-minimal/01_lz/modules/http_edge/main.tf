@@ -1,3 +1,11 @@
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+data "aws_cloudfront_origin_request_policy" "all_viewer" {
+  name = "Managed-AllViewer"
+}
+
 resource "aws_security_group" "alb" {
   region      = var.aws_region
   name_prefix = "${var.security_group_name}-"
@@ -10,17 +18,6 @@ resource "aws_security_group" "alb" {
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  dynamic "ingress" {
-    for_each = var.acm_certificate_arn != null ? [1] : []
-    content {
-      description = "HTTPS"
-      from_port   = 443
-      to_port     = 443
-      protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
-    }
   }
 
   egress {
@@ -50,8 +47,6 @@ resource "aws_lb" "this" {
 }
 
 resource "aws_lb_listener" "http" {
-  count = var.acm_certificate_arn == null ? 1 : 0
-
   region            = var.aws_region
   load_balancer_arn = aws_lb.this.arn
   port              = 80
@@ -67,40 +62,54 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-resource "aws_lb_listener" "http_redirect" {
-  count = var.acm_certificate_arn != null ? 1 : 0
+resource "aws_cloudfront_distribution" "this" {
+  enabled         = true
+  price_class     = "PriceClass_100"
+  is_ipv6_enabled = true
+  aliases         = var.aliases
 
-  region            = var.aws_region
-  load_balancer_arn = aws_lb.this.arn
-  port              = 80
-  protocol          = "HTTP"
+  origin {
+    domain_name = aws_lb.this.dns_name
+    origin_id   = "alb"
 
-  default_action {
-    type = "redirect"
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
     }
   }
-}
 
-resource "aws_lb_listener" "https" {
-  count = var.acm_certificate_arn != null ? 1 : 0
+  default_cache_behavior {
+    allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods           = ["GET", "HEAD"]
+    target_origin_id         = "alb"
+    viewer_protocol_policy   = "redirect-to-https"
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
+  }
 
-  region            = var.aws_region
-  load_balancer_arn = aws_lb.this.arn
-  port              = 443
-  protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = var.acm_certificate_arn
-
-  default_action {
-    type = "fixed-response"
-    fixed_response {
-      content_type = "text/plain"
-      message_body = "Not found"
-      status_code  = "404"
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
     }
   }
+
+  dynamic "viewer_certificate" {
+    for_each = var.acm_certificate_arn != null ? [1] : []
+    content {
+      acm_certificate_arn      = var.acm_certificate_arn
+      ssl_support_method       = "sni-only"
+      minimum_protocol_version = "TLSv1.2_2021"
+    }
+  }
+
+  dynamic "viewer_certificate" {
+    for_each = var.acm_certificate_arn == null ? [1] : []
+    content {
+      cloudfront_default_certificate = true
+    }
+  }
+
+  tags = var.tags
 }

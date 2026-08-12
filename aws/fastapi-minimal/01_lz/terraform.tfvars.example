@@ -83,8 +83,13 @@ cluster_name  = "fastapi-minimal"
 # #   }
 # # }
 #
-# # Shared domain (two apps, one ALB):
-# # http_edges = { main = { acm_certificate_arn = "arn:aws:acm:us-east-1:..." } }
+# # Shared domain (two apps, one ALB + CloudFront):
+# # http_edges = {
+# #   main = {
+# #     aliases             = ["api.example.com"]
+# #     acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/..."
+# #   }
+# # }
 # # ecs_apps = {
 # #   api = {
 # #     ecr_key = "api"
