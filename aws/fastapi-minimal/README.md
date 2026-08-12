@@ -21,6 +21,8 @@ Clone [atlas-examples](https://github.com/terraform-mongodbatlas-modules/atlas-e
 
 ```sh
 .
+├── 00_atlas_ai_keys
+│   └── ...
 ├── 01_lz
 │   ├── aws.tf
 │   ├── main.tf
@@ -100,6 +102,8 @@ ecs_apps = {
 ```
 
 Re-apply `01_lz` before `just build-push` and `02_app_ecs`. Each `ecs_apps` entry creates ECS task + execution roles and an Atlas IAM database user bound to the **task role**. Omit `routing` for private ECS tasks (no ALB listener rule). `02_app_ecs` creates the target group and listener rule only. See [02_app_ecs](./02_app_ecs/). `http_edges` adds a small IGW cost per affected region.
+
+HybridRAG (and other Voyage-backed demos) need an Atlas AI Model API key before the ECS app stack. Apply [00_atlas_ai_keys](./00_atlas_ai_keys/) after `01_lz` (same `project_id`; separate state). See that README for handoff to `VOYAGE_API_KEY` / `VOYAGE_BASE_URL`.
 
 Shared domain (two apps, one edge): one `http_edges` entry and per-app `routing` (path or host rules). Custom hostname: add `aliases` and a us-east-1 `acm_certificate_arn`, then CNAME to `cloudfront_domain` from `terraform output`. See [01_lz/terraform.tfvars.example](./01_lz/terraform.tfvars.example).
 
