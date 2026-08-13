@@ -14,7 +14,7 @@ These examples are designed to be simple starting points rather than production-
 ## Repository Structure
 Examples are organized by cloud provider:
 
-- [AWS](./aws/atlas-aws-module-complete/)
+- [AWS](./aws/README.md) ([module complete](./aws/atlas-aws-module-complete/), [HybridRAG UI](./aws/hybridrag-ui/))
 - [Azure](./azure/atlas-azure-module-complete/)
 - [GCP](./gcp/atlas-gcp-module-complete/)
 

@@ -1,0 +1,45 @@
+atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
+cluster_name = "hybridrag-ui"
+
+# Pin compute to cap size (disk GB still auto-scales). Default is auto-scaling M10–M200.
+# manual_scaling = { instance_size = "M10" }
+
+# Cheap personal lab (before first apply):
+# cluster_type = "REPLICASET"
+
+# Skip WAF (not the WebSocket fallback; lab should keep WAF on):
+# http_edges = { main = { waf = { enabled = false } } }
+
+# Optional LLM (just create-llm-secret, then paste the name).
+# LLM_PROVIDER is inferred from llm_env_name unless you set llm_provider.
+#
+# Anthropic (default):
+# llm_secret_name = "hybridrag-ui-llm"
+# llm_env_name    = "ANTHROPIC_API_KEY"
+#
+# OpenAI:
+# llm_secret_name = "hybridrag-ui-llm"
+# llm_env_name    = "OPENAI_API_KEY"
+# llm_env = {
+#   OPENAI_MODEL    = "gpt-4o"
+#   OPENAI_BASE_URL = "https://your-endpoint/v1"
+# }
+#
+# Gemini:
+# llm_secret_name = "hybridrag-ui-llm"
+# llm_env_name    = "GEMINI_API_KEY"
+#
+# Grove:
+# llm_secret_name = "hybridrag-ui-llm"
+# llm_env_name    = "GROVE_API_KEY"
+# llm_env = {
+#   GROVE_BASE_URL = "https://grove.example.mongodb.com/v1"
+#   GROVE_MODEL    = "gpt-4o"
+# }
+
+# Lab (skip module-managed CMK, log export, backup export):
+# atlas_integrations = {
+#   encryption      = { enabled = false }
+#   log_integration = { enabled = false }
+#   backup_export   = { enabled = false }
+# }

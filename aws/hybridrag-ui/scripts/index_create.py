@@ -1,0 +1,166 @@
+"""One-shot ECS RunTask: hybridrag index create. Blocks until the task exits 0."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from collections.abc import Callable
+from pathlib import Path
+from subprocess import CompletedProcess
+from typing import Any
+
+DEFAULT_APP_DIR = Path(__file__).resolve().parent.parent / "app"
+INDEX_CMD = ["hybridrag", "index", "create"]
+Run = Callable[..., CompletedProcess[str]]
+
+
+class IndexCreateError(RuntimeError):
+    def __init__(self, message: str, *, exit_code: int = 1) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
+
+
+def index_create(app_dir: Path, *, run: Run = subprocess.run) -> None:
+    loc = _terraform_index_run(app_dir, run)
+    region, cluster, service = loc["aws_region"], loc["cluster"], loc["service"]
+    svc = _aws_json(
+        run,
+        [
+            "ecs",
+            "describe-services",
+            "--region",
+            region,
+            "--cluster",
+            cluster,
+            "--services",
+            service,
+        ],
+    )
+    services = svc.get("services") or []
+    if not services or services[0].get("status") != "ACTIVE":
+        raise IndexCreateError("apply app first")
+
+    first = services[0]
+    task_def = first["taskDefinition"]
+    net = first["networkConfiguration"]["awsvpcConfiguration"]
+    subnet = net["subnets"][0]
+    sg = net["securityGroups"][0]
+    td = _aws_json(
+        run,
+        ["ecs", "describe-task-definition", "--region", region, "--task-definition", task_def],
+    )
+    container_def = td["taskDefinition"]["containerDefinitions"][0]
+    container = container_def["name"]
+    log_group = (
+        container_def.get("logConfiguration", {}).get("options", {}).get("awslogs-group", "")
+    )
+    run_payload = _aws_json(
+        run,
+        [
+            "ecs",
+            "run-task",
+            "--region",
+            region,
+            "--cluster",
+            cluster,
+            "--task-definition",
+            task_def,
+            "--launch-type",
+            "FARGATE",
+            "--network-configuration",
+            f"awsvpcConfiguration={{subnets=[{subnet}],securityGroups=[{sg}],assignPublicIp=DISABLED}}",
+            "--overrides",
+            json.dumps({"containerOverrides": [{"name": container, "command": INDEX_CMD}]}),
+        ],
+    )
+    tasks = run_payload.get("tasks") or []
+    task_arn = tasks[0].get("taskArn", "") if tasks else ""
+    if not task_arn:
+        print(json.dumps(run_payload), file=sys.stderr)
+        raise IndexCreateError("ecs run-task returned no task")
+
+    run(
+        [
+            "aws",
+            "ecs",
+            "wait",
+            "tasks-stopped",
+            "--region",
+            region,
+            "--cluster",
+            cluster,
+            "--tasks",
+            task_arn,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    desc = _aws_json(
+        run,
+        ["ecs", "describe-tasks", "--region", region, "--cluster", cluster, "--tasks", task_arn],
+    )
+    exit_code = desc["tasks"][0]["containers"][0].get("exitCode", 1)
+    if exit_code != 0:
+        if log_group:
+            run(
+                [
+                    "aws",
+                    "logs",
+                    "tail",
+                    log_group,
+                    "--region",
+                    region,
+                    "--since",
+                    "1h",
+                    "--filter-pattern",
+                    task_arn.rsplit("/", 1)[-1],
+                ],
+                check=False,
+            )
+        raise IndexCreateError(f"index create failed (exit {exit_code})")
+    print("index create finished")
+
+
+def _terraform_index_run(app_dir: Path, run: Run) -> dict[str, Any]:
+    try:
+        completed = run(
+            ["terraform", f"-chdir={app_dir}", "output", "-json", "index_run"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return json.loads(completed.stdout)
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError) as exc:
+        raise IndexCreateError("apply app first") from exc
+
+
+def _aws_json(run: Run, args: list[str]) -> dict[str, Any]:
+    completed = run(["aws", *args], check=True, capture_output=True, text=True)
+    return json.loads(completed.stdout)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Run hybridrag index create as a one-shot ECS task."
+    )
+    parser.add_argument(
+        "app_dir",
+        nargs="?",
+        type=Path,
+        default=DEFAULT_APP_DIR,
+        help="App Terraform directory (default: ../app).",
+    )
+    args = parser.parse_args(argv)
+    try:
+        index_create(args.app_dir)
+    except IndexCreateError as exc:
+        print(exc, file=sys.stderr)
+        return exc.exit_code
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

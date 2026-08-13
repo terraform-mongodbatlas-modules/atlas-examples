@@ -1,0 +1,29 @@
+# SPDX-License-Identifier for this pack:
+# - NIST PDFs: US government works (public domain practice).
+# - OWASP GenAI LLM Top 10: no LICENSE file in this commit; project materials are
+#   typically CC-BY-SA-4.0. Confirm before redistributing copies.
+
+nist:
+  files:
+    - url: https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf
+      filename: NIST.AI.100-1.pdf
+    - url: https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf
+      filename: NIST.AI.600-1.pdf
+
+# Swap this commit if you want newer wording; the documented dry-run stays on this pin.
+owasp:
+  repo: https://github.com/GenAI-Security-Project/GenAI-LLM-Top10
+  commit: 7bbe0f06f468cdcc61fa73e1752183c6cfd23987
+  raw_base: https://raw.githubusercontent.com/GenAI-Security-Project/GenAI-LLM-Top10/7bbe0f06f468cdcc61fa73e1752183c6cfd23987/2026/final
+  files:
+    - LLM00_Preface.md
+    - LLM01_PromptInjection.md
+    - LLM02_SensitiveInformationDisclosure.md
+    - LLM03_ExcessiveAgency.md
+    - LLM04_SupplyChain.md
+    - LLM05_DataModelPoisoning.md
+    - LLM06_UnboundedConsumption.md
+    - LLM07_Misinformation.md
+    - LLM08_HiddenContextExposure.md
+    - LLM09_VectorAndEmbeddingWeaknesses.md
+    - LLM10_ImproperOutputHandling.md

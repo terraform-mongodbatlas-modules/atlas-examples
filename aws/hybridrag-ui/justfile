@@ -1,0 +1,61 @@
+default:
+    @just --list
+
+hybridrag_repo := "https://github.com/EspenAlbert/Hybrid-Search-RAG.git"
+# Pin to the index-create commit after it is on the fork remote.
+hybridrag_ref := "lz-module-demo"
+hybridrag_dir := justfile_directory() + "/.vendor/Hybrid-Search-RAG"
+seed_dir := justfile_directory() + "/../hybridrag-seed"
+
+# Clone or update the pinned HybridRAG fork under .vendor/.
+clone-hybridrag:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="{{hybridrag_dir}}"
+    ref="{{hybridrag_ref}}"
+    if [[ -d "${dir}/.git" ]]; then
+      git -C "${dir}" fetch --depth 1 origin "${ref}" || git -C "${dir}" fetch --depth 1 origin
+      git -C "${dir}" checkout "${ref}"
+    else
+      mkdir -p "$(dirname "${dir}")"
+      git clone "{{hybridrag_repo}}" "${dir}"
+      git -C "${dir}" checkout "${ref}"
+    fi
+
+# ECR login, build linux/arm64 HybridRAG UI image (--target production-ui), tag, and push.
+build-push repo_url tag="0.0.1": clone-hybridrag
+    #!/usr/bin/env bash
+    set -euo pipefail
+    repo_url="{{repo_url}}"
+    region="$(echo "${repo_url}" | cut -d. -f4)"
+    aws ecr get-login-password --region "${region}" \
+      | docker login --username AWS --password-stdin "${repo_url%/*}"
+    image_uri="${repo_url}:{{tag}}"
+    docker build --platform linux/arm64 \
+      -f "{{hybridrag_dir}}/Dockerfile" \
+      --target production-ui \
+      -t "${image_uri}" \
+      "{{hybridrag_dir}}"
+    docker push "${image_uri}"
+    echo "Pushed ${image_uri}"
+
+# Write a raw LLM API key to Secrets Manager. Paste the printed name into lz tfvars as llm_secret_name.
+create-llm-secret name="hybridrag-ui-llm":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    read -r -s -p "LLM API key: " key
+    echo
+    if aws secretsmanager describe-secret --secret-id "{{name}}" >/dev/null 2>&1; then
+      aws secretsmanager put-secret-value --secret-id "{{name}}" --secret-string "${key}" >/dev/null
+    else
+      aws secretsmanager create-secret --name "{{name}}" --secret-string "${key}" >/dev/null
+    fi
+    echo "{{name}}"
+
+# One-shot ECS RunTask of the live UI image: hybridrag index create. Blocking until exit 0.
+index-create:
+    uv run python "{{justfile_directory()}}/scripts/index_create.py" "{{justfile_directory()}}/app"
+
+# Download the AI-governance seed pack into a gitignored cache (no ingest).
+seed-download:
+    uv run python "{{seed_dir}}/download.py"
