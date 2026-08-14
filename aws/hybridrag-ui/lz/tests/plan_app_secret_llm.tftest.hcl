@@ -95,6 +95,7 @@ run "llm_grove_sets_provider_and_base_url" {
         "GROVE_MODEL",
       ]),
       local.llm_container_env["ENABLE_LLM"] == "true",
+      local.llm_container_env["SKIP_INDEX_CREATION"] == "true",
       local.llm_container_env["LLM_PROVIDER"] == "grove",
       local.llm_container_env["MONGODB_URI"] != "",
       local.llm_container_env["MONGODB_DATABASE"] == "hybridrag",

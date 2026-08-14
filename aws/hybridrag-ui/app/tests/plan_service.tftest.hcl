@@ -40,6 +40,7 @@ mock_provider "aws" {
         container = {
           env = {
             ENABLE_LLM             = "false"
+            SKIP_INDEX_CREATION    = "true"
             CHAINLIT_DEMO_USERNAME = "demo"
             MONGODB_URI            = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
             MONGODB_DATABASE       = "hybridrag"

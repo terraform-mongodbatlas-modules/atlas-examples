@@ -14,6 +14,7 @@ locals {
     {
       CHAINLIT_DEMO_USERNAME = "demo"
       ENABLE_LLM             = local.llm_enabled ? "true" : "false"
+      SKIP_INDEX_CREATION    = "true"
       MONGODB_URI            = local.ui.mongo.connection_string
       MONGODB_DATABASE       = local.ui.mongo.database_name
       VOYAGE_BASE_URL        = module.voyage_api_key.voyage_base_url

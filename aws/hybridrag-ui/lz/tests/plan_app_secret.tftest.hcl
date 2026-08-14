@@ -86,6 +86,7 @@ run "app_secret_nests_groups_and_voyage" {
       module.voyage_api_key.voyage_base_url == "https://ai.mongodb.com/v1",
       local.container_secret_keys == ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
       local.llm_container_env["ENABLE_LLM"] == "false",
+      local.llm_container_env["SKIP_INDEX_CREATION"] == "true",
       !contains(keys(local.llm_container_env), "LLM_PROVIDER"),
       strcontains(local.llm_container_env["MONGODB_URI"], "authMechanism=MONGODB-AWS"),
       local.llm_container_env["MONGODB_DATABASE"] == "hybridrag",

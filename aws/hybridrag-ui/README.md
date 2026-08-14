@@ -63,7 +63,7 @@ terraform -chdir=app apply
 just index-create
 ```
 
-Skipping this step leaves a healthy UI that cannot search.
+The UI task sets `SKIP_INDEX_CREATION=true`, so the first chat does not submit Atlas Search or Vector index creates. `just index-create` runs the same image with `hybridrag index create`, which always creates indexes even when that env is set. Skipping `just index-create` still leaves a healthy UI that cannot search.
 
 ## Download seed files and open the UI
 
@@ -77,6 +77,10 @@ Log in as `demo` with the password from `terraform -chdir=lz output -raw chainli
 - What are the four functions of the AI RMF?
 - How should we measure generative AI risk?
 - What is prompt injection and how do we mitigate it?
+
+The browser tab is **MongoDB AI risk**. Click a starter chip or type a question. Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`).
+
+NIST PDFs take several minutes because entity extract runs per chunk. The UI shows `Chunk N of M` and a live elapsed time. A second upload while that runs is queued, not complete.
 
 ## Tear down
 
