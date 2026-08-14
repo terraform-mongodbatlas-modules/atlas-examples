@@ -20,7 +20,7 @@ variable "public_debug_access" {
     ip_address    = string
     username      = optional(string, "debug")
     password      = optional(string)
-    database_name = optional(string, "test")
+    database_name = optional(string, "hybridrag")
     role_name     = optional(string, "readWrite")
     comment       = optional(string, "public debug")
   })
@@ -238,4 +238,42 @@ variable "voyage_key_name" {
   description = "Atlas AI Model API key name."
   type        = string
   default     = "hybridrag-ui-voyage"
+}
+
+variable "rag_performance" {
+  description = "HybridRAG query performance settings passed to the UI container as environment variables."
+  type = object({
+    default_query_mode        = string
+    default_top_k             = number
+    default_rerank_top_k      = number
+    enable_rerank             = bool
+    enable_entity_boosting    = bool
+    enable_implicit_expansion = bool
+  })
+  default = {
+    default_query_mode        = "mix"
+    default_top_k             = 60
+    default_rerank_top_k      = 10
+    enable_rerank             = true
+    enable_entity_boosting    = true
+    enable_implicit_expansion = true
+  }
+
+  validation {
+    condition = contains(
+      ["local", "global", "hybrid", "naive", "mix", "bypass"],
+      var.rag_performance.default_query_mode
+    )
+    error_message = "rag_performance.default_query_mode must be local, global, hybrid, naive, mix, or bypass."
+  }
+
+  validation {
+    condition     = var.rag_performance.default_top_k >= 1 && var.rag_performance.default_top_k <= 200
+    error_message = "rag_performance.default_top_k must be between 1 and 200."
+  }
+
+  validation {
+    condition     = var.rag_performance.default_rerank_top_k >= 1 && var.rag_performance.default_rerank_top_k <= 50
+    error_message = "rag_performance.default_rerank_top_k must be between 1 and 50."
+  }
 }

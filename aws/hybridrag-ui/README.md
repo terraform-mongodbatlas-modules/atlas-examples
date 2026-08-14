@@ -141,6 +141,64 @@ The deploy step runs `just create-llm-secret` before `lz apply`. It writes a Sec
 
 The key is inlined as `llm_env_name` (default `ANTHROPIC_API_KEY`). `LLM_PROVIDER` is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`). Pin the model in `llm_env` (`ANTHROPIC_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `GROVE_MODEL`). Grove also needs `GROVE_BASE_URL`. OpenAI extras (`OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) go in `llm_env` too. Commented examples are in `lz/terraform.tfvars.example`.
 
+### Why is each chat answer slow?
+
+The deployed UI defaults to **`mix` query mode** with **`DEFAULT_TOP_K=60`**. That runs local graph search, global graph search, hybrid chunk search, and naive vector search in one pass, then reranks dozens of chunks with Voyage before the LLM answers. A single question can take **1–2 minutes** on a cold path (embeddings, graph fan-out, rerank, LLM).
+
+In the chat UI you can switch mode without redeploying: `/mode hybrid` (vector + keyword fusion) or `/mode naive` (vector only). Type `/faq` in Chainlit for the full in-app guide.
+
+### How do I tune query performance?
+
+Set **`rag_performance`** in `lz/terraform.tfvars` before `lz apply` (or change it and re-apply to refresh the app secret container env). Values are passed to the ECS task as environment variables.
+
+**Defaults (production-shaped quality):**
+
+- `default_query_mode = "mix"`
+- `default_top_k = 60`
+- `default_rerank_top_k = 10`
+- `enable_rerank = true`
+- `enable_entity_boosting = true`
+- `enable_implicit_expansion = true`
+
+**Faster demo (lower latency, less graph coverage):**
+
+```hcl
+rag_performance = {
+  default_query_mode        = "hybrid"
+  default_top_k             = 20
+  default_rerank_top_k      = 5
+  enable_rerank             = true
+  enable_entity_boosting    = false
+  enable_implicit_expansion = false
+}
+```
+
+**Fastest smoke test (vector search only):**
+
+```hcl
+rag_performance = {
+  default_query_mode        = "naive"
+  default_top_k             = 10
+  default_rerank_top_k      = 3
+  enable_rerank             = false
+  enable_entity_boosting    = false
+  enable_implicit_expansion = false
+}
+```
+
+**Field to env var mapping:**
+
+- **`default_query_mode`** → `DEFAULT_QUERY_MODE`: retrieval strategy (`mix`, `hybrid`, `naive`, `local`, `global`, `bypass`)
+- **`default_top_k`** → `DEFAULT_TOP_K`: graph and entity fan-out before reranking
+- **`default_rerank_top_k`** → `DEFAULT_RERANK_TOP_K`: chunks kept after Voyage rerank
+- **`enable_rerank`** → `ENABLE_RERANK`: Voyage rerank pass
+- **`enable_entity_boosting`** → `ENABLE_ENTITY_BOOSTING`: entity overlap boost after rerank
+- **`enable_implicit_expansion`** → `ENABLE_IMPLICIT_EXPANSION`: pre-retrieval entity expansion
+
+`/mode` in Chainlit overrides the mode for the current session only. `rag_performance` sets the startup default for new chats.
+
+For local Docker (no ECS), see `docker/.env.local.example` in the HybridRAG fork and `docs/16/p16_hybridrag-ui-local-docker.md` in the workspace.
+
 ### What is the app secret name?
 
 Default `app_secret_name` is `hybridrag-ui-app` (`<ecs_apps.ui.name>-app`). If you change `ecs_apps.ui.name`, set `app_secret_name` in `app/terraform.tfvars` to match before app apply.
