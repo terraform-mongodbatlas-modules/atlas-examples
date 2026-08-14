@@ -120,7 +120,7 @@ Set `http_edges = { main = { waf = { enabled = false } } }` in lz tfvars. Do not
 
 `just create-llm-secret` writes a Secrets Manager secret and prints the name. Set `llm_secret_name` in lz tfvars and re-apply lz before `just build-push`. Skip this for search-only (`ENABLE_LLM=false`).
 
-The key is inlined as `llm_env_name` (default `ANTHROPIC_API_KEY`). `LLM_PROVIDER` is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`). Grove needs `llm_env.GROVE_BASE_URL`. OpenAI extras (`OPENAI_MODEL`, `OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) also go in `llm_env`. Commented examples are in `lz/terraform.tfvars.example`.
+The key is inlined as `llm_env_name` (default `ANTHROPIC_API_KEY`). `LLM_PROVIDER` is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`). Pin the model in `llm_env` (`ANTHROPIC_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `GROVE_MODEL`). Grove also needs `GROVE_BASE_URL`. OpenAI extras (`OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) go in `llm_env` too. Commented examples are in `lz/terraform.tfvars.example`.
 
 ### What is `user_agent_extra.example`?
 

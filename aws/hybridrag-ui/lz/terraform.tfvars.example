@@ -11,11 +11,14 @@ cluster_name = "hybridrag-ui"
 # http_edges = { main = { waf = { enabled = false } } }
 
 # Optional LLM (just create-llm-secret, then paste the name).
-# LLM_PROVIDER is inferred from llm_env_name unless you set llm_provider.
+# LLM_PROVIDER is inferred from llm_env_name.
 #
 # Anthropic (default):
 # llm_secret_name = "hybridrag-ui-llm"
 # llm_env_name    = "ANTHROPIC_API_KEY"
+# llm_env = {
+#   ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+# }
 #
 # OpenAI:
 # llm_secret_name = "hybridrag-ui-llm"
@@ -28,6 +31,9 @@ cluster_name = "hybridrag-ui"
 # Gemini:
 # llm_secret_name = "hybridrag-ui-llm"
 # llm_env_name    = "GEMINI_API_KEY"
+# llm_env = {
+#   GEMINI_MODEL = "gemini-2.5-flash"
+# }
 #
 # Grove:
 # llm_secret_name = "hybridrag-ui-llm"

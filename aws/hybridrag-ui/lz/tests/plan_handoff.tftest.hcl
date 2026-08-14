@@ -109,12 +109,18 @@ run "llm_grove_sets_provider_and_base_url" {
 
   assert {
     condition = alltrue([
-      local.container_secret_keys == ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD", "GROVE_API_KEY"],
+      sort(local.container_secret_keys) == sort([
+        "VOYAGE_API_KEY",
+        "CHAINLIT_AUTH_SECRET",
+        "CHAINLIT_DEMO_PASSWORD",
+        "GROVE_API_KEY",
+        "GROVE_BASE_URL",
+        "GROVE_MODEL",
+      ]),
       local.llm_container_env["ENABLE_LLM"] == "true",
       local.llm_container_env["LLM_PROVIDER"] == "grove",
-      local.llm_container_env["GROVE_BASE_URL"] == "https://grove.example.mongodb.com/v1",
-      local.llm_container_env["GROVE_MODEL"] == "gpt-4o",
+      !contains(keys(local.llm_container_env), "GROVE_BASE_URL"),
     ])
-    error_message = "Grove LLM should set LLM_PROVIDER, GROVE_BASE_URL, and GROVE_API_KEY secret key"
+    error_message = "Grove LLM should set LLM_PROVIDER and inline GROVE_* extras as handoff secret keys"
   }
 }

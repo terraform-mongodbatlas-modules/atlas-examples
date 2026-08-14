@@ -9,20 +9,21 @@ locals {
     GEMINI_API_KEY    = "gemini"
     GROVE_API_KEY     = "grove"
   }
-  llm_provider = local.llm_enabled ? (
-    var.llm_provider != null ? var.llm_provider : lookup(local.llm_provider_from_env, var.llm_env_name, null)
-  ) : null
+  llm_provider = local.llm_enabled ? lookup(local.llm_provider_from_env, var.llm_env_name, null) : null
   llm_container_env = merge(
     {
       CHAINLIT_DEMO_USERNAME = "demo"
       ENABLE_LLM             = local.llm_enabled ? "true" : "false"
     },
-    local.llm_enabled && local.llm_provider != null ? { LLM_PROVIDER = local.llm_provider } : {},
-    local.llm_enabled ? var.llm_env : {}
+    local.llm_enabled && local.llm_provider != null ? { LLM_PROVIDER = local.llm_provider } : {}
   )
+  llm_handoff_secrets = local.llm_enabled ? merge(
+    { (var.llm_env_name) = data.aws_secretsmanager_secret_version.llm[0].secret_string },
+    var.llm_env
+  ) : {}
   container_secret_keys = concat(
     ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
-    local.llm_enabled ? [var.llm_env_name] : []
+    sort(keys(local.llm_handoff_secrets))
   )
 }
 
@@ -107,7 +108,5 @@ resource "aws_secretsmanager_secret_version" "handoff" {
     CHAINLIT_DEMO_PASSWORD = random_password.chainlit_demo.result
     container_env_vars     = merge(module.lz.handoff_payloads["ui"].container_env_vars, local.llm_container_env)
     container_secret_keys  = local.container_secret_keys
-    }, local.llm_enabled ? {
-    (var.llm_env_name) = data.aws_secretsmanager_secret_version.llm[0].secret_string
-  } : {}))
+  }, local.llm_handoff_secrets))
 }

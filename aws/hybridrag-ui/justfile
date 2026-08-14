@@ -43,6 +43,11 @@ build-push repo_url tag="0.0.1": clone-hybridrag
 create-llm-secret name="hybridrag-ui-llm":
     #!/usr/bin/env bash
     set -euo pipefail
+    echo "Supported providers. Set llm_env_name in lz tfvars to match the key:" >&2
+    echo "  ANTHROPIC_API_KEY  optional llm_env.ANTHROPIC_MODEL" >&2
+    echo "  OPENAI_API_KEY     optional llm_env.OPENAI_MODEL, OPENAI_BASE_URL" >&2
+    echo "  GEMINI_API_KEY     optional llm_env.GEMINI_MODEL" >&2
+    echo "  GROVE_API_KEY      requires llm_env.GROVE_BASE_URL, optional GROVE_MODEL" >&2
     read -r -s -p "LLM API key: " key
     echo
     if aws secretsmanager describe-secret --secret-id "{{name}}" >/dev/null 2>&1; then

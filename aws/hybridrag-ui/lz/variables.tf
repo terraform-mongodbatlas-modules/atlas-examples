@@ -213,17 +213,17 @@ variable "llm_secret_name" {
   nullable    = true
 
   validation {
-    condition = var.llm_secret_name == null || var.llm_provider != null || contains(
+    condition = var.llm_secret_name == null || contains(
       ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GROVE_API_KEY"],
       var.llm_env_name
     )
-    error_message = "When llm_secret_name is set, set llm_provider or use llm_env_name ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, or GROVE_API_KEY."
+    error_message = "When llm_secret_name is set, llm_env_name must be ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, or GROVE_API_KEY."
   }
 
   validation {
     condition = (
       var.llm_secret_name == null ||
-      !(var.llm_provider == "grove" || (var.llm_provider == null && var.llm_env_name == "GROVE_API_KEY")) ||
+      var.llm_env_name != "GROVE_API_KEY" ||
       try(var.llm_env["GROVE_BASE_URL"], "") != ""
     )
     error_message = "Grove requires llm_env.GROVE_BASE_URL."
@@ -231,27 +231,20 @@ variable "llm_secret_name" {
 }
 
 variable "llm_env_name" {
-  description = "Container env name for the optional LLM key. Also infers LLM_PROVIDER when llm_provider is null."
+  description = "Container env name for the optional LLM key. Infers LLM_PROVIDER: ANTHROPIC_API_KEY=anthropic, OPENAI_API_KEY=openai, GEMINI_API_KEY=gemini, GROVE_API_KEY=grove."
   type        = string
   default     = "ANTHROPIC_API_KEY"
 }
 
-variable "llm_provider" {
-  description = "HybridRAG LLM_PROVIDER. Null infers from llm_env_name: ANTHROPIC_API_KEY=anthropic, OPENAI_API_KEY=openai, GEMINI_API_KEY=gemini, GROVE_API_KEY=grove."
-  type        = string
-  default     = null
-  nullable    = true
-
-  validation {
-    condition     = var.llm_provider == null || contains(["anthropic", "openai", "gemini", "grove"], var.llm_provider)
-    error_message = "llm_provider must be anthropic, openai, gemini, or grove."
-  }
-}
-
 variable "llm_env" {
-  description = "Extra plain LLM env (GROVE_BASE_URL, GROVE_MODEL, OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_EXTRA_HEADERS). Do not put API keys here."
+  description = "Extra LLM values inlined into the handoff JSON (ANTHROPIC_MODEL, GEMINI_MODEL, OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_EXTRA_HEADERS, GROVE_BASE_URL, GROVE_MODEL). Do not put the API key here; use llm_secret_name."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition     = !contains(keys(var.llm_env), var.llm_env_name)
+    error_message = "llm_env must not include llm_env_name; that key comes from llm_secret_name."
+  }
 }
 
 variable "voyage_key_name" {
