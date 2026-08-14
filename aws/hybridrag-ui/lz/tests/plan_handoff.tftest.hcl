@@ -86,10 +86,14 @@ run "handoff_includes_voyage_and_chainlit" {
       local.llm_container_env["ENABLE_LLM"] == "false",
       !contains(keys(local.llm_container_env), "LLM_PROVIDER"),
       local.ui.name == "hybridrag-ui",
+      local.ui.routing.container_port == 8001,
+      local.ui.routing.health_check_path == "/",
+      local.ui.routing.origin_header_name == "X-Origin-Verify",
+      !contains(keys(local.llm_container_env), "MONGODB_URI"),
       startswith(output.https_url, "https://"),
       strcontains(output.https_url, "cloudfront.net"),
     ])
-    error_message = "Voyage key, static container_secret_keys, and CloudFront https_url should be known at plan"
+    error_message = "Voyage key, UI routing, and CloudFront https_url should be known at plan"
   }
 }
 

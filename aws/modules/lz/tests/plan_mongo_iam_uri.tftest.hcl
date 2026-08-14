@@ -62,9 +62,10 @@ run "handoff_includes_iam_query_params" {
       strcontains(local.mongo_iam_connection_strings_by_region["us-east-1"], "authMechanism=MONGODB-AWS"),
       strcontains(local.mongo_iam_connection_strings_by_region["us-east-1"], "authSource=%24external"),
       !strcontains(local.mongo_private_connection_string, "authMechanism"),
-      local.handoff_payloads["ui"].mongo_private_connection_string == local.mongo_iam_connection_strings_by_region["us-east-1"],
+      output.ecs_apps["ui"].mongo.connection_string == local.mongo_iam_connection_strings_by_region["us-east-1"],
+      output.ecs_apps["ui"].routing == null,
     ])
-    error_message = "Handoff should append IAM query params; atlas output stays hostname-only SRV"
+    error_message = "ecs_apps.mongo should append IAM query params; atlas output stays hostname-only SRV"
   }
 }
 

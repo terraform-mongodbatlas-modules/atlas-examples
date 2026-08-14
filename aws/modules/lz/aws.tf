@@ -92,55 +92,6 @@ locals {
     trimprefix(module.atlas_cluster.connection_strings.standard_srv, "mongodb+srv://")
   ) : null
 
-  ecs_app_handoff_base = {
-    for k, v in local.ecs_apps : k => {
-      name                            = v.name
-      aws_region                      = v.aws_region
-      private_subnet_ids              = local.app_network[v.aws_region].private_subnet_ids
-      ecs_security_group_id           = aws_security_group.app[v.aws_region].id
-      ecs_task_role_arn               = aws_iam_role.ecs_task[k].arn
-      ecs_task_execution_role_arn     = aws_iam_role.ecs_task_execution[k].arn
-      mongo_private_connection_string = local.mongo_iam_connection_strings_by_region[v.aws_region]
-      app_database_name               = v.primary_database
-      ecr_repository_url              = aws_ecr_repository.this[v.ecr_key].repository_url
-      task_cpu                        = v.task_cpu
-      task_memory                     = v.task_memory
-    }
-  }
-
-  ecs_app_handoff_http = {
-    for k, app in local.ecs_routing_apps : k => {
-      alb_arn               = module.http_edge[app.routing.edge].alb_arn
-      alb_listener_arn      = module.http_edge[app.routing.edge].listener_arn
-      alb_security_group_id = module.http_edge[app.routing.edge].alb_security_group_id
-      alb_dns_name          = module.http_edge[app.routing.edge].alb_dns_name
-      listener_priority     = app.routing.listener_priority
-      path_pattern          = app.routing.path_pattern
-      host_header           = coalesce(app.routing.host_header, [])
-      container_port        = app.routing.container_port
-      health_check_path     = app.routing.health_check_path
-      origin_header_name    = module.http_edge[app.routing.edge].origin_header_name
-      origin_header_value   = module.http_edge[app.routing.edge].origin_header_value
-    }
-  }
-
-  ecs_app_container_env_vars = {
-    for k, app in local.ecs_apps : k => merge(
-      {
-        MONGODB_URI      = local.ecs_app_handoff_base[k].mongo_private_connection_string
-        MONGODB_DATABASE = local.ecs_app_handoff_base[k].app_database_name
-      },
-      app.container_env_vars
-    )
-  }
-
-  handoff_payloads = {
-    for k, v in local.ecs_app_handoff_base :
-    k => merge(v, try(local.ecs_app_handoff_http[k], {}), {
-      container_env_vars = local.ecs_app_container_env_vars[k]
-    })
-  }
-
   ecs_container_ports_by_region = {
     for region in local.ecs_alb_regions : region => distinct([
       for app in local.ecs_routing_apps :
@@ -169,7 +120,7 @@ check "mongo_private_connection_string_standard_srv_fallback" {
     error_message = <<-EOT
       mongo_private_connection_string fell back to standard_srv (non-PrivateLink).
       Atlas did not publish private_endpoint or private_srv SRV connection strings yet.
-      ECS apps will receive the public Atlas SRV in MONGODB_URI; traffic may not route over PrivateLink.
+      ECS apps will receive the public Atlas SRV; traffic may not route over PrivateLink.
     EOT
   }
 }

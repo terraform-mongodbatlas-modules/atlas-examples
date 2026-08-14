@@ -173,7 +173,6 @@ variable "ecs_apps" {
     handoff_secret = optional(object({
       name = optional(string)
     }), {})
-    container_env_vars = optional(map(string), {})
     container_secrets = optional(map(object({
       name     = string
       json_key = optional(string)

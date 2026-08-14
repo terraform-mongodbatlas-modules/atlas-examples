@@ -1,5 +1,5 @@
 output "ecs_cluster_name" {
-  description = "ECS cluster name (created by this module from the handoff name)."
+  description = "ECS cluster name (created by this module from handoff.name)."
   value       = aws_ecs_cluster.this.name
 }
 
@@ -30,18 +30,18 @@ output "task_definition_arn" {
 
 output "container_port" {
   description = "ALB target group and container port."
-  value       = local.container_port
+  value       = var.handoff.container_port
 }
 
 output "health_check_path" {
   description = "Target group health check path."
-  value       = local.health_check_path
+  value       = var.handoff.health_check_path
 }
 
 output "index_run" {
   description = "Region, cluster, and service for one-shot RunTask against this service."
   value = {
-    aws_region = local.aws_region
+    aws_region = var.handoff.aws_region
     cluster    = aws_ecs_cluster.this.name
     service    = aws_ecs_service.this.name
   }

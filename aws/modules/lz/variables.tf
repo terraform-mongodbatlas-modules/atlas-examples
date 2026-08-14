@@ -400,7 +400,6 @@ variable "ecs_apps" {
     ecr_key selects an entry in ecr_repositories. routing attaches the app to an http_edges ALB (ecs-service creates TG + listener rule).
     Omit routing for private/worker tasks. routing requires explicit edge, listener_priority, and path_pattern or host_header.
     handoff_secret.name is the SM secret the example writes; default <app-name>-app. Execution-role GetSecretValue uses a name glob on that value (secret:<name>-*).
-    container_env_vars: plain ECS environment entries merged into the handoff payload.
     container_secrets: BYO SM secret names for later slices; unused here (leave empty). json_key selects a JSON field when set.
     internet_egress: when true, enables a NAT gateway in the app's AWS region (managed VPC) and allows HTTPS egress to the public internet from the shared app security group.
   EOT
@@ -420,7 +419,6 @@ variable "ecs_apps" {
     handoff_secret = optional(object({
       name = optional(string)
     }), {})
-    container_env_vars = optional(map(string), {})
     container_secrets = optional(map(object({
       name     = string
       json_key = optional(string)

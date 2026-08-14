@@ -155,20 +155,44 @@ output "ecr_repositories" {
 }
 
 output "ecs_apps" {
-  description = "Configured ECS apps and the SM secret name the example should write."
+  description = "Resolved ECS apps for the example to map into the SM handoff JSON. Origin header values: http_edge_origin_header_values."
   value = {
     for k, v in local.ecs_apps : k => {
       name                = v.name
       aws_region          = v.aws_region
-      primary_database    = v.primary_database
       ecr_key             = v.ecr_key
+      ecr_repository_url  = aws_ecr_repository.this[v.ecr_key].repository_url
       handoff_secret_name = v.handoff_secret_name
+      task_cpu            = v.task_cpu
+      task_memory         = v.task_memory
+      network = {
+        private_subnet_ids    = local.app_network[v.aws_region].private_subnet_ids
+        ecs_security_group_id = aws_security_group.app[v.aws_region].id
+      }
+      iam = {
+        task_role_arn           = aws_iam_role.ecs_task[k].arn
+        task_execution_role_arn = aws_iam_role.ecs_task_execution[k].arn
+      }
+      mongo = {
+        connection_string = local.mongo_iam_connection_strings_by_region[v.aws_region]
+        database_name     = v.primary_database
+      }
+      routing = v.routing == null ? null : {
+        edge               = v.routing.edge
+        listener_arn       = module.http_edge[v.routing.edge].listener_arn
+        listener_priority  = v.routing.listener_priority
+        path_pattern       = coalesce(v.routing.path_pattern, [])
+        host_header        = coalesce(v.routing.host_header, [])
+        container_port     = v.routing.container_port
+        health_check_path  = v.routing.health_check_path
+        origin_header_name = module.http_edge[v.routing.edge].origin_header_name
+      }
     }
   }
 }
 
-output "handoff_payloads" {
-  description = "Per-app payload for the example to jsonencode into Secrets Manager. Does not include ecs_cluster or ecs_cluster_arn."
+output "http_edge_origin_header_values" {
+  description = "CloudFront origin-verify header values keyed by http_edges map key."
   sensitive   = true
-  value       = local.handoff_payloads
+  value       = { for k, v in local.http_edges : k => module.http_edge[k].origin_header_value }
 }

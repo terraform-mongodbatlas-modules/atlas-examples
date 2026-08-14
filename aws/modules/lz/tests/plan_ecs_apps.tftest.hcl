@@ -86,19 +86,22 @@ run "ecs_ui_path" {
       length(mongodbatlas_database_user.ecs) == 1,
       length(module.http_edge) == 1,
       length(aws_security_group.app) == 1,
-      local.ecs_apps["ui"].name == "hybridrag-ui",
-      local.ecs_apps["ui"].handoff_secret_name == "hybridrag-ui-app",
-      local.ecs_apps["ui"].routing.container_port == 8001,
-      local.ecs_apps["ui"].routing.health_check_path == "/",
-      !contains(keys(local.ecs_app_handoff_base["ui"]), "ecs_cluster_arn"),
-      !contains(keys(local.ecs_app_handoff_base["ui"]), "ecs_cluster"),
+      output.ecs_apps["ui"].name == "hybridrag-ui",
+      output.ecs_apps["ui"].handoff_secret_name == "hybridrag-ui-app",
+      output.ecs_apps["ui"].routing.container_port == 8001,
+      output.ecs_apps["ui"].routing.health_check_path == "/",
+      output.ecs_apps["ui"].routing.origin_header_name == "X-Origin-Verify",
+      output.ecs_apps["ui"].mongo.database_name == "hybridrag",
+      !contains(keys(output.ecs_apps["ui"]), "ecs_cluster_arn"),
+      !contains(keys(output.ecs_apps["ui"]), "container_env_vars"),
+      contains(keys(nonsensitive(output.http_edge_origin_header_values)), "main"),
       module.http_edge["main"].origin_header_name == "X-Origin-Verify",
       strcontains(
         jsondecode(aws_iam_role_policy.ecs_task_execution_handoff["ui"].policy).Statement[0].Resource,
         "secret:hybridrag-ui-app-*"
       ),
     ])
-    error_message = "ECS UI path should create IAM, DB user, HTTP edge, name-glob handoff IAM, and a payload without ecs_cluster"
+    error_message = "ECS UI path should create IAM, DB user, HTTP edge, name-glob handoff IAM, and typed ecs_apps without ecs_cluster or container_env_vars"
   }
 }
 

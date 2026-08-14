@@ -101,12 +101,31 @@ resource "aws_secretsmanager_secret" "handoff" {
 resource "aws_secretsmanager_secret_version" "handoff" {
   region    = local.aws_region
   secret_id = aws_secretsmanager_secret.handoff.id
-  secret_string = jsonencode(merge(module.lz.handoff_payloads["ui"], {
-    VOYAGE_API_KEY         = module.voyage_api_key.api_key
-    VOYAGE_BASE_URL        = module.voyage_api_key.voyage_base_url
-    CHAINLIT_AUTH_SECRET   = random_password.chainlit_auth.result
-    CHAINLIT_DEMO_PASSWORD = random_password.chainlit_demo.result
-    container_env_vars     = merge(module.lz.handoff_payloads["ui"].container_env_vars, local.llm_container_env)
-    container_secret_keys  = local.container_secret_keys
+  secret_string = jsonencode(merge({
+    aws_region                      = local.ui.aws_region
+    name                            = local.ui.name
+    private_subnet_ids              = local.ui.network.private_subnet_ids
+    ecs_security_group_id           = local.ui.network.ecs_security_group_id
+    ecs_task_role_arn               = local.ui.iam.task_role_arn
+    ecs_task_execution_role_arn     = local.ui.iam.task_execution_role_arn
+    mongo_private_connection_string = local.ui.mongo.connection_string
+    app_database_name               = local.ui.mongo.database_name
+    ecr_repository_url              = local.ui.ecr_repository_url
+    alb_listener_arn                = local.ui.routing.listener_arn
+    listener_priority               = local.ui.routing.listener_priority
+    path_pattern                    = local.ui.routing.path_pattern
+    host_header                     = local.ui.routing.host_header
+    container_port                  = local.ui.routing.container_port
+    health_check_path               = local.ui.routing.health_check_path
+    origin_header_name              = local.ui.routing.origin_header_name
+    origin_header_value             = module.lz.http_edge_origin_header_values[local.ui.routing.edge]
+    task_cpu                        = local.ui.task_cpu
+    task_memory                     = local.ui.task_memory
+    container_env_vars              = local.llm_container_env
+    container_secret_keys           = local.container_secret_keys
+    VOYAGE_API_KEY                  = module.voyage_api_key.api_key
+    VOYAGE_BASE_URL                 = module.voyage_api_key.voyage_base_url
+    CHAINLIT_AUTH_SECRET            = random_password.chainlit_auth.result
+    CHAINLIT_DEMO_PASSWORD          = random_password.chainlit_demo.result
   }, local.llm_handoff_secrets))
 }

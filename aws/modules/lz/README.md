@@ -10,7 +10,7 @@ This is not a published Landing Zone product. Nested `regional_vpc` and `http_ed
 - **`regions`:** AWS names (`us-east-1`); Atlas `US_EAST_1` is also accepted.
 - **`vpc_config`:** `create = true` (default) manages one VPC per cluster AWS region from `base_cidr`. `create = false` requires a full `by_region` entry per region (no hybrid). `ecs_apps.*.internet_egress` turns on NAT in that app region.
 - **`http_edges`:** Map of ALB + CloudFront edges. Public subnets are created for those regions. `waf.enabled` defaults true.
-- **`ecs_apps`:** Map of ECS targets. Fields: `name`, `ecr_key`, `roles`, `handoff_secret` (name used for execution-role `GetSecretValue` glob `secret:<name>-*`), `routing`, `container_env_vars`, `container_secrets`, `internet_egress`, `task_cpu`, `task_memory`.
+- **`ecs_apps`:** Map of ECS targets. Fields: `name`, `ecr_key`, `roles`, `handoff_secret` (name used for execution-role `GetSecretValue` glob `secret:<name>-*`), `routing`, `container_secrets`, `internet_egress`, `task_cpu`, `task_memory`.
 - **`ecr_repositories`:** Independent of `ecs_apps` so registries survive compute changes.
 - **`cluster_type` / `shard_count`:** Default `SHARDED` / `1`. Set `REPLICASET` for a cheaper lab.
 - **`manual_scaling`:** Null keeps compute auto-scaling. Pin `instance_size` (M10 or higher) to disable compute auto-scaling.
@@ -19,7 +19,8 @@ Published module schemas: [project](https://registry.terraform.io/modules/terraf
 
 ## Outputs
 
-- **`handoff_payloads`:** Per-app object for the example to `jsonencode` into Secrets Manager. Includes VPC, roles, Mongo IAM URI, routing, and `origin_header_*`. Does not include `ecs_cluster` / `ecs_cluster_arn`.
+- **`ecs_apps`:** Per-app network, IAM, Mongo IAM URI, ECR URL, and routing. The example maps this into the SM JSON. Does not include `ecs_cluster` / `ecs_cluster_arn`, origin-header values, or container env.
+- **`http_edge_origin_header_values`:** Sensitive map keyed by `http_edges`. The example writes `origin_header_value` into SM.
 - **`atlas.project_id`:** Atlas project ID for example-owned resources in the same project.
 - **`ecr_repositories`:** URLs keyed by `ecr_repositories` map key.
 - **`aws.http_edges.*.https_url`:** CloudFront HTTPS URL. Smoke tests should not curl the ALB on HTTP.

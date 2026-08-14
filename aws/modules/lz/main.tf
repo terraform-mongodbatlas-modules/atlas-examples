@@ -24,7 +24,6 @@ locals {
       primary_database    = coalesce(v.primary_database, v.roles[0].database_name)
       roles               = v.roles
       handoff_secret_name = coalesce(v.handoff_secret.name, "${coalesce(v.name, k)}-app")
-      container_env_vars  = v.container_env_vars
       container_secrets   = v.container_secrets
       task_cpu            = v.task_cpu
       task_memory         = v.task_memory

@@ -4,12 +4,14 @@ ECS cluster, task definition, service, target group, and listener rule. Apply af
 
 ## Inputs
 
-- **`handoff_secret_name`:** Secrets Manager secret written by the example lz stack. The JSON supplies VPC, roles, ECR URL, routing, origin header, and `container_secret_keys`.
-- **`image_tag`:** Tag to append to the handoff `ecr_repository_url`.
+- **`handoff`:** Decoded lz payload. Required infra fields plus listener priority. Optional fields default in the type (`health_check_path = /health`, `container_port = 8000`, empty path/host/origin). Extra JSON keys are stripped. `secret_arn` is required when `container_secret_keys` is set; task secrets use `valueFrom = "<secret_arn>:<key>::"`. The example app merges the looked-up SM ARN.
+- **`image_tag`:** Tag appended to `handoff.ecr_repository_url`.
 
-The module creates the ECS cluster and names it from the handoff `name`. It does not read a cluster ARN from the secret.
+The example `app/` root reads the SM secret and passes this object. The module does not call Secrets Manager.
 
-Task secrets use `valueFrom = "<handoff-arn>:<key>::"` for each entry in `container_secret_keys`. Health check defaults to `/health` when the handoff omits `health_check_path`.
+The module creates the ECS cluster from `handoff.name`. It does not take a cluster ARN.
+
+Listener rule requires at least one of `path_pattern`, `host_header`, or `origin_header_name`.
 
 ## Outputs
 
