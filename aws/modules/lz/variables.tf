@@ -399,8 +399,6 @@ variable "ecs_apps" {
     Each entry creates one ECS task role, one execution role, and one Atlas IAM database user (username = task role ARN).
     ecr_key selects an entry in ecr_repositories. routing attaches the app to an http_edges ALB (ecs-service creates TG + listener rule).
     Omit routing for private/worker tasks. routing requires explicit edge, listener_priority, and path_pattern or host_header.
-    handoff_secret.name is the SM secret the example writes; default <app-name>-app. Execution-role GetSecretValue uses a name glob on that value (secret:<name>-*).
-    container_secrets: BYO SM secret names for later slices; unused here (leave empty). json_key selects a JSON field when set.
     internet_egress: when true, enables a NAT gateway in the app's AWS region (managed VPC) and allows HTTPS egress to the public internet from the shared app security group.
   EOT
   type = map(object({
@@ -414,17 +412,7 @@ variable "ecs_apps" {
       path_pattern      = optional(list(string))
       host_header       = optional(list(string))
       container_port    = optional(number, 8000)
-      health_check_path = optional(string, "/health")
     }))
-    handoff_secret = optional(object({
-      name = optional(string)
-    }), {})
-    container_secrets = optional(map(object({
-      name     = string
-      json_key = optional(string)
-    })), {})
-    task_cpu        = optional(string, "512")
-    task_memory     = optional(string, "1024")
     internet_egress = optional(bool, false)
     roles = list(object({
       role_name       = optional(string, "readWrite")

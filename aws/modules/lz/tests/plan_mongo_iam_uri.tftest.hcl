@@ -44,7 +44,7 @@ variables {
   cluster_name = "hybridrag-ui"
 }
 
-run "handoff_includes_iam_query_params" {
+run "mongo_includes_iam_query_params" {
   command = plan
 
   variables {

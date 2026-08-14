@@ -1,2 +1,2 @@
-handoff_secret_name = "hybridrag-ui-app"
-image_tag           = "0.0.1"
+app_secret_name = "hybridrag-ui-app"
+image_tag       = "0.0.1"

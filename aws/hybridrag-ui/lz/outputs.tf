@@ -8,9 +8,9 @@ output "ecr_repository_url" {
   value       = module.lz.ecr_repositories["ui"]
 }
 
-output "handoff_secret_name" {
+output "app_secret_name" {
   description = "Secrets Manager secret name consumed by the app stack."
-  value       = local.handoff_secret_name
+  value       = local.app_secret_name
 }
 
 output "chainlit_demo_username" {
@@ -19,7 +19,7 @@ output "chainlit_demo_username" {
 }
 
 output "chainlit_demo_password" {
-  description = "Demo login password (also in the handoff secret)."
+  description = "Demo login password (also in the app secret)."
   value       = random_password.chainlit_demo.result
   sensitive   = true
 }

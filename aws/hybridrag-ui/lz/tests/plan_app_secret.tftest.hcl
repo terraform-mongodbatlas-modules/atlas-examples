@@ -75,7 +75,7 @@ variables {
   cluster_name = "hybridrag-ui"
 }
 
-run "handoff_includes_voyage_and_chainlit" {
+run "app_secret_nests_groups_and_voyage" {
   command = plan
 
   assert {
@@ -87,13 +87,13 @@ run "handoff_includes_voyage_and_chainlit" {
       !contains(keys(local.llm_container_env), "LLM_PROVIDER"),
       local.ui.name == "hybridrag-ui",
       local.ui.routing.container_port == 8001,
-      local.ui.routing.health_check_path == "/",
       local.ui.routing.origin_header_name == "X-Origin-Verify",
       !contains(keys(local.llm_container_env), "MONGODB_URI"),
       startswith(output.https_url, "https://"),
       strcontains(output.https_url, "cloudfront.net"),
+      output.app_secret_name == "hybridrag-ui-app",
     ])
-    error_message = "Voyage key, UI routing, and CloudFront https_url should be known at plan"
+    error_message = "Voyage key, UI routing, CloudFront https_url, and app secret name should be known at plan"
   }
 }
 
@@ -125,6 +125,6 @@ run "llm_grove_sets_provider_and_base_url" {
       local.llm_container_env["LLM_PROVIDER"] == "grove",
       !contains(keys(local.llm_container_env), "GROVE_BASE_URL"),
     ])
-    error_message = "Grove LLM should set LLM_PROVIDER and inline GROVE_* extras as handoff secret keys"
+    error_message = "Grove LLM should set LLM_PROVIDER and inline GROVE_* extras as app secret keys"
   }
 }

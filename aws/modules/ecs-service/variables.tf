@@ -1,63 +1,110 @@
-variable "handoff" {
-  description = "Decoded lz payload. Extra JSON keys are stripped. secret_arn is required when container_secret_keys is set."
+variable "name" {
+  description = "ECS cluster, service, task family, and container name."
+  type        = string
+}
+
+variable "aws_region" {
+  description = "AWS region for the cluster, service, and target group."
+  type        = string
+}
+
+variable "ecr_repository_url" {
+  description = "ECR repository URL. image_tag is appended."
+  type        = string
+}
+
+variable "network" {
+  description = "Private subnets and app security group from modules/lz ecs_apps.network."
   type = object({
-    aws_region                      = string
-    name                            = string
-    private_subnet_ids              = list(string)
-    ecs_security_group_id           = string
-    ecs_task_role_arn               = string
-    ecs_task_execution_role_arn     = string
-    mongo_private_connection_string = string
-    app_database_name               = string
-    ecr_repository_url              = string
-    alb_listener_arn                = string
-    listener_priority               = number
-    path_pattern                    = optional(list(string), [])
-    host_header                     = optional(list(string), [])
-    container_port                  = optional(number, 8000)
-    health_check_path               = optional(string, "/health")
-    container_env_vars              = optional(map(string), {})
-    container_secret_keys           = optional(list(string), [])
-    secret_arn                      = optional(string, "")
-    origin_header_name              = optional(string, "")
-    origin_header_value             = optional(string, "")
-    task_cpu                        = optional(string, "512")
-    task_memory                     = optional(string, "1024")
+    private_subnet_ids    = list(string)
+    ecs_security_group_id = string
   })
 
   validation {
-    condition     = length(var.handoff.private_subnet_ids) > 0
-    error_message = "handoff.private_subnet_ids must contain at least one subnet."
+    condition     = length(var.network.private_subnet_ids) > 0
+    error_message = "network.private_subnet_ids must contain at least one subnet."
+  }
+}
+
+variable "iam" {
+  description = "Task and execution role ARNs from modules/lz ecs_apps.iam."
+  type = object({
+    task_role_arn           = string
+    task_execution_role_arn = string
+  })
+}
+
+variable "mongo" {
+  description = "Private Mongo IAM URI and database name from modules/lz ecs_apps.mongo."
+  type = object({
+    connection_string = string
+    database_name     = string
+  })
+}
+
+variable "routing" {
+  description = "ALB listener rule and target group. Matches modules/lz ecs_apps.routing plus health_check_path and origin_header_value (example merge)."
+  type = object({
+    listener_arn        = string
+    listener_priority   = number
+    path_pattern        = optional(list(string), [])
+    host_header         = optional(list(string), [])
+    container_port      = optional(number, 8000)
+    health_check_path   = optional(string, "/health")
+    origin_header_name  = optional(string, "")
+    origin_header_value = optional(string, "")
+  })
+
+  validation {
+    condition     = var.routing.listener_priority >= 1 && var.routing.listener_priority <= 50000
+    error_message = "routing.listener_priority must be between 1 and 50000."
   }
 
   validation {
-    condition     = var.handoff.listener_priority >= 1 && var.handoff.listener_priority <= 50000
-    error_message = "handoff.listener_priority must be between 1 and 50000."
-  }
-
-  validation {
-    condition     = var.handoff.container_port >= 1 && var.handoff.container_port <= 65535
-    error_message = "handoff.container_port must be between 1 and 65535."
+    condition     = var.routing.container_port >= 1 && var.routing.container_port <= 65535
+    error_message = "routing.container_port must be between 1 and 65535."
   }
 
   validation {
     condition = (
-      length(var.handoff.path_pattern) > 0 ||
-      length(var.handoff.host_header) > 0 ||
-      var.handoff.origin_header_name != ""
+      length(var.routing.path_pattern) > 0 ||
+      length(var.routing.host_header) > 0 ||
+      var.routing.origin_header_name != ""
     )
-    error_message = "handoff must set path_pattern, host_header, or origin_header_name so the listener rule has a condition."
+    error_message = "routing must set path_pattern, host_header, or origin_header_name so the listener rule has a condition."
   }
 
   validation {
-    condition     = var.handoff.origin_header_name == "" || var.handoff.origin_header_value != ""
-    error_message = "handoff.origin_header_value is required when origin_header_name is set."
+    condition     = var.routing.origin_header_name == "" || var.routing.origin_header_value != ""
+    error_message = "routing.origin_header_value is required when origin_header_name is set."
   }
+}
+
+variable "container" {
+  description = "Example-owned env and SM JSON keys. secret_arn is required when secret_keys is non-empty. Task secrets use valueFrom = \"<secret_arn>:<key>::\"."
+  type = object({
+    env         = optional(map(string), {})
+    secret_keys = optional(list(string), [])
+    secret_arn  = optional(string, "")
+  })
+  default = {}
 
   validation {
-    condition     = length(var.handoff.container_secret_keys) == 0 || startswith(var.handoff.secret_arn, "arn:")
-    error_message = "handoff.secret_arn is required when container_secret_keys is set."
+    condition     = length(var.container.secret_keys) == 0 || startswith(var.container.secret_arn, "arn:")
+    error_message = "container.secret_arn is required when container.secret_keys is set."
   }
+}
+
+variable "task_cpu" {
+  description = "Fargate task CPU units."
+  type        = string
+  default     = "512"
+}
+
+variable "task_memory" {
+  description = "Fargate task memory MiB."
+  type        = string
+  default     = "1024"
 }
 
 variable "image_tag" {

@@ -156,7 +156,7 @@ variable "http_edges" {
 }
 
 variable "ecs_apps" {
-  description = "ECS apps. Same type as modules/lz. Default UI on port 8001 with health /."
+  description = "ECS apps. Same type as modules/lz. Default UI on port 8001."
   type = map(object({
     name             = optional(string)
     ecr_key          = string
@@ -168,17 +168,7 @@ variable "ecs_apps" {
       path_pattern      = optional(list(string))
       host_header       = optional(list(string))
       container_port    = optional(number, 8000)
-      health_check_path = optional(string, "/health")
     }))
-    handoff_secret = optional(object({
-      name = optional(string)
-    }), {})
-    container_secrets = optional(map(object({
-      name     = string
-      json_key = optional(string)
-    })), {})
-    task_cpu        = optional(string, "512")
-    task_memory     = optional(string, "1024")
     internet_egress = optional(bool, false)
     roles = list(object({
       role_name       = optional(string, "readWrite")
@@ -191,14 +181,11 @@ variable "ecs_apps" {
       name            = "hybridrag-ui"
       ecr_key         = "ui"
       internet_egress = true
-      task_cpu        = "1024"
-      task_memory     = "2048"
       routing = {
         edge              = "main"
         listener_priority = 100
         path_pattern      = ["/*"]
         container_port    = 8001
-        health_check_path = "/"
       }
       roles = [{ database_name = "hybridrag" }]
     }
@@ -206,7 +193,7 @@ variable "ecs_apps" {
 }
 
 variable "llm_secret_name" {
-  description = "Optional Secrets Manager secret name holding a raw LLM API key (just create-llm-secret). When set, the value is inlined into the handoff JSON."
+  description = "Optional Secrets Manager secret name holding a raw LLM API key (just create-llm-secret). When set, the value is inlined into the app secret JSON."
   type        = string
   default     = null
   nullable    = true
@@ -236,7 +223,7 @@ variable "llm_env_name" {
 }
 
 variable "llm_env" {
-  description = "Extra LLM values inlined into the handoff JSON (ANTHROPIC_MODEL, GEMINI_MODEL, OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_EXTRA_HEADERS, GROVE_BASE_URL, GROVE_MODEL). Do not put the API key here; use llm_secret_name."
+  description = "Extra LLM values inlined into the app secret JSON (ANTHROPIC_MODEL, GEMINI_MODEL, OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_EXTRA_HEADERS, GROVE_BASE_URL, GROVE_MODEL). Do not put the API key here; use llm_secret_name."
   type        = map(string)
   default     = {}
 

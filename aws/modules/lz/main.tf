@@ -23,10 +23,7 @@ locals {
       aws_region          = coalesce(v.aws_region, local.aws_region)
       primary_database    = coalesce(v.primary_database, v.roles[0].database_name)
       roles               = v.roles
-      handoff_secret_name = coalesce(v.handoff_secret.name, "${coalesce(v.name, k)}-app")
-      container_secrets   = v.container_secrets
-      task_cpu            = v.task_cpu
-      task_memory         = v.task_memory
+      runtime_secret_name = "${coalesce(v.name, k)}-app"
       internet_egress     = v.internet_egress
       routing = v.routing != null ? {
         edge              = v.routing.edge
@@ -34,7 +31,6 @@ locals {
         path_pattern      = v.routing.path_pattern
         host_header       = v.routing.host_header
         container_port    = v.routing.container_port
-        health_check_path = v.routing.health_check_path
       } : null
     }
   }

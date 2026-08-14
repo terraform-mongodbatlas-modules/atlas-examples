@@ -5,7 +5,7 @@ output "connection_string_public" {
 }
 
 output "atlas" {
-  description = "Atlas project, cluster, connectivity, and module-managed integrations. connection_string_private is hostname-only PrivateLink SRV (diagnostic); app handoff appends IAM auth query params."
+  description = "Atlas project, cluster, connectivity, and module-managed integrations. connection_string_private is hostname-only PrivateLink SRV (diagnostic); ecs_apps.mongo.connection_string appends IAM auth query params."
   value = {
     project_id                = module.atlas_project.id
     cluster_name              = module.atlas_cluster.cluster_name
@@ -155,16 +155,13 @@ output "ecr_repositories" {
 }
 
 output "ecs_apps" {
-  description = "Resolved ECS apps for the example to map into the SM handoff JSON. Origin header values: http_edge_origin_header_values."
+  description = "Resolved ECS apps for the example to store and pass to ecs-service. Origin header values: http_edge_origin_header_values."
   value = {
     for k, v in local.ecs_apps : k => {
       name                = v.name
       aws_region          = v.aws_region
-      ecr_key             = v.ecr_key
       ecr_repository_url  = aws_ecr_repository.this[v.ecr_key].repository_url
-      handoff_secret_name = v.handoff_secret_name
-      task_cpu            = v.task_cpu
-      task_memory         = v.task_memory
+      runtime_secret_name = v.runtime_secret_name
       network = {
         private_subnet_ids    = local.app_network[v.aws_region].private_subnet_ids
         ecs_security_group_id = aws_security_group.app[v.aws_region].id
@@ -184,7 +181,6 @@ output "ecs_apps" {
         path_pattern       = coalesce(v.routing.path_pattern, [])
         host_header        = coalesce(v.routing.host_header, [])
         container_port     = v.routing.container_port
-        health_check_path  = v.routing.health_check_path
         origin_header_name = module.http_edge[v.routing.edge].origin_header_name
       }
     }

@@ -5,7 +5,7 @@ Deploys a browser HybridRAG chat UI against a MongoDB Atlas cluster and AWS Land
 ## What this creates
 
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role, Voyage AI model API key.
-- **AWS:** VPC (private subnets plus NAT and public subnets for the ALB), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager handoff.
+- **AWS:** VPC (private subnets plus NAT and public subnets for the ALB), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
 - **App:** ECS cluster, Fargate service running the HybridRAG UI image (`production-ui`, port 8001). Indexes are a one-shot `ecs run-task` of that same image, not a second service.
 
 This repository is Terraform and recipes. The UI image is cloned at build from a pinned [HybridRAG fork](https://github.com/EspenAlbert/Hybrid-Search-RAG).
@@ -14,7 +14,7 @@ This repository is Terraform and recipes. The UI image is cloned at build from a
 aws/hybridrag-ui/
 ├── README.md
 ├── justfile
-├── lz/                 # Atlas + AWS infra, Voyage, Chainlit, handoff secret
+├── lz/                 # Atlas + AWS infra, Voyage, Chainlit, app secret
 └── app/                # ECS cluster + service
 aws/hybridrag-seed/     # download.py + urls.yaml
 aws/modules/lz/
@@ -36,7 +36,7 @@ This stack costs money while it is up (NAT, auto-scaling cluster, WAF). See [How
 ## Deploy Atlas and AWS infra
 
 ```sh
-# Creates the project, cluster, VPC, CloudFront, IAM, ECR, Voyage key, Chainlit secrets, and handoff JSON.
+# Creates the project, cluster, VPC, CloudFront, IAM, ECR, Voyage key, Chainlit secrets, and nested app secret JSON.
 terraform -chdir=lz init
 terraform -chdir=lz apply
 ```
@@ -48,7 +48,7 @@ terraform -chdir=lz apply
 just build-push "$(terraform -chdir=lz output -raw ecr_repository_url)"
 
 cp app/terraform.tfvars.example app/terraform.tfvars
-# handoff_secret_name default is hybridrag-ui-app (matches lz).
+# app_secret_name default is hybridrag-ui-app (matches lz). task_cpu / task_memory default 1024 / 2048.
 terraform -chdir=app init
 terraform -chdir=app apply
 ```

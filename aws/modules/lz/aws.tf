@@ -355,10 +355,10 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
   policy_arn = each.value.policy_arn
 }
 
-resource "aws_iam_role_policy" "ecs_task_execution_handoff" {
+resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
   for_each = local.ecs_apps
 
-  name = "${each.key}-ecs-exec-handoff"
+  name = "${each.key}-ecs-exec-secrets"
   role = aws_iam_role.ecs_task_execution[each.key].id
 
   policy = jsonencode({
@@ -366,7 +366,7 @@ resource "aws_iam_role_policy" "ecs_task_execution_handoff" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["secretsmanager:GetSecretValue"]
-      Resource = "arn:aws:secretsmanager:${each.value.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${each.value.handoff_secret_name}-*"
+      Resource = "arn:aws:secretsmanager:${each.value.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${each.value.runtime_secret_name}-*"
     }]
   })
 }

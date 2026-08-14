@@ -1,5 +1,5 @@
 output "api_key" {
-  description = "Atlas AI Model API key secret (inline into the handoff JSON)."
+  description = "Atlas AI Model API key secret (inline into the app secret JSON)."
   value       = mongodbatlas_ai_model_api_key.this.secret
   sensitive   = true
 }

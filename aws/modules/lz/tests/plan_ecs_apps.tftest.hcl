@@ -72,7 +72,6 @@ run "ecs_ui_path" {
           path_pattern      = ["/*"]
           listener_priority = 100
           container_port    = 8001
-          health_check_path = "/"
         }
         roles = [{ database_name = "hybridrag" }]
       }
@@ -87,9 +86,11 @@ run "ecs_ui_path" {
       length(module.http_edge) == 1,
       length(aws_security_group.app) == 1,
       output.ecs_apps["ui"].name == "hybridrag-ui",
-      output.ecs_apps["ui"].handoff_secret_name == "hybridrag-ui-app",
+      output.ecs_apps["ui"].runtime_secret_name == "hybridrag-ui-app",
       output.ecs_apps["ui"].routing.container_port == 8001,
-      output.ecs_apps["ui"].routing.health_check_path == "/",
+      !contains(keys(output.ecs_apps["ui"].routing), "health_check_path"),
+      !contains(keys(output.ecs_apps["ui"]), "task_cpu"),
+      !contains(keys(output.ecs_apps["ui"]), "handoff_secret_name"),
       output.ecs_apps["ui"].routing.origin_header_name == "X-Origin-Verify",
       output.ecs_apps["ui"].mongo.database_name == "hybridrag",
       !contains(keys(output.ecs_apps["ui"]), "ecs_cluster_arn"),
@@ -97,11 +98,11 @@ run "ecs_ui_path" {
       contains(keys(nonsensitive(output.http_edge_origin_header_values)), "main"),
       module.http_edge["main"].origin_header_name == "X-Origin-Verify",
       strcontains(
-        jsondecode(aws_iam_role_policy.ecs_task_execution_handoff["ui"].policy).Statement[0].Resource,
+        jsondecode(aws_iam_role_policy.ecs_task_execution_secrets["ui"].policy).Statement[0].Resource,
         "secret:hybridrag-ui-app-*"
       ),
     ])
-    error_message = "ECS UI path should create IAM, DB user, HTTP edge, name-glob handoff IAM, and typed ecs_apps without ecs_cluster or container_env_vars"
+    error_message = "ECS UI path should create IAM, DB user, HTTP edge, name-glob secrets IAM, and typed ecs_apps without ecs_cluster or container_env_vars"
   }
 }
 
@@ -134,3 +135,27 @@ run "ecs_ecr_key_missing" {
     var.ecs_apps,
   ]
 }
+
+run "ecs_routing_requires_path_or_host" {
+  command = plan
+
+  variables {
+    ecr_repositories = { ui = {} }
+    http_edges       = { main = {} }
+    ecs_apps = {
+      ui = {
+        ecr_key = "ui"
+        routing = {
+          edge              = "main"
+          listener_priority = 100
+        }
+        roles = [{ database_name = "hybridrag" }]
+      }
+    }
+  }
+
+  expect_failures = [
+    var.ecs_apps,
+  ]
+}
+
