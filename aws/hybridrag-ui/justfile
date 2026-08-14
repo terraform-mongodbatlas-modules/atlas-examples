@@ -57,6 +57,17 @@ create-llm-secret name="hybridrag-ui-llm":
     fi
     echo "{{name}}"
 
+# Delete the LLM API key secret from Secrets Manager. Remove llm_secret_name from lz tfvars after.
+delete-llm-secret name="hybridrag-ui-llm":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! aws secretsmanager describe-secret --secret-id "{{name}}" >/dev/null 2>&1; then
+      echo "Secret not found: {{name}}" >&2
+      exit 1
+    fi
+    aws secretsmanager delete-secret --secret-id "{{name}}" --force-delete-without-recovery >/dev/null
+    echo "Deleted {{name}}"
+
 # One-shot ECS RunTask of the live UI image: hybridrag index create. Blocking until exit 0.
 index-create:
     uv run python "{{justfile_directory()}}/scripts/index_create.py" "{{justfile_directory()}}/app"
