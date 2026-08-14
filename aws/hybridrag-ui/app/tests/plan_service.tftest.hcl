@@ -28,10 +28,6 @@ mock_provider "aws" {
           task_role_arn           = "arn:aws:iam::123456789012:role/hybridrag-ui-ecs-task"
           task_execution_role_arn = "arn:aws:iam::123456789012:role/hybridrag-ui-ecs-exec"
         }
-        mongo = {
-          connection_string = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
-          database_name     = "hybridrag"
-        }
         routing = {
           listener_arn        = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
           listener_priority   = 100
@@ -42,7 +38,13 @@ mock_provider "aws" {
           origin_header_value = "test-origin-header-value-32chars"
         }
         container = {
-          env         = { ENABLE_LLM = "false", CHAINLIT_DEMO_USERNAME = "demo" }
+          env = {
+            ENABLE_LLM             = "false"
+            CHAINLIT_DEMO_USERNAME = "demo"
+            MONGODB_URI            = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
+            MONGODB_DATABASE       = "hybridrag"
+            VOYAGE_BASE_URL        = "https://ai.mongodb.com/v1"
+          }
           secret_keys = ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"]
         }
       })

@@ -21,10 +21,6 @@ variables {
     task_role_arn           = "arn:aws:iam::123456789012:role/task"
     task_execution_role_arn = "arn:aws:iam::123456789012:role/exec"
   }
-  mongo = {
-    connection_string = "mongodb+srv://pl-0.example.mongodb.net/"
-    database_name     = "hybridrag"
-  }
   routing = {
     listener_arn      = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
     listener_priority = 100

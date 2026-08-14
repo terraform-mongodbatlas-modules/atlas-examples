@@ -14,6 +14,9 @@ locals {
     {
       CHAINLIT_DEMO_USERNAME = "demo"
       ENABLE_LLM             = local.llm_enabled ? "true" : "false"
+      MONGODB_URI            = local.ui.mongo.connection_string
+      MONGODB_DATABASE       = local.ui.mongo.database_name
+      VOYAGE_BASE_URL        = module.voyage_api_key.voyage_base_url
     },
     local.llm_enabled && local.llm_provider != null ? { LLM_PROVIDER = local.llm_provider } : {}
   )
@@ -63,30 +66,6 @@ resource "random_password" "chainlit_demo" {
   special = false
 }
 
-resource "aws_secretsmanager_secret" "chainlit_auth" {
-  region = local.aws_region
-  name   = "${local.ui.name}-chainlit-auth"
-  tags   = var.tags
-}
-
-resource "aws_secretsmanager_secret_version" "chainlit_auth" {
-  region        = local.aws_region
-  secret_id     = aws_secretsmanager_secret.chainlit_auth.id
-  secret_string = random_password.chainlit_auth.result
-}
-
-resource "aws_secretsmanager_secret" "chainlit_demo" {
-  region = local.aws_region
-  name   = "${local.ui.name}-demo-password"
-  tags   = var.tags
-}
-
-resource "aws_secretsmanager_secret_version" "chainlit_demo" {
-  region        = local.aws_region
-  secret_id     = aws_secretsmanager_secret.chainlit_demo.id
-  secret_string = random_password.chainlit_demo.result
-}
-
 data "aws_secretsmanager_secret_version" "llm" {
   count     = local.llm_enabled ? 1 : 0
   secret_id = var.llm_secret_name
@@ -107,7 +86,6 @@ resource "aws_secretsmanager_secret_version" "app" {
     ecr_repository_url = local.ui.ecr_repository_url
     network            = local.ui.network
     iam                = local.ui.iam
-    mongo              = local.ui.mongo
     routing = merge(local.ui.routing, {
       health_check_path   = "/"
       origin_header_value = module.lz.http_edge_origin_header_values[local.ui.routing.edge]
@@ -117,7 +95,6 @@ resource "aws_secretsmanager_secret_version" "app" {
       secret_keys = local.container_secret_keys
     }
     VOYAGE_API_KEY         = module.voyage_api_key.api_key
-    VOYAGE_BASE_URL        = module.voyage_api_key.voyage_base_url
     CHAINLIT_AUTH_SECRET   = random_password.chainlit_auth.result
     CHAINLIT_DEMO_PASSWORD = random_password.chainlit_demo.result
   }, local.llm_app_secrets))

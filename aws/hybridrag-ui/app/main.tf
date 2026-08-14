@@ -18,7 +18,6 @@ module "ecs_service" {
   ecr_repository_url = local.app.ecr_repository_url
   network            = local.app.network
   iam                = local.app.iam
-  mongo              = local.app.mongo
   routing            = local.app.routing
   container = merge(local.app.container, {
     secret_arn = data.aws_secretsmanager_secret.app.arn

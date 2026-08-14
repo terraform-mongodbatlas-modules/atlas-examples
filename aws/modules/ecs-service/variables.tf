@@ -34,14 +34,6 @@ variable "iam" {
   })
 }
 
-variable "mongo" {
-  description = "Private Mongo IAM URI and database name from modules/lz ecs_apps.mongo."
-  type = object({
-    connection_string = string
-    database_name     = string
-  })
-}
-
 variable "routing" {
   description = "ALB listener rule and target group. Matches modules/lz ecs_apps.routing plus health_check_path and origin_header_value (example merge)."
   type = object({

@@ -98,13 +98,7 @@ resource "aws_ecs_task_definition" "this" {
       containerPort = var.routing.container_port
       protocol      = "tcp"
     }]
-    environment = concat(
-      [
-        { name = "MONGO_URL", value = var.mongo.connection_string },
-        { name = "DB_NAME", value = var.mongo.database_name },
-      ],
-      [for k, v in var.container.env : { name = k, value = v }]
-    )
+    environment = [for k, v in var.container.env : { name = k, value = v }]
     secrets = [
       for key in var.container.secret_keys : {
         name      = key

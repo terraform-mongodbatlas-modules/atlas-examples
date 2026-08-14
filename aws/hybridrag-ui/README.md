@@ -1,6 +1,6 @@
 # HybridRAG UI on AWS
 
-Deploys a browser HybridRAG chat UI against a MongoDB Atlas cluster and AWS Landing Zone defaults: PrivateLink, a managed VPC, and CloudFront in front of ECS. Voyage embeddings are created in this example. An LLM key is optional.
+Deploys a browser HybridRAG chat UI against a MongoDB Atlas cluster and AWS Landing Zone defaults: PrivateLink, a managed VPC, and CloudFront in front of ECS. Terraform creates an Atlas AI Model API key here; embeddings happen at ingest. An LLM key is optional.
 
 ## What this creates
 
@@ -36,7 +36,7 @@ This stack costs money while it is up (NAT, auto-scaling cluster, WAF). See [How
 ## Deploy Atlas and AWS infra
 
 ```sh
-# Creates the project, cluster, VPC, CloudFront, IAM, ECR, Voyage key, Chainlit secrets, and nested app secret JSON.
+# Creates the project, cluster, VPC, CloudFront, IAM, ECR, Voyage key, and nested app secret JSON.
 terraform -chdir=lz init
 terraform -chdir=lz apply
 ```
@@ -44,8 +44,8 @@ terraform -chdir=lz apply
 ## Build the image and deploy the UI
 
 ```sh
-# Clones the pinned fork, builds --target production-ui (linux/arm64), pushes to ECR.
-just build-push "$(terraform -chdir=lz output -raw ecr_repository_url)"
+# ECR is IMMUTABLE: bump image_tag in app/terraform.tfvars and the tag argument on every push.
+just build-push "$(terraform -chdir=lz output -raw ecr_repository_url)" 0.0.2
 
 cp app/terraform.tfvars.example app/terraform.tfvars
 # app_secret_name default is hybridrag-ui-app (matches lz). task_cpu / task_memory default 1024 / 2048.
@@ -59,6 +59,8 @@ terraform -chdir=app apply
 # RunTask of the live UI image with command ["hybridrag", "index", "create"]. Blocks until exit 0.
 just index-create
 ```
+
+Skipping this step leaves a healthy UI that cannot search.
 
 ## Download seed files and open the UI
 
@@ -121,6 +123,26 @@ Set `http_edges = { main = { waf = { enabled = false } } }` in lz tfvars. Do not
 `just create-llm-secret` writes a Secrets Manager secret and prints the name. Set `llm_secret_name` in lz tfvars and re-apply lz before `just build-push`. Skip this for search-only (`ENABLE_LLM=false`).
 
 The key is inlined as `llm_env_name` (default `ANTHROPIC_API_KEY`). `LLM_PROVIDER` is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`). Pin the model in `llm_env` (`ANTHROPIC_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `GROVE_MODEL`). Grove also needs `GROVE_BASE_URL`. OpenAI extras (`OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) go in `llm_env` too. Commented examples are in `lz/terraform.tfvars.example`.
+
+### What is the app secret name?
+
+Default `app_secret_name` is `hybridrag-ui-app` (`<ecs_apps.ui.name>-app`). If you change `ecs_apps.ui.name`, set `app_secret_name` in `app/terraform.tfvars` to match before app apply.
+
+### What region does this example use?
+
+This example uses `regions[0]` (default `us-east-1`). The app provider is `us-east-1` to match. There is no app-region knob.
+
+### Where does the LLM secret go?
+
+`just create-llm-secret` defaults `region=us-east-1`. Override if `regions[0]` is not `us-east-1` (for example `just create-llm-secret region=eu-west-1`).
+
+### What is `public_debug_access`?
+
+Opt-in SCRAM plus one IPv4 for laptop `mongosh` or local `hybridrag`. Not on the happy path. See commented example in `lz/terraform.tfvars.example` or `lz/variables.tf`.
+
+### How do I use a custom domain?
+
+Set `http_edges.main.aliases` and `acm_certificate_arn` (certificate in `us-east-1`). See [`aws/modules/lz`](../modules/lz/README.md). No new example variables.
 
 ### What is `user_agent_extra.example`?
 

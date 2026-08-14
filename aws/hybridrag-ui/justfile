@@ -40,7 +40,7 @@ build-push repo_url tag="0.0.1": clone-hybridrag
     echo "Pushed ${image_uri}"
 
 # Write a raw LLM API key to Secrets Manager. Paste the printed name into lz tfvars as llm_secret_name.
-create-llm-secret name="hybridrag-ui-llm":
+create-llm-secret name="hybridrag-ui-llm" region="us-east-1":
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Supported providers. Set llm_env_name in lz tfvars to match the key:" >&2
@@ -50,22 +50,22 @@ create-llm-secret name="hybridrag-ui-llm":
     echo "  GROVE_API_KEY      requires llm_env.GROVE_BASE_URL, optional GROVE_MODEL" >&2
     read -r -s -p "LLM API key: " key
     echo
-    if aws secretsmanager describe-secret --secret-id "{{name}}" >/dev/null 2>&1; then
-      aws secretsmanager put-secret-value --secret-id "{{name}}" --secret-string "${key}" >/dev/null
+    if aws secretsmanager describe-secret --secret-id "{{name}}" --region "{{region}}" >/dev/null 2>&1; then
+      aws secretsmanager put-secret-value --secret-id "{{name}}" --secret-string "${key}" --region "{{region}}" >/dev/null
     else
-      aws secretsmanager create-secret --name "{{name}}" --secret-string "${key}" >/dev/null
+      aws secretsmanager create-secret --name "{{name}}" --secret-string "${key}" --region "{{region}}" >/dev/null
     fi
     echo "{{name}}"
 
 # Delete the LLM API key secret from Secrets Manager. Remove llm_secret_name from lz tfvars after.
-delete-llm-secret name="hybridrag-ui-llm":
+delete-llm-secret name="hybridrag-ui-llm" region="us-east-1":
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! aws secretsmanager describe-secret --secret-id "{{name}}" >/dev/null 2>&1; then
+    if ! aws secretsmanager describe-secret --secret-id "{{name}}" --region "{{region}}" >/dev/null 2>&1; then
       echo "Secret not found: {{name}}" >&2
       exit 1
     fi
-    aws secretsmanager delete-secret --secret-id "{{name}}" --force-delete-without-recovery >/dev/null
+    aws secretsmanager delete-secret --secret-id "{{name}}" --force-delete-without-recovery --region "{{region}}" >/dev/null
     echo "Deleted {{name}}"
 
 # One-shot ECS RunTask of the live UI image: hybridrag index create. Blocking until exit 0.

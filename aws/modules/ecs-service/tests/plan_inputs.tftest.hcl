@@ -21,10 +21,6 @@ variables {
     task_role_arn           = "arn:aws:iam::123456789012:role/hybridrag-ui-ecs-task"
     task_execution_role_arn = "arn:aws:iam::123456789012:role/hybridrag-ui-ecs-exec"
   }
-  mongo = {
-    connection_string = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
-    database_name     = "hybridrag"
-  }
   routing = {
     listener_arn        = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
     listener_priority   = 100
@@ -35,7 +31,11 @@ variables {
     origin_header_value = "test-origin-header-value-32chars"
   }
   container = {
-    env         = { ENABLE_LLM = "false" }
+    env = {
+      ENABLE_LLM       = "false"
+      MONGODB_URI      = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
+      MONGODB_DATABASE = "hybridrag"
+    }
     secret_keys = ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"]
     secret_arn  = "arn:aws:secretsmanager:us-east-1:123456789012:secret:hybridrag-ui-app-AbCdEf"
   }
@@ -68,5 +68,19 @@ run "task_secrets_use_json_keys" {
       jsondecode(aws_ecs_task_definition.this.container_definitions)[0].secrets[1].name == "CHAINLIT_AUTH_SECRET",
     ])
     error_message = "Task secrets should use secret ARN JSON-key form, not a separate ARN map"
+  }
+}
+
+run "mongo_env_from_container_only" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      contains([for e in jsondecode(aws_ecs_task_definition.this.container_definitions)[0].environment : e.name], "MONGODB_URI"),
+      contains([for e in jsondecode(aws_ecs_task_definition.this.container_definitions)[0].environment : e.name], "MONGODB_DATABASE"),
+      !contains([for e in jsondecode(aws_ecs_task_definition.this.container_definitions)[0].environment : e.name], "MONGO_URL"),
+      !contains([for e in jsondecode(aws_ecs_task_definition.this.container_definitions)[0].environment : e.name], "DB_NAME"),
+    ])
+    error_message = "Mongo env should come from container.env with HybridRAG names"
   }
 }

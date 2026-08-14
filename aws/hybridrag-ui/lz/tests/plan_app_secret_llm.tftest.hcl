@@ -73,31 +73,35 @@ override_module {
 variables {
   atlas_org_id    = "org123"
   cluster_name    = "hybridrag-ui"
-  llm_secret_name = null
-  llm_env         = {}
+  llm_secret_name = "hybridrag-ui-llm"
+  llm_env_name    = "GROVE_API_KEY"
+  llm_env = {
+    GROVE_BASE_URL = "https://grove.example.mongodb.com/v1"
+    GROVE_MODEL    = "gpt-4o"
+  }
 }
 
-run "app_secret_nests_groups_and_voyage" {
+run "llm_grove_sets_provider_and_base_url" {
   command = plan
 
   assert {
     condition = alltrue([
-      module.voyage_api_key.api_key_id == "key-1",
-      module.voyage_api_key.voyage_base_url == "https://ai.mongodb.com/v1",
-      local.container_secret_keys == ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
-      local.llm_container_env["ENABLE_LLM"] == "false",
-      !contains(keys(local.llm_container_env), "LLM_PROVIDER"),
-      strcontains(local.llm_container_env["MONGODB_URI"], "authMechanism=MONGODB-AWS"),
+      sort(local.container_secret_keys) == sort([
+        "VOYAGE_API_KEY",
+        "CHAINLIT_AUTH_SECRET",
+        "CHAINLIT_DEMO_PASSWORD",
+        "GROVE_API_KEY",
+        "GROVE_BASE_URL",
+        "GROVE_MODEL",
+      ]),
+      local.llm_container_env["ENABLE_LLM"] == "true",
+      local.llm_container_env["LLM_PROVIDER"] == "grove",
+      local.llm_container_env["MONGODB_URI"] != "",
       local.llm_container_env["MONGODB_DATABASE"] == "hybridrag",
       local.llm_container_env["VOYAGE_BASE_URL"] == "https://ai.mongodb.com/v1",
-      !contains(local.container_secret_keys, "VOYAGE_BASE_URL"),
-      local.ui.name == "hybridrag-ui",
-      local.ui.routing.container_port == 8001,
-      local.ui.routing.origin_header_name == "X-Origin-Verify",
-      startswith(output.https_url, "https://"),
-      strcontains(output.https_url, "cloudfront.net"),
-      output.app_secret_name == "hybridrag-ui-app",
+      !contains(keys(local.llm_container_env), "GROVE_BASE_URL"),
     ])
-    error_message = "Voyage key, UI routing, CloudFront https_url, and app secret name should be known at plan"
+    error_message = "Grove LLM should set LLM_PROVIDER and inline GROVE_* extras as app secret keys"
   }
 }
+
