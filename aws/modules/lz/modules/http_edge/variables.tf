@@ -29,8 +29,9 @@ variable "acm_certificate_arn" {
 }
 
 variable "idle_timeout" {
-  type    = number
-  default = 60
+  description = "ALB connection idle timeout (seconds). Default 120 matches CloudFront origin_read_timeout."
+  type        = number
+  default     = 120
 }
 
 variable "waf" {

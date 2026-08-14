@@ -45,6 +45,21 @@ run "alb_sg_uses_cloudfront_prefix_list" {
   }
 }
 
+run "alb_and_cloudfront_idle_read_timeout_120" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      aws_lb.this.idle_timeout == 120,
+      alltrue([
+        for o in aws_cloudfront_distribution.this.origin :
+        o.custom_origin_config[0].origin_read_timeout == 120
+      ]),
+    ])
+    error_message = "ALB idle_timeout and CloudFront origin_read_timeout should default to 120"
+  }
+}
+
 run "waf_on_by_default" {
   command = plan
 

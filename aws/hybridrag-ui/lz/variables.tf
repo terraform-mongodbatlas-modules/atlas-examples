@@ -145,7 +145,7 @@ variable "http_edges" {
     aws_region          = optional(string)
     aliases             = optional(list(string), [])
     acm_certificate_arn = optional(string)
-    idle_timeout        = optional(number, 60)
+    idle_timeout        = optional(number, 120)
     waf = optional(object({
       enabled = optional(bool, true)
     }), {})

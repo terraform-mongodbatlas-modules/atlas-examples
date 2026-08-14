@@ -342,6 +342,7 @@ variable "http_edges" {
     Regional HTTP edges (ALB + CloudFront + WAF) owned by the landing zone. Map keys are stable identities (e.g. main).
     Public subnets and IGW are created per edge region when this map is non-empty.
     CloudFront terminates HTTPS on the default *.cloudfront.net domain; ALB is HTTP-only origin, restricted to the CloudFront origin-facing prefix list.
+    idle_timeout defaults 120 (ALB). Nested http_edge sets CloudFront origin_read_timeout to 120 to match.
     waf.enabled defaults true (AWS Managed Rules Common Rule Set). Set waf = { enabled = false } to skip.
     Optional aliases + acm_certificate_arn enable a custom domain on CloudFront (cert must be in us-east-1; CNAME to cloudfront_domain).
   EOT
@@ -349,7 +350,7 @@ variable "http_edges" {
     aws_region          = optional(string)
     aliases             = optional(list(string), [])
     acm_certificate_arn = optional(string)
-    idle_timeout        = optional(number, 60)
+    idle_timeout        = optional(number, 120)
     waf = optional(object({
       enabled = optional(bool, true)
     }), {})
