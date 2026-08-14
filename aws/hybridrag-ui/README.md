@@ -78,7 +78,7 @@ Log in as `demo` with the password from `terraform -chdir=lz output -raw chainli
 - How should we measure generative AI risk?
 - What is prompt injection and how do we mitigate it?
 
-The browser tab is **MongoDB AI risk**. Click a starter chip or type a question. Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`).
+The browser tab is **MongoDB AI risk**. Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`).
 
 NIST PDFs take several minutes because entity extract runs per chunk. The UI shows `Chunk N of M` and a live elapsed time. A second upload while that runs is queued, not complete.
 
