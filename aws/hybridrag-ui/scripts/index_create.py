@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from subprocess import CompletedProcess
 from typing import Any
+
+_READY_RE = re.compile(r"(\S+\.\S+)\s+READY\b")
 
 DEFAULT_APP_DIR = Path(__file__).resolve().parent.parent / "app"
 INDEX_CMD = ["hybridrag", "index", "create"]
@@ -81,6 +84,8 @@ def index_create(app_dir: Path, *, run: Run = subprocess.run) -> None:
         print(json.dumps(run_payload), file=sys.stderr)
         raise IndexCreateError("ecs run-task returned no task")
 
+    print(f"Started task {task_arn}")
+    print("Waiting for task to stop...")
     run(
         [
             "aws",
@@ -102,26 +107,65 @@ def index_create(app_dir: Path, *, run: Run = subprocess.run) -> None:
         run,
         ["ecs", "describe-tasks", "--region", region, "--cluster", cluster, "--tasks", task_arn],
     )
-    exit_code = desc["tasks"][0]["containers"][0].get("exitCode", 1)
+    task = desc["tasks"][0]
+    container = task["containers"][0]
+    exit_code = container.get("exitCode")
+    log_output = _tail_task_logs(run, log_group=log_group, region=region, task_arn=task_arn)
     if exit_code != 0:
-        if log_group:
-            run(
-                [
-                    "aws",
-                    "logs",
-                    "tail",
-                    log_group,
-                    "--region",
-                    region,
-                    "--since",
-                    "1h",
-                    "--filter-pattern",
-                    task_arn.rsplit("/", 1)[-1],
-                ],
-                check=False,
-            )
-        raise IndexCreateError(f"index create failed (exit {exit_code})")
-    print("index create finished")
+        detail = container.get("reason") or task.get("stoppedReason") or "unknown"
+        raise IndexCreateError(f"index create failed (exit {exit_code}, {detail})")
+    ready = ready_index_names(log_output)
+    if ready:
+        print(f"index create succeeded ({len(ready)} indexes READY)")
+    else:
+        print(
+            "index create succeeded (no READY lines in task logs; check CloudWatch if search fails)"
+        )
+
+
+def ready_index_names(log_output: str) -> list[str]:
+    """Return collection.index names that reached READY in hybridrag index create logs."""
+    seen: set[str] = set()
+    ready: list[str] = []
+    for line in log_output.splitlines():
+        match = _READY_RE.search(line)
+        if match and match.group(1) not in seen:
+            seen.add(match.group(1))
+            ready.append(match.group(1))
+    return ready
+
+
+def _tail_task_logs(
+    run: Run,
+    *,
+    log_group: str,
+    region: str,
+    task_arn: str,
+) -> str:
+    if not log_group:
+        return ""
+    completed = run(
+        [
+            "aws",
+            "logs",
+            "tail",
+            log_group,
+            "--region",
+            region,
+            "--since",
+            "1h",
+            "--filter-pattern",
+            task_arn.rsplit("/", 1)[-1],
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    output = completed.stdout or ""
+    if output:
+        end = "" if output.endswith("\n") else "\n"
+        print(output, end=end)
+    return output
 
 
 def _terraform_index_run(app_dir: Path, run: Run) -> dict[str, Any]:

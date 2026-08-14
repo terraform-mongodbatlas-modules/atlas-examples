@@ -6,7 +6,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 
 import pytest
-from index_create import IndexCreateError, index_create
+from index_create import IndexCreateError, index_create, ready_index_names
 
 APP = Path("/tmp/hybridrag-ui/app")
 INDEX_RUN = {"aws_region": "us-east-1", "cluster": "hybridrag-ui", "service": "hybridrag-ui"}
@@ -112,20 +112,41 @@ def test_exits_when_run_task_returns_no_task():
 def test_tails_logs_when_container_exits_nonzero():
     run = _happy(
         **{
-            "describe-tasks": {"tasks": [{"containers": [{"exitCode": 2}]}]},
+            "describe-tasks": {
+                "tasks": [
+                    {
+                        "containers": [{"exitCode": 2, "reason": "Error"}],
+                        "stoppedReason": "Essential container exited",
+                    }
+                ]
+            },
         }
     )
-    with pytest.raises(IndexCreateError, match="index create failed \\(exit 2\\)"):
+    with pytest.raises(IndexCreateError, match="index create failed \\(exit 2, Error\\)"):
         index_create(APP, run=run)
     assert any(call[:3] == ["aws", "logs", "tail"] for call in run.calls)
     assert any("/ecs/hybridrag-ui" in call for call in run.calls)
 
 
-def test_returns_after_successful_run_task():
-    run = _happy()
+def test_ready_index_names_parses_log_lines():
+    output = (
+        "2026-08-14 chunks.vector_idx READY\n"
+        "2026-08-14 chunks.text_idx READY\n"
+        "2026-08-14 chunks.vector_idx READY\n"
+    )
+    assert ready_index_names(output) == ["chunks.vector_idx", "chunks.text_idx"]
+
+
+def test_returns_after_successful_run_task(capsys):
+    log_lines = "2026-08-14 chunks.vector_idx READY\n2026-08-14 chunks.text_idx READY\n"
+    run = _happy(**{"logs": CompletedProcess(["aws"], 0, stdout=log_lines, stderr="")})
     index_create(APP, run=run)
     run_task = next(call for call in run.calls if "run-task" in call)
     assert "--overrides" in run_task
     overrides = json.loads(run_task[run_task.index("--overrides") + 1])
     assert overrides["containerOverrides"][0]["command"] == ["hybridrag", "index", "create"]
-    assert not any("logs" in call for call in run.calls)
+    assert any(call[:3] == ["aws", "logs", "tail"] for call in run.calls)
+    captured = capsys.readouterr()
+    assert "Started task" in captured.out
+    assert "chunks.vector_idx READY" in captured.out
+    assert "index create succeeded (2 indexes READY)" in captured.out
