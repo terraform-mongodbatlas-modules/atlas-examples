@@ -192,7 +192,11 @@ module "atlas_aws" {
 
   aws_tags = var.tags
 
-  depends_on = [module.atlas_project]
+  # No explicit depends_on here. project_id already orders create after the Atlas
+  # project exists. depends_on = [module.atlas_project] defers every data source
+  # read inside atlas_aws (including PrivateLink vpc_id) whenever the project
+  # module has pending changes (e.g. public_debug_access ip_access_list), which
+  # forces unnecessary PrivateLink destroy/recreate. See hashicorp/terraform#26383.
 }
 
 module "atlas_cluster" {
