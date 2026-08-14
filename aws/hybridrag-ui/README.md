@@ -1,6 +1,6 @@
 # HybridRAG UI on AWS
 
-Deploys a browser HybridRAG chat UI against a MongoDB Atlas cluster and AWS Landing Zone defaults: PrivateLink, a managed VPC, and CloudFront in front of ECS. Terraform creates an Atlas AI Model API key here; embeddings happen at ingest. An LLM key is optional.
+You end with a CloudFront URL and a chat that answers from files you uploaded. Hybrid search runs in Atlas. The app never sees a public Mongo endpoint. Terraform is two stacks: Landing Zone, then ECS.
 
 ## What this creates
 
@@ -8,7 +8,7 @@ Deploys a browser HybridRAG chat UI against a MongoDB Atlas cluster and AWS Land
 - **AWS:** VPC (private subnets plus NAT and public subnets for the ALB), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
 - **App:** ECS cluster, Fargate service running the HybridRAG UI image (`production-ui`, port 8001). Indexes are a one-shot `ecs run-task` of that same image, not a second service.
 
-This repository is Terraform and recipes. The UI image is cloned at build from a pinned [HybridRAG fork](https://github.com/EspenAlbert/Hybrid-Search-RAG).
+App code is [HybridRAG](https://github.com/romiluz13/Hybrid-Search-RAG) (Apache-2.0). This example clones a pin of [this fork](https://github.com/EspenAlbert/Hybrid-Search-RAG): `production-ui` image, Chainlit password auth, and `hybridrag index create` that waits until search indexes are READY.
 
 ```sh
 aws/hybridrag-ui/
@@ -31,11 +31,14 @@ Copy tfvars, then set `atlas_org_id` and `cluster_name`:
 cp lz/terraform.tfvars.example lz/terraform.tfvars
 ```
 
-This stack costs money while it is up (NAT, auto-scaling cluster, WAF). See [How much does this cost?](#how-much-does-this-cost). Optional LLM is [step 0](#how-do-i-add-an-llm-key).
+This stack costs money while it is up (NAT, auto-scaling cluster, WAF). See [How much does this cost?](#how-much-does-this-cost).
 
 ## Deploy Atlas and AWS infra
 
 ```sh
+# Recommended if you will show the UI to someone. Prints a secret name; paste it into lz/terraform.tfvars as llm_secret_name.
+just create-llm-secret
+
 # Creates the project, cluster, VPC, CloudFront, IAM, ECR, Voyage key, and nested app secret JSON.
 terraform -chdir=lz init
 terraform -chdir=lz apply
@@ -130,7 +133,7 @@ Do not set `waf.enabled = false` to fix uploads.
 
 ### How do I add an LLM key?
 
-`just create-llm-secret` writes a Secrets Manager secret and prints the name. Set `llm_secret_name` in lz tfvars and re-apply lz before `just build-push`. Skip this for search-only (`ENABLE_LLM=false`).
+The deploy step runs `just create-llm-secret` before `lz apply`. It writes a Secrets Manager secret and prints the name. Set `llm_secret_name` in lz tfvars. Skip the recipe for search-only (`ENABLE_LLM=false`). If you add a key after the first apply, re-apply lz before `just build-push`.
 
 The key is inlined as `llm_env_name` (default `ANTHROPIC_API_KEY`). `LLM_PROVIDER` is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`). Pin the model in `llm_env` (`ANTHROPIC_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `GROVE_MODEL`). Grove also needs `GROVE_BASE_URL`. OpenAI extras (`OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) go in `llm_env` too. Commented examples are in `lz/terraform.tfvars.example`.
 
