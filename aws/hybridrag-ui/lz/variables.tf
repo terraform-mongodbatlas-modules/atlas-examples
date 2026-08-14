@@ -147,7 +147,8 @@ variable "http_edges" {
     acm_certificate_arn = optional(string)
     idle_timeout        = optional(number, 120)
     waf = optional(object({
-      enabled = optional(bool, true)
+      enabled                     = optional(bool, true)
+      common_rule_set_count_rules = optional(list(string), [])
     }), {})
   }))
   default = {

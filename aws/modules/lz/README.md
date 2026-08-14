@@ -9,7 +9,7 @@ This is not a published Landing Zone product. Nested `regional_vpc` and `http_ed
 - **`atlas_org_id` / `cluster_name`:** Required.
 - **`regions`:** AWS names (`us-east-1`); Atlas `US_EAST_1` is also accepted.
 - **`vpc_config`:** `create = true` (default) manages one VPC per cluster AWS region from `base_cidr`. `create = false` requires a full `by_region` entry per region (no hybrid). `ecs_apps.*.internet_egress` turns on NAT in that app region.
-- **`http_edges`:** Map of ALB + CloudFront edges. Public subnets are created for those regions. `waf.enabled` defaults true.
+- **`http_edges`:** Map of ALB + CloudFront edges. Public subnets are created for those regions. `waf.enabled` defaults true. `waf.common_rule_set_count_rules` counts named Common Rule Set rules (empty by default).
 - **`ecs_apps`:** Map of ECS targets. Fields: `name`, `ecr_key`, `roles`, `routing` (`edge`, `listener_priority`, `path_pattern` or `host_header`, `container_port`), `internet_egress`. Execution-role `GetSecretValue` is a name glob `secret:<app-name>-app-*`. Task size and health check path are ecs-service inputs, not this type.
 - **`ecr_repositories`:** Independent of `ecs_apps` so registries survive compute changes.
 - **`cluster_type` / `shard_count`:** Default `SHARDED` / `1`. Set `REPLICASET` for a cheaper lab.

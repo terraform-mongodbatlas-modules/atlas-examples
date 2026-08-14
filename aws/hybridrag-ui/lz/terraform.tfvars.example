@@ -7,7 +7,7 @@ cluster_name = "hybridrag-ui"
 # Cheap personal lab (before first apply):
 # cluster_type = "REPLICASET"
 
-# Skip WAF (not the WebSocket fallback; lab should keep WAF on):
+# Skip WAF (not the WebSocket or upload fallback; lab should keep WAF on):
 # http_edges = { main = { waf = { enabled = false } } }
 
 # Opt-in SCRAM + one IPv4 for laptop mongosh / local hybridrag (not on the happy path):

@@ -45,7 +45,7 @@ terraform -chdir=lz apply
 
 ```sh
 # ECR is IMMUTABLE: bump image_tag in app/terraform.tfvars and the tag argument on every push.
-just build-push "$(terraform -chdir=lz output -raw ecr_repository_url)" 0.0.2
+just build-push "$(terraform -chdir=lz output -raw ecr_repository_url)" 0.0.1
 
 cp app/terraform.tfvars.example app/terraform.tfvars
 # app_secret_name default is hybridrag-ui-app (matches lz). task_cpu / task_memory default 1024 / 2048.
@@ -112,11 +112,21 @@ atlas_integrations = {
 }
 ```
 
-- **Skip WAF:** `http_edges = { main = { waf = { enabled = false } } }`. Do not use this as the Chainlit WebSocket workaround; see [How do I turn WAF off?](#how-do-i-turn-waf-off).
+- **Skip WAF:** `http_edges = { main = { waf = { enabled = false } } }`. Do not use this to unblock Chainlit uploads or WebSockets; see [How do I turn WAF off?](#how-do-i-turn-waf-off) and [What is the file upload size limit?](#what-is-the-file-upload-size-limit).
 
 ### How do I turn WAF off?
 
-Set `http_edges = { main = { waf = { enabled = false } } }` in lz tfvars. Do not use this as the WebSocket workaround; if Common Rule Set blocks the Chainlit upgrade, add an allow rule instead.
+Set `http_edges = { main = { waf = { enabled = false } } }` in lz tfvars. Do not use this as the WebSocket workaround; if Common Rule Set blocks the Chainlit upgrade, add an allow rule instead. File uploads are a different rule (`SizeRestrictions_BODY`); see [What is the file upload size limit?](#what-is-the-file-upload-size-limit).
+
+### What is the file upload size limit?
+
+AWS WAF Common Rule Set rule `SizeRestrictions_BODY` blocks request bodies larger than 8 KB. Chainlit `POST /project/file` is a multipart upload, so the seed PDFs (about 1-2 MB) return HTTP 403 unless that rule is counted.
+
+This example counts `SizeRestrictions_BODY` and the other Common Rule Set BODY rules (`CrossSiteScripting_BODY`, `GenericRFI_BODY`, `GenericLFI_BODY`, `EC2MetaDataSSRF_BODY`) so PDFs and markdown with URLs are not blocked. Header, query, and path CRS rules still apply.
+
+WAF inspects at most 16 KB of the body on CloudFront (64 KB if you raise the inspection limit). That is inspection only, not an upload size cap. After the BODY rules are counted, CloudFront and the ALB forward the full POST. CloudFront's request-body quota is 64 GB. This example does not set a smaller cap. A slow upload can still fail the 120s origin read timeout.
+
+Do not set `waf.enabled = false` to fix uploads.
 
 ### How do I add an LLM key?
 

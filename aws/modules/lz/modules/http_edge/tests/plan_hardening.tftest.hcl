@@ -68,8 +68,12 @@ run "waf_on_by_default" {
       length(aws_wafv2_web_acl.this) == 1,
       aws_wafv2_web_acl.this[0].scope == "CLOUDFRONT",
       startswith(output.https_url, "https://"),
+      length(flatten([
+        for rule in aws_wafv2_web_acl.this[0].rule :
+        try(rule.statement[0].managed_rule_group_statement[0].rule_action_override, [])
+      ])) == 0,
     ])
-    error_message = "WAF Common Rule Set should be attached and https_url should be CloudFront HTTPS"
+    error_message = "WAF Common Rule Set should be attached with no CRS count overrides by default"
   }
 }
 
@@ -83,5 +87,24 @@ run "waf_can_be_disabled" {
   assert {
     condition     = length(aws_wafv2_web_acl.this) == 0
     error_message = "waf.enabled = false should skip the Web ACL"
+  }
+}
+
+run "waf_counts_named_crs_rules" {
+  command = plan
+
+  variables {
+    waf = {
+      common_rule_set_count_rules = ["SizeRestrictions_BODY", "CrossSiteScripting_BODY"]
+    }
+  }
+
+  assert {
+    condition = toset(flatten([
+      for rule in aws_wafv2_web_acl.this[0].rule : [
+        for o in try(rule.statement[0].managed_rule_group_statement[0].rule_action_override, []) : o.name
+      ]
+    ])) == toset(["SizeRestrictions_BODY", "CrossSiteScripting_BODY"])
+    error_message = "common_rule_set_count_rules should count the named CRS rules"
   }
 }

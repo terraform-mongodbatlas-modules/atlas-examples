@@ -100,6 +100,17 @@ resource "aws_wafv2_web_acl" "this" {
       managed_rule_group_statement {
         name        = "AWSManagedRulesCommonRuleSet"
         vendor_name = "AWS"
+
+        # Count overrides (for example SizeRestrictions_BODY) so large POSTs are not blocked at 8 KB.
+        dynamic "rule_action_override" {
+          for_each = var.waf.common_rule_set_count_rules
+          content {
+            name = rule_action_override.value
+            action_to_use {
+              count {}
+            }
+          }
+        }
       }
     }
 

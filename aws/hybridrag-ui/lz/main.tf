@@ -28,6 +28,15 @@ locals {
     ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
     sort(keys(local.llm_app_secrets))
   )
+  # CRS SizeRestrictions_BODY blocks bodies over 8 KB. Chainlit POST /project/file
+  # is a multipart upload (NIST PDFs, OWASP markdown) and also trips BODY XSS/RFI/LFI.
+  chainlit_waf_count_rules = [
+    "SizeRestrictions_BODY",
+    "CrossSiteScripting_BODY",
+    "GenericRFI_BODY",
+    "GenericLFI_BODY",
+    "EC2MetaDataSSRF_BODY",
+  ]
 }
 
 module "lz" {
@@ -43,10 +52,21 @@ module "lz" {
   vpc_config                   = var.vpc_config
   atlas_integrations           = var.atlas_integrations
   ecr_repositories             = var.ecr_repositories
-  http_edges                   = var.http_edges
-  ecs_apps                     = var.ecs_apps
-  tags                         = var.tags
-  public_debug_access          = var.public_debug_access
+  http_edges = {
+    for k, v in var.http_edges : k => {
+      aws_region          = v.aws_region
+      aliases             = v.aliases
+      acm_certificate_arn = v.acm_certificate_arn
+      idle_timeout        = v.idle_timeout
+      waf = {
+        enabled                     = v.waf.enabled
+        common_rule_set_count_rules = distinct(concat(v.waf.common_rule_set_count_rules, local.chainlit_waf_count_rules))
+      }
+    }
+  }
+  ecs_apps            = var.ecs_apps
+  tags                = var.tags
+  public_debug_access = var.public_debug_access
 }
 
 module "voyage_api_key" {

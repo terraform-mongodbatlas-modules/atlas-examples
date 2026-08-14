@@ -97,6 +97,7 @@ run "app_secret_nests_groups_and_voyage" {
       startswith(output.https_url, "https://"),
       strcontains(output.https_url, "cloudfront.net"),
       output.app_secret_name == "hybridrag-ui-app",
+      contains(local.chainlit_waf_count_rules, "SizeRestrictions_BODY"),
     ])
     error_message = "Voyage key, UI routing, CloudFront https_url, and app secret name should be known at plan"
   }
