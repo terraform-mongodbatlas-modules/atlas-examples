@@ -55,10 +55,10 @@ def index_create(app_dir: Path, *, run: Run = subprocess.run) -> None:
         ["ecs", "describe-task-definition", "--region", region, "--task-definition", task_def],
     )
     container_def = td["taskDefinition"]["containerDefinitions"][0]
-    container = container_def["name"]
-    log_group = (
-        container_def.get("logConfiguration", {}).get("options", {}).get("awslogs-group", "")
-    )
+    log_opts = container_def.get("logConfiguration", {}).get("options", {})
+    container_name = container_def["name"]
+    log_group = log_opts.get("awslogs-group", "")
+    log_stream_prefix = log_opts.get("awslogs-stream-prefix", "ecs")
     run_payload = _aws_json(
         run,
         [
@@ -75,7 +75,7 @@ def index_create(app_dir: Path, *, run: Run = subprocess.run) -> None:
             "--network-configuration",
             f"awsvpcConfiguration={{subnets=[{subnet}],securityGroups=[{sg}],assignPublicIp=DISABLED}}",
             "--overrides",
-            json.dumps({"containerOverrides": [{"name": container, "command": INDEX_CMD}]}),
+            json.dumps({"containerOverrides": [{"name": container_name, "command": INDEX_CMD}]}),
         ],
     )
     tasks = run_payload.get("tasks") or []
@@ -108,11 +108,18 @@ def index_create(app_dir: Path, *, run: Run = subprocess.run) -> None:
         ["ecs", "describe-tasks", "--region", region, "--cluster", cluster, "--tasks", task_arn],
     )
     task = desc["tasks"][0]
-    container = task["containers"][0]
-    exit_code = container.get("exitCode")
-    log_output = _tail_task_logs(run, log_group=log_group, region=region, task_arn=task_arn)
+    container_status = task["containers"][0]
+    exit_code = container_status.get("exitCode")
+    log_output = _tail_task_logs(
+        run,
+        log_group=log_group,
+        region=region,
+        task_arn=task_arn,
+        container_name=container_name,
+        log_stream_prefix=log_stream_prefix,
+    )
     if exit_code != 0:
-        detail = container.get("reason") or task.get("stoppedReason") or "unknown"
+        detail = container_status.get("reason") or task.get("stoppedReason") or "unknown"
         raise IndexCreateError(f"index create failed (exit {exit_code}, {detail})")
     ready = ready_index_names(log_output)
     if ready:
@@ -135,15 +142,27 @@ def ready_index_names(log_output: str) -> list[str]:
     return ready
 
 
+def _ecs_log_stream_name(*, log_stream_prefix: str, container_name: str, task_arn: str) -> str:
+    task_id = task_arn.rsplit("/", 1)[-1]
+    return f"{log_stream_prefix}/{container_name}/{task_id}"
+
+
 def _tail_task_logs(
     run: Run,
     *,
     log_group: str,
     region: str,
     task_arn: str,
+    container_name: str,
+    log_stream_prefix: str,
 ) -> str:
     if not log_group:
         return ""
+    log_stream = _ecs_log_stream_name(
+        log_stream_prefix=log_stream_prefix,
+        container_name=container_name,
+        task_arn=task_arn,
+    )
     completed = run(
         [
             "aws",
@@ -152,10 +171,8 @@ def _tail_task_logs(
             log_group,
             "--region",
             region,
-            "--since",
-            "1h",
-            "--filter-pattern",
-            task_arn.rsplit("/", 1)[-1],
+            "--log-stream-names",
+            log_stream,
         ],
         check=False,
         capture_output=True,
