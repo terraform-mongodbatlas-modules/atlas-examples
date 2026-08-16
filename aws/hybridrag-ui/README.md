@@ -197,7 +197,7 @@ rag_performance = {
 
 `/mode` in Chainlit overrides the mode for the current session only. `rag_performance` sets the startup default for new chats.
 
-For local Docker (no ECS), see `docker/.env.local.example` in the HybridRAG fork and `docs/16/p16_hybridrag-ui-local-docker.md` in the workspace.
+For local Docker (no ECS), run `just dump-local-env` (needs `public_debug_access` in lz tfvars) or copy `docker/.env.local.example` in the HybridRAG fork. See `docs/16/p16_hybridrag-ui-local-docker.md` in the workspace.
 
 ### What is the app secret name?
 
@@ -213,7 +213,7 @@ This example uses `regions[0]` (default `us-east-1`). The app provider is `us-ea
 
 ### What is `public_debug_access`?
 
-Opt-in SCRAM plus one IPv4 for laptop `mongosh` or local `hybridrag`. Not on the happy path. See commented example in `lz/terraform.tfvars.example` or `lz/variables.tf`.
+Opt-in SCRAM plus one IPv4 for laptop `mongosh`, local HybridRAG Docker, or `just dump-local-env`. Not on the happy path. See commented example in `lz/terraform.tfvars.example` or `lz/variables.tf`.
 
 ### How do I use a custom domain?
 

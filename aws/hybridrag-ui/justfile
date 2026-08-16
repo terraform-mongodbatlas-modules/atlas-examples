@@ -75,3 +75,16 @@ index-create:
 # Download the AI-governance seed pack into a gitignored cache (no ingest).
 seed-download:
     uv run python "{{seed_dir}}/download.py"
+
+# Dump gitignored secrets/.env.local for docker-compose.local-ui.yml (needs public_debug_access).
+dump-local-env region="" output="secrets/.env.local":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    script="{{justfile_directory()}}/scripts/dump_local_env.py"
+    out="{{justfile_directory()}}/{{output}}"
+    if [[ -n "{{region}}" ]]; then
+      uv run python "${script}" --output "${out}" --region "{{region}}"
+    else
+      uv run python "${script}" --output "${out}"
+    fi
+
