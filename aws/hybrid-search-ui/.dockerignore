@@ -1,0 +1,8 @@
+**/*_test.py
+.venv
+scripts/cache
+secrets
+.vendor
+lz
+app
+dist

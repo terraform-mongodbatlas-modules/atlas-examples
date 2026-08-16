@@ -37,6 +37,7 @@ class HybridSearchSettings(BaseSettings):
     grove_api_key: SecretStr | None = None
     grove_model: str = "gpt-4o"
     grove_base_url: str | None = None
+    skip_index_creation: bool = False
 
     @field_validator("mongodb_uri")
     @classmethod
@@ -51,3 +52,7 @@ class HybridSearchSettings(BaseSettings):
 @lru_cache
 def get_settings() -> HybridSearchSettings:
     return HybridSearchSettings()
+
+
+def clear_settings_cache() -> None:
+    get_settings.cache_clear()

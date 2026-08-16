@@ -1,0 +1,16 @@
+from __future__ import annotations
+
+DEMO_STARTERS = [
+    {
+        "label": "AI RMF functions",
+        "message": "What are the four functions of the AI RMF?",
+    },
+    {
+        "label": "Measure GenAI risk",
+        "message": "How should we measure generative AI risk?",
+    },
+    {
+        "label": "Prompt injection",
+        "message": "What is prompt injection and how do we mitigate it?",
+    },
+]

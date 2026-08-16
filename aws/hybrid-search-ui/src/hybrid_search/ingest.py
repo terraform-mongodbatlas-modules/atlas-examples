@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import inspect
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import voyageai
 from motor.motor_asyncio import AsyncIOMotorCollection
@@ -22,12 +25,16 @@ def chunk_doc_id(file_path: str, chunk_index: int) -> str:
     return f"{file_path}#{chunk_index}"
 
 
+OnProgress = Callable[[str], Any]
+
+
 async def ingest_file(
     path: Path,
     *,
     settings: HybridSearchSettings,
     collection: AsyncIOMotorCollection,
     voyage: voyageai.AsyncClient,
+    on_progress: OnProgress | None = None,
 ) -> IngestResult:
     extracted = extract_module.extract_text(path)
     file_path = str(path)
@@ -36,12 +43,24 @@ async def ingest_file(
     total = 0
     for batch in batches:
         embed = await voyage_module.embed_document(batch, client=voyage, settings=settings)
+        await _emit_progress(on_progress, f"Embedding {len(embed.chunk_texts)} chunks")
         ops = _upsert_ops(file_path, chunk_index, embed)
         if ops:
             await collection.bulk_write(ops, ordered=False)
+            await _emit_progress(on_progress, f"Stored {len(ops)} chunks")
             chunk_index += len(ops)
             total += len(ops)
+    if on_progress is not None:
+        await _emit_progress(on_progress, "Completed processing file")
     return IngestResult(chunk_count=total)
+
+
+async def _emit_progress(on_progress: OnProgress | None, message: str) -> None:
+    if on_progress is None:
+        return
+    result = on_progress(message)
+    if inspect.isawaitable(result):
+        await result
 
 
 def _text_batches(path: Path, text: str) -> list[str]:

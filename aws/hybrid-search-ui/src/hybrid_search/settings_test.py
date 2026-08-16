@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import SecretStr
 
-from hybrid_search.settings import HybridSearchSettings, get_settings
+from hybrid_search.settings import HybridSearchSettings, clear_settings_cache, get_settings
 
 
 @pytest.fixture(autouse=True)
@@ -41,3 +41,15 @@ def test_env_override(monkeypatch):
 def test_rejects_bad_mongodb_uri():
     with pytest.raises(ValueError, match="mongodb_uri"):
         _settings(mongodb_uri=SecretStr("http://bad"))
+
+
+def test_skip_index_creation_default():
+    assert _settings().skip_index_creation is False
+
+
+def test_skip_index_creation_env(monkeypatch):
+    monkeypatch.setenv("SKIP_INDEX_CREATION", "true")
+    monkeypatch.setenv("MONGODB_URI", "mongodb://localhost")
+    monkeypatch.setenv("VOYAGE_API_KEY", "key")
+    clear_settings_cache()
+    assert get_settings().skip_index_creation is True

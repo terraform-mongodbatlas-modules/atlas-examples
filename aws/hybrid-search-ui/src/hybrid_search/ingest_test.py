@@ -63,3 +63,30 @@ async def test_ingest_splits_large_text(tmp_path: Path, monkeypatch):
     )
     assert result.chunk_count == 2
     assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_ingest_progress_callback(tmp_path: Path, monkeypatch):
+    path = tmp_path / "doc.txt"
+    path.write_text("hello")
+    settings = HybridSearchSettings(
+        mongodb_uri=SecretStr("mongodb://localhost"),
+        voyage_api_key=SecretStr("key"),
+    )
+    collection = MagicMock()
+    collection.bulk_write = AsyncMock()
+    steps: list[str] = []
+
+    async def fake_embed(_text, *, client, settings):
+        del client, settings
+        return DocumentEmbedResult(chunk_texts=["a", "b"], embeddings=[[0.1], [0.2]])
+
+    monkeypatch.setattr(ingest_module.voyage_module, "embed_document", fake_embed)
+    await ingest_module.ingest_file(
+        path,
+        settings=settings,
+        collection=collection,
+        voyage=MagicMock(),
+        on_progress=steps.append,
+    )
+    assert steps == ["Embedding 2 chunks", "Stored 2 chunks", "Completed processing file"]

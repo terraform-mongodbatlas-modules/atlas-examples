@@ -9,8 +9,12 @@ dependencies = [
     "pydantic-ai-slim[anthropic,google,openai,retries]",
     "pydantic-settings",
     "pymongo",
+    "typer",
     "voyageai",
 ]
+
+[project.scripts]
+hybrid-search = "hybrid_search.cli.app:main"
 
 [project.optional-dependencies]
 aws = ["pymongo[aws]"]
