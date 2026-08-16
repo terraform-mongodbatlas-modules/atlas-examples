@@ -5,7 +5,7 @@ hybridrag_repo := "https://github.com/EspenAlbert/Hybrid-Search-RAG.git"
 # Pin to the index-create commit after it is on the fork remote.
 hybridrag_ref := "lz-module-demo"
 hybridrag_dir := justfile_directory() + "/.vendor/Hybrid-Search-RAG"
-seed_dir := justfile_directory() + "/../hybridrag-seed"
+seed_dir := justfile_directory() + "/scripts"
 
 # Clone or update the pinned HybridRAG fork under .vendor/.
 clone-hybridrag:
@@ -40,7 +40,7 @@ build-push repo_url tag="0.0.1": clone-hybridrag
     echo "Pushed ${image_uri}"
 
 # Write a raw LLM API key to Secrets Manager. Paste the printed name into lz tfvars as llm_secret_name.
-create-llm-secret name="hybridrag-ui-llm" region="us-east-1":
+create-llm-secret name="hybrid-search-ui-llm" region="us-east-1":
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Supported providers. Set llm_env_name in lz tfvars to match the key:" >&2
@@ -58,7 +58,7 @@ create-llm-secret name="hybridrag-ui-llm" region="us-east-1":
     echo "{{name}}"
 
 # Delete the LLM API key secret from Secrets Manager. Remove llm_secret_name from lz tfvars after.
-delete-llm-secret name="hybridrag-ui-llm" region="us-east-1":
+delete-llm-secret name="hybrid-search-ui-llm" region="us-east-1":
     #!/usr/bin/env bash
     set -euo pipefail
     if ! aws secretsmanager describe-secret --secret-id "{{name}}" --region "{{region}}" >/dev/null 2>&1; then

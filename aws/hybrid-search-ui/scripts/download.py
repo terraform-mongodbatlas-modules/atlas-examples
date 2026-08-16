@@ -1,4 +1,4 @@
-"""Download the HybridRAG AI-governance seed pack into a local cache."""
+"""Download the AI-governance seed pack into a local cache."""
 
 from __future__ import annotations
 
@@ -32,14 +32,14 @@ def download(*, dest: Path = CACHE_DIR) -> list[Path]:
 
 
 def _fetch(url: str, path: Path) -> Path:
-    req = urllib.request.Request(url, headers={"User-Agent": "atlas-examples-hybridrag-seed"})
+    req = urllib.request.Request(url, headers={"User-Agent": "atlas-examples-hybrid-search-ui-seed"})
     with urllib.request.urlopen(req, timeout=60) as resp:
         path.write_bytes(resp.read())
     return path
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Download the HybridRAG AI-governance seed pack.")
+    parser = argparse.ArgumentParser(description="Download the AI-governance seed pack.")
     parser.add_argument("--dest", type=Path, default=CACHE_DIR, help="Cache directory (gitignored).")
     args = parser.parse_args(argv)
     paths = download(dest=args.dest)

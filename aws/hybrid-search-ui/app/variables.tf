@@ -1,7 +1,7 @@
 variable "app_secret_name" {
   description = "Secrets Manager secret name written by the lz stack."
   type        = string
-  default     = "hybridrag-ui-app"
+  default     = "hybrid-search-ui-app"
 }
 
 variable "image_tag" {
@@ -25,5 +25,5 @@ variable "task_memory" {
 variable "tags" {
   description = "Tags applied to AWS resources."
   type        = map(string)
-  default     = { Example = "aws-hybridrag-ui" }
+  default     = { Example = "aws-hybrid-search-ui" }
 }

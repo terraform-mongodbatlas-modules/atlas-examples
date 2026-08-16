@@ -57,7 +57,7 @@ override_module {
   target          = module.lz.module.atlas_cluster
   override_during = plan
   outputs = {
-    cluster_name = "hybridrag-ui"
+    cluster_name = "hybrid-search-ui"
     state_name   = "IDLE"
     connection_strings = {
       standard_srv = "mongodb+srv://cluster.example.mongodb.net"
@@ -72,37 +72,40 @@ override_module {
 
 variables {
   atlas_org_id    = "org123"
-  cluster_name    = "hybridrag-ui"
-  llm_secret_name = "hybridrag-ui-llm"
-  llm_env_name    = "GROVE_API_KEY"
-  llm_env = {
-    GROVE_BASE_URL = "https://grove.example.mongodb.com/v1"
-    GROVE_MODEL    = "gpt-4o"
-  }
+  cluster_name    = "hybrid-search-ui"
+  llm_secret_name = null
+  llm_env         = {}
 }
 
-run "llm_grove_sets_provider_and_base_url" {
+run "app_secret_nests_groups_and_voyage" {
   command = plan
 
   assert {
     condition = alltrue([
-      sort(local.container_secret_keys) == sort([
-        "VOYAGE_API_KEY",
-        "CHAINLIT_AUTH_SECRET",
-        "CHAINLIT_DEMO_PASSWORD",
-        "GROVE_API_KEY",
-        "GROVE_BASE_URL",
-        "GROVE_MODEL",
-      ]),
-      local.llm_container_env["ENABLE_LLM"] == "true",
+      module.voyage_api_key.api_key_id == "key-1",
+      module.voyage_api_key.voyage_base_url == "https://ai.mongodb.com/v1",
+      local.container_secret_keys == ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
+      local.llm_container_env["ENABLE_LLM"] == "false",
       local.llm_container_env["SKIP_INDEX_CREATION"] == "true",
-      local.llm_container_env["LLM_PROVIDER"] == "grove",
-      local.llm_container_env["MONGODB_URI"] != "",
-      local.llm_container_env["MONGODB_DATABASE"] == "hybridrag",
+      !contains(keys(local.llm_container_env), "LLM_PROVIDER"),
+      strcontains(local.llm_container_env["MONGODB_URI"], "authMechanism=MONGODB-AWS"),
+      local.llm_container_env["MONGODB_DATABASE"] == "hybrid_search",
       local.llm_container_env["VOYAGE_BASE_URL"] == "https://ai.mongodb.com/v1",
       local.llm_container_env["DEFAULT_QUERY_MODE"] == "mix",
-      !contains(keys(local.llm_container_env), "GROVE_BASE_URL"),
+      local.llm_container_env["DEFAULT_TOP_K"] == "60",
+      local.llm_container_env["DEFAULT_RERANK_TOP_K"] == "10",
+      local.llm_container_env["ENABLE_RERANK"] == "true",
+      local.llm_container_env["ENABLE_ENTITY_BOOSTING"] == "true",
+      local.llm_container_env["ENABLE_IMPLICIT_EXPANSION"] == "true",
+      !contains(local.container_secret_keys, "VOYAGE_BASE_URL"),
+      local.ui.name == "hybrid-search-ui",
+      local.ui.routing.container_port == 8001,
+      local.ui.routing.origin_header_name == "X-Origin-Verify",
+      startswith(output.https_url, "https://"),
+      strcontains(output.https_url, "cloudfront.net"),
+      output.app_secret_name == "hybrid-search-ui-app",
+      contains(local.chainlit_waf_count_rules, "SizeRestrictions_BODY"),
     ])
-    error_message = "Grove LLM should set LLM_PROVIDER and inline GROVE_* extras as app secret keys"
+    error_message = "Voyage key, UI routing, CloudFront https_url, and app secret name should be known at plan"
   }
 }

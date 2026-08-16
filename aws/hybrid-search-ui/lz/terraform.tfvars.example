@@ -1,5 +1,5 @@
 atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
-cluster_name = "hybridrag-ui"
+cluster_name = "hybrid-search-ui"
 
 # Pin compute to cap size (disk GB still auto-scales). Default is auto-scaling M10–M200.
 # manual_scaling = { instance_size = "M10" }
@@ -10,21 +10,21 @@ cluster_name = "hybridrag-ui"
 # Skip WAF (not the WebSocket or upload fallback; lab should keep WAF on):
 # http_edges = { main = { waf = { enabled = false } } }
 
-# Opt-in SCRAM + one IPv4 for laptop mongosh / local hybridrag (not on the happy path):
+# Opt-in SCRAM + one IPv4 for laptop mongosh / local app (not on the happy path):
 # public_debug_access = { ip_address = "203.0.113.10" }
 
 # Optional LLM (just create-llm-secret, then paste the name).
 # LLM_PROVIDER is inferred from llm_env_name.
 #
 # Anthropic (default):
-# llm_secret_name = "hybridrag-ui-llm"
+# llm_secret_name = "hybrid-search-ui-llm"
 # llm_env_name    = "ANTHROPIC_API_KEY"
 # llm_env = {
 #   ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
 # }
 #
 # OpenAI:
-# llm_secret_name = "hybridrag-ui-llm"
+# llm_secret_name = "hybrid-search-ui-llm"
 # llm_env_name    = "OPENAI_API_KEY"
 # llm_env = {
 #   OPENAI_MODEL    = "gpt-4o"
@@ -32,14 +32,14 @@ cluster_name = "hybridrag-ui"
 # }
 #
 # Gemini:
-# llm_secret_name = "hybridrag-ui-llm"
+# llm_secret_name = "hybrid-search-ui-llm"
 # llm_env_name    = "GEMINI_API_KEY"
 # llm_env = {
 #   GEMINI_MODEL = "gemini-2.5-flash"
 # }
 #
 # Grove:
-# llm_secret_name = "hybridrag-ui-llm"
+# llm_secret_name = "hybrid-search-ui-llm"
 # llm_env_name    = "GROVE_API_KEY"
 # llm_env = {
 #   GROVE_BASE_URL = "https://grove.example.mongodb.com/v1"

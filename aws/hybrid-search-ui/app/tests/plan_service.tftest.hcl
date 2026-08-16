@@ -9,8 +9,8 @@ mock_provider "aws" {
 
   mock_data "aws_secretsmanager_secret" {
     defaults = {
-      id  = "hybridrag-ui-app"
-      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:hybridrag-ui-app-AbCdEf"
+      id  = "hybrid-search-ui-app"
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:hybrid-search-ui-app-AbCdEf"
     }
   }
 
@@ -18,15 +18,15 @@ mock_provider "aws" {
     defaults = {
       secret_string = jsonencode({
         aws_region         = "us-east-1"
-        name               = "hybridrag-ui"
-        ecr_repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/hybridrag-ui"
+        name               = "hybrid-search-ui"
+        ecr_repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/hybrid-search-ui"
         network = {
           private_subnet_ids    = ["subnet-aaa", "subnet-bbb"]
           ecs_security_group_id = "sg-ecs"
         }
         iam = {
-          task_role_arn           = "arn:aws:iam::123456789012:role/hybridrag-ui-ecs-task"
-          task_execution_role_arn = "arn:aws:iam::123456789012:role/hybridrag-ui-ecs-exec"
+          task_role_arn           = "arn:aws:iam::123456789012:role/hybrid-search-ui-ecs-task"
+          task_execution_role_arn = "arn:aws:iam::123456789012:role/hybrid-search-ui-ecs-exec"
         }
         routing = {
           listener_arn        = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
@@ -43,7 +43,7 @@ mock_provider "aws" {
             SKIP_INDEX_CREATION    = "true"
             CHAINLIT_DEMO_USERNAME = "demo"
             MONGODB_URI            = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
-            MONGODB_DATABASE       = "hybridrag"
+            MONGODB_DATABASE       = "hybrid_search"
             VOYAGE_BASE_URL        = "https://ai.mongodb.com/v1"
           }
           secret_keys = ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"]
@@ -54,7 +54,7 @@ mock_provider "aws" {
 }
 
 variables {
-  app_secret_name = "hybridrag-ui-app"
+  app_secret_name = "hybrid-search-ui-app"
   image_tag       = "0.0.1"
 }
 
@@ -63,12 +63,12 @@ run "ui_service_from_app_secret" {
 
   assert {
     condition = alltrue([
-      module.ecs_service.ecs_cluster_name == "hybridrag-ui",
-      module.ecs_service.ecs_service_name == "hybridrag-ui",
+      module.ecs_service.ecs_cluster_name == "hybrid-search-ui",
+      module.ecs_service.ecs_service_name == "hybrid-search-ui",
       module.ecs_service.container_port == 8001,
       module.ecs_service.health_check_path == "/",
-      module.ecs_service.index_run.cluster == "hybridrag-ui",
-      module.ecs_service.index_run.service == "hybridrag-ui",
+      module.ecs_service.index_run.cluster == "hybrid-search-ui",
+      module.ecs_service.index_run.service == "hybrid-search-ui",
     ])
     error_message = "App stack should create the ECS cluster and attach the UI service (port 8001, health /)"
   }

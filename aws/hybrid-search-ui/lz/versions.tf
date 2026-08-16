@@ -18,7 +18,7 @@ terraform {
 
   provider_meta "mongodbatlas" {
     user_agent_extra = {
-      example = "aws-hybridrag-ui"
+      example = "aws-hybrid-search-ui"
     }
   }
 }

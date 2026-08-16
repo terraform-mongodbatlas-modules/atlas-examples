@@ -25,7 +25,7 @@ output "chainlit_demo_password" {
 }
 
 output "connection_string_public" {
-  description = "Public connection string for debugging with mongosh or local hybridrag."
+  description = "Public connection string for debugging with mongosh or local app."
   value       = module.lz.connection_string_public
   sensitive   = true
 }

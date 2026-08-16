@@ -7,7 +7,7 @@ _SECRET = {
     "container": {
         "env": {
             "MONGODB_URI": "mongodb+srv://iam@cluster/?authMechanism=MONGODB-AWS",
-            "MONGODB_DATABASE": "hybridrag",
+            "MONGODB_DATABASE": "hybrid_search",
             "VOYAGE_BASE_URL": "https://ai.mongodb.com/v1",
             "ENABLE_LLM": "true",
             "LLM_PROVIDER": "anthropic",
@@ -37,10 +37,10 @@ _SECRET = {
 def test_maps_public_uri_and_drops_chainlit() -> None:
     env, warnings = local_env_from_secret(
         _SECRET,
-        mongodb_uri="mongodb+srv://debug:pass@cluster/hybridrag",
+        mongodb_uri="mongodb+srv://debug:pass@cluster/hybrid_search",
     )
     assert warnings == []
-    assert env["MONGODB_URI"] == "mongodb+srv://debug:pass@cluster/hybridrag"
+    assert env["MONGODB_URI"] == "mongodb+srv://debug:pass@cluster/hybrid_search"
     assert env["VOYAGE_API_KEY"] == "voyage-key"
     assert env["ANTHROPIC_API_KEY"] == "llm-key"
     assert env["SKIP_INDEX_CREATION"] == "true"
@@ -62,6 +62,6 @@ def test_render_env_file_quotes_values() -> None:
         _SECRET,
         mongodb_uri='mongodb+srv://user:pass@"host"/db',
     )
-    rendered = render_env_file(env, secret_name="hybridrag-ui-app")
+    rendered = render_env_file(env, secret_name="hybrid-search-ui-app")
     assert 'MONGODB_URI="mongodb+srv://user:pass@\\"host\\"/db"' in rendered
-    assert "# Source secret: hybridrag-ui-app" in rendered
+    assert "# Source secret: hybrid-search-ui-app" in rendered

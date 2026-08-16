@@ -11,7 +11,7 @@ variable "cluster_name" {
 variable "default_resource_name_prefix" {
   description = "Prefix for Atlas project name and AWS resource names (VPC, security groups, module-managed S3 buckets)."
   type        = string
-  default     = "hybridrag-ui"
+  default     = "hybrid-search-ui"
 }
 
 variable "public_debug_access" {
@@ -20,7 +20,7 @@ variable "public_debug_access" {
     ip_address    = string
     username      = optional(string, "debug")
     password      = optional(string)
-    database_name = optional(string, "hybridrag")
+    database_name = optional(string, "hybrid_search")
     role_name     = optional(string, "readWrite")
     comment       = optional(string, "public debug")
   })
@@ -31,7 +31,7 @@ variable "public_debug_access" {
 variable "tags" {
   description = "Tags applied to Atlas and AWS resources."
   type        = map(string)
-  default     = { Example = "aws-hybridrag-ui" }
+  default     = { Example = "aws-hybrid-search-ui" }
 }
 
 variable "regions" {
@@ -135,7 +135,7 @@ variable "ecr_repositories" {
     lifecycle_keep_count = optional(number, 10)
   }))
   default = {
-    ui = { name = "hybridrag-ui" }
+    ui = { name = "hybrid-search-ui" }
   }
 }
 
@@ -179,7 +179,7 @@ variable "ecs_apps" {
   }))
   default = {
     ui = {
-      name            = "hybridrag-ui"
+      name            = "hybrid-search-ui"
       ecr_key         = "ui"
       internet_egress = true
       routing = {
@@ -188,7 +188,7 @@ variable "ecs_apps" {
         path_pattern      = ["/*"]
         container_port    = 8001
       }
-      roles = [{ database_name = "hybridrag" }]
+      roles = [{ database_name = "hybrid_search" }]
     }
   }
 }
@@ -237,7 +237,7 @@ variable "llm_env" {
 variable "voyage_key_name" {
   description = "Atlas AI Model API key name."
   type        = string
-  default     = "hybridrag-ui-voyage"
+  default     = "hybrid-search-ui-voyage"
 }
 
 variable "rag_performance" {

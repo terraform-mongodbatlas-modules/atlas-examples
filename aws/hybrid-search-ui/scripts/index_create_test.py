@@ -8,9 +8,9 @@ from subprocess import CompletedProcess
 import pytest
 from index_create import IndexCreateError, index_create, ready_index_names
 
-APP = Path("/tmp/hybridrag-ui/app")
-INDEX_RUN = {"aws_region": "us-east-1", "cluster": "hybridrag-ui", "service": "hybridrag-ui"}
-TASK_ARN = "arn:aws:ecs:us-east-1:1:task/hybridrag-ui/abc123"
+APP = Path("/tmp/hybrid-search-ui/app")
+INDEX_RUN = {"aws_region": "us-east-1", "cluster": "hybrid-search-ui", "service": "hybrid-search-ui"}
+TASK_ARN = "arn:aws:ecs:us-east-1:1:task/hybrid-search-ui/abc123"
 TASK_DEF = "arn:aws:ecs:us-east-1:1:task-definition/ui:1"
 
 ACTIVE_SERVICE = {
@@ -33,7 +33,7 @@ TASK_DEFINITION = {
         "containerDefinitions": [
             {
                 "name": "ui",
-                "logConfiguration": {"options": {"awslogs-group": "/ecs/hybridrag-ui"}},
+                "logConfiguration": {"options": {"awslogs-group": "/ecs/hybrid-search-ui"}},
             }
         ]
     }
@@ -125,7 +125,7 @@ def test_tails_logs_when_container_exits_nonzero():
     with pytest.raises(IndexCreateError, match="index create failed \\(exit 2, Error\\)"):
         index_create(APP, run=run)
     assert any(call[:3] == ["aws", "logs", "tail"] for call in run.calls)
-    assert any("/ecs/hybridrag-ui" in call for call in run.calls)
+    assert any("/ecs/hybrid-search-ui" in call for call in run.calls)
 
 
 def test_ready_index_names_parses_log_lines():

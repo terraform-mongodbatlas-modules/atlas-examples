@@ -1,4 +1,4 @@
-app_secret_name = "hybridrag-ui-app"
+app_secret_name = "hybrid-search-ui-app"
 # ECR is IMMUTABLE: change image_tag on every push (and match the just build-push tag argument).
 image_tag = "0.0.1"
 # task_cpu    = "1024"

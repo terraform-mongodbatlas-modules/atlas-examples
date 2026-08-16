@@ -1,4 +1,4 @@
-# HybridRAG UI on AWS
+# Hybrid Search UI on AWS
 
 You end with a CloudFront URL and a chat that answers from files you uploaded. Hybrid search runs in Atlas. The app never sees a public Mongo endpoint. Terraform is two stacks: Landing Zone, then ECS.
 
@@ -11,12 +11,12 @@ You end with a CloudFront URL and a chat that answers from files you uploaded. H
 App code is [HybridRAG](https://github.com/romiluz13/Hybrid-Search-RAG) (Apache-2.0). This example clones a pin of [this fork](https://github.com/EspenAlbert/Hybrid-Search-RAG): `production-ui` image, Chainlit password auth, and `hybridrag index create` that waits until search indexes are READY.
 
 ```sh
-aws/hybridrag-ui/
+aws/hybrid-search-ui/
 ├── README.md
 ├── justfile
+├── scripts/            # seed download (cache/ is gitignored)
 ├── lz/                 # Atlas + AWS infra, Voyage, Chainlit, app secret
 └── app/                # ECS cluster + service
-aws/hybridrag-seed/     # download.py + urls.yaml
 aws/modules/lz/
 aws/modules/ecs-service/
 ```
@@ -51,7 +51,7 @@ terraform -chdir=lz apply
 just build-push "$(terraform -chdir=lz output -raw ecr_repository_url)" 0.0.1
 
 cp app/terraform.tfvars.example app/terraform.tfvars
-# app_secret_name default is hybridrag-ui-app (matches lz). task_cpu / task_memory default 1024 / 2048.
+# app_secret_name default is hybrid-search-ui-app (matches lz). task_cpu / task_memory default 1024 / 2048.
 terraform -chdir=app init
 terraform -chdir=app apply
 ```
@@ -72,7 +72,7 @@ just seed-download
 open "$(terraform -chdir=lz output -raw https_url)"
 ```
 
-Log in as `demo` with the password from `terraform -chdir=lz output -raw chainlit_demo_password`. Upload files from `aws/hybridrag-seed/cache/` (NIST PDFs and OWASP markdown). Try:
+Log in as `demo` with the password from `terraform -chdir=lz output -raw chainlit_demo_password`. Upload files from `scripts/cache/` (NIST PDFs and OWASP markdown). Try:
 
 - What are the four functions of the AI RMF?
 - How should we measure generative AI risk?
@@ -201,7 +201,7 @@ For local Docker (no ECS), run `just dump-local-env` (needs `public_debug_access
 
 ### What is the app secret name?
 
-Default `app_secret_name` is `hybridrag-ui-app` (`<ecs_apps.ui.name>-app`). If you change `ecs_apps.ui.name`, set `app_secret_name` in `app/terraform.tfvars` to match before app apply.
+Default `app_secret_name` is `hybrid-search-ui-app` (`<ecs_apps.ui.name>-app`). If you change `ecs_apps.ui.name`, set `app_secret_name` in `app/terraform.tfvars` to match before app apply.
 
 ### What region does this example use?
 
@@ -221,7 +221,7 @@ Set `http_edges.main.aliases` and `acm_certificate_arn` (certificate in `us-east
 
 ### What is `user_agent_extra.example`?
 
-`lz/versions.tf` sets `example = "aws-hybridrag-ui"` so Atlas API traffic from this demo can be distinguished. It is optional tracking. Remove the `provider_meta` block if you do not want it. Open a GitHub issue if something in the walkthrough is wrong.
+`lz/versions.tf` sets `example = "aws-hybrid-search-ui"` so Atlas API traffic from this demo can be distinguished. It is optional tracking. Remove the `provider_meta` block if you do not want it. Open a GitHub issue if something in the walkthrough is wrong.
 
 ### Landing Zone module inputs
 
