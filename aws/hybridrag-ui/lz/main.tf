@@ -12,18 +12,18 @@ locals {
   llm_provider = local.llm_enabled ? lookup(local.llm_provider_from_env, var.llm_env_name, null) : null
   llm_container_env = merge(
     {
-      CHAINLIT_DEMO_USERNAME       = "demo"
-      DEFAULT_QUERY_MODE           = var.rag_performance.default_query_mode
-      DEFAULT_RERANK_TOP_K         = tostring(var.rag_performance.default_rerank_top_k)
-      DEFAULT_TOP_K                = tostring(var.rag_performance.default_top_k)
-      ENABLE_ENTITY_BOOSTING       = var.rag_performance.enable_entity_boosting ? "true" : "false"
-      ENABLE_IMPLICIT_EXPANSION    = var.rag_performance.enable_implicit_expansion ? "true" : "false"
-      ENABLE_LLM                   = local.llm_enabled ? "true" : "false"
-      ENABLE_RERANK                = var.rag_performance.enable_rerank ? "true" : "false"
-      MONGODB_DATABASE             = local.ui.mongo.database_name
-      MONGODB_URI                  = local.ui.mongo.connection_string
-      SKIP_INDEX_CREATION          = "true"
-      VOYAGE_BASE_URL              = module.voyage_api_key.voyage_base_url
+      CHAINLIT_DEMO_USERNAME    = "demo"
+      DEFAULT_QUERY_MODE        = var.rag_performance.default_query_mode
+      DEFAULT_RERANK_TOP_K      = tostring(var.rag_performance.default_rerank_top_k)
+      DEFAULT_TOP_K             = tostring(var.rag_performance.default_top_k)
+      ENABLE_ENTITY_BOOSTING    = var.rag_performance.enable_entity_boosting ? "true" : "false"
+      ENABLE_IMPLICIT_EXPANSION = var.rag_performance.enable_implicit_expansion ? "true" : "false"
+      ENABLE_LLM                = local.llm_enabled ? "true" : "false"
+      ENABLE_RERANK             = var.rag_performance.enable_rerank ? "true" : "false"
+      MONGODB_DATABASE          = local.ui.mongo.database_name
+      MONGODB_URI               = local.ui.mongo.connection_string
+      SKIP_INDEX_CREATION       = "true"
+      VOYAGE_BASE_URL           = module.voyage_api_key.voyage_base_url
     },
     local.llm_enabled && local.llm_provider != null ? { LLM_PROVIDER = local.llm_provider } : {}
   )
@@ -99,9 +99,10 @@ data "aws_secretsmanager_secret_version" "llm" {
 }
 
 resource "aws_secretsmanager_secret" "app" {
-  region = local.aws_region
-  name   = local.app_secret_name
-  tags   = var.tags
+  region                  = local.aws_region
+  name                    = local.app_secret_name
+  tags                    = var.tags
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "app" {
