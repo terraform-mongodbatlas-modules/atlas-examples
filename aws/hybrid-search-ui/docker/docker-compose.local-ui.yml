@@ -1,0 +1,38 @@
+# Local hybrid-search UI against online MongoDB (Atlas). No Chainlit login.
+#
+# From aws/hybrid-search-ui/:
+#   just dump-local-env
+#   docker compose -f docker/docker-compose.local-ui.yml --env-file secrets/.env.local up --build
+#
+# Open http://localhost:8001
+
+name: hybrid-search-local-ui
+
+services:
+  hybrid-search-ui:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: hybrid-search-ui:local
+    ports:
+      - "${UI_PORT:-8001}:8001"
+    environment:
+      MONGODB_URI: ${MONGODB_URI:?set MONGODB_URI in secrets/.env.local}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-hybrid_search}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:?set VOYAGE_API_KEY in secrets/.env.local}
+      VOYAGE_BASE_URL: ${VOYAGE_BASE_URL:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ENABLE_LLM: ${ENABLE_LLM:-true}
+      SKIP_INDEX_CREATION: ${SKIP_INDEX_CREATION:-false}
+      TOP_K: ${TOP_K:-20}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_EXTRA_HEADERS: ${OPENAI_EXTRA_HEADERS:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      GROVE_API_KEY: ${GROVE_API_KEY:-}
+      GROVE_BASE_URL: ${GROVE_BASE_URL:-}
+      GROVE_MODEL: ${GROVE_MODEL:-}

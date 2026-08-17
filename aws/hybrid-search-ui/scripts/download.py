@@ -32,7 +32,9 @@ def download(*, dest: Path = CACHE_DIR) -> list[Path]:
 
 
 def _fetch(url: str, path: Path) -> Path:
-    req = urllib.request.Request(url, headers={"User-Agent": "atlas-examples-hybrid-search-ui-seed"})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "atlas-examples-hybrid-search-ui-seed"}
+    )
     with urllib.request.urlopen(req, timeout=60) as resp:
         path.write_bytes(resp.read())
     return path
@@ -40,7 +42,9 @@ def _fetch(url: str, path: Path) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Download the AI-governance seed pack.")
-    parser.add_argument("--dest", type=Path, default=CACHE_DIR, help="Cache directory (gitignored).")
+    parser.add_argument(
+        "--dest", type=Path, default=CACHE_DIR, help="Cache directory (gitignored)."
+    )
     args = parser.parse_args(argv)
     paths = download(dest=args.dest)
     for path in paths:

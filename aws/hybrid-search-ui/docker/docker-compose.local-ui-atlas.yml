@@ -1,0 +1,63 @@
+# hybrid-search UI + local atlas-local MongoDB. No Chainlit login.
+#
+# From aws/hybrid-search-ui/:
+#   docker compose -f docker/docker-compose.local-ui-atlas.yml --env-file secrets/.env.local up --build
+#
+# UI: http://localhost:8001
+# Host mongosh (optional): mongodb://localhost:27018/?directConnection=true
+
+name: hybrid-search-local-ui-atlas
+
+services:
+  mongodb:
+    image: mongodb/mongodb-atlas-local:preview
+    container_name: hybrid-search-mongodb-atlas-local-preview
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27018:27017"
+    environment:
+      MONGODB_INITDB_DATABASE: hybrid_search
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  hybrid-search-ui:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: hybrid-search-ui:local
+    ports:
+      - "${UI_PORT:-8001}:8001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/?directConnection=true
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-hybrid_search}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:?set VOYAGE_API_KEY in secrets/.env.local}
+      VOYAGE_BASE_URL: ${VOYAGE_BASE_URL:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ENABLE_LLM: ${ENABLE_LLM:-true}
+      SKIP_INDEX_CREATION: ${SKIP_INDEX_CREATION:-false}
+      TOP_K: ${TOP_K:-20}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_EXTRA_HEADERS: ${OPENAI_EXTRA_HEADERS:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      GROVE_API_KEY: ${GROVE_API_KEY:-}
+      GROVE_BASE_URL: ${GROVE_BASE_URL:-}
+      GROVE_MODEL: ${GROVE_MODEL:-}
+
+volumes:
+  mongodb-data:
+  mongodb-config:

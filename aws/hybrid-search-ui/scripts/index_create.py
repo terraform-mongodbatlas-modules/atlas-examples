@@ -1,4 +1,4 @@
-"""One-shot ECS RunTask: hybridrag index create. Blocks until the task exits 0."""
+"""One-shot ECS RunTask: hybrid-search index create. Blocks until the task exits 0."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from typing import Any
 _READY_RE = re.compile(r"(\S+\.\S+)\s+READY\b")
 
 DEFAULT_APP_DIR = Path(__file__).resolve().parent.parent / "app"
-INDEX_CMD = ["hybridrag", "index", "create"]
+INDEX_CMD = ["hybrid-search", "index", "create"]
 Run = Callable[..., CompletedProcess[str]]
 
 
@@ -131,7 +131,7 @@ def index_create(app_dir: Path, *, run: Run = subprocess.run) -> None:
 
 
 def ready_index_names(log_output: str) -> list[str]:
-    """Return collection.index names that reached READY in hybridrag index create logs."""
+    """Return collection.index names that reached READY in index create logs."""
     seen: set[str] = set()
     ready: list[str] = []
     for line in log_output.splitlines():
@@ -205,7 +205,7 @@ def _aws_json(run: Run, args: list[str]) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run hybridrag index create as a one-shot ECS task."
+        description="Run hybrid-search index create as a one-shot ECS task."
     )
     parser.add_argument(
         "app_dir",

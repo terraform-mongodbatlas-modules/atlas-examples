@@ -46,16 +46,6 @@ cluster_name = "hybrid-search-ui"
 #   GROVE_MODEL    = "gpt-4o"
 # }
 
-# Query performance (container env; defaults are mix + top_k 60). See README FAQ.
-# rag_performance = {
-#   default_query_mode        = "hybrid"
-#   default_top_k             = 20
-#   default_rerank_top_k      = 5
-#   enable_rerank             = true
-#   enable_entity_boosting    = false
-#   enable_implicit_expansion = false
-# }
-
 # Lab (skip module-managed CMK, log export, backup export):
 # atlas_integrations = {
 #   encryption      = { enabled = false }

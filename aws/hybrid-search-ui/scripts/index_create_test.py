@@ -9,7 +9,11 @@ import pytest
 from index_create import IndexCreateError, index_create, ready_index_names
 
 APP = Path("/tmp/hybrid-search-ui/app")
-INDEX_RUN = {"aws_region": "us-east-1", "cluster": "hybrid-search-ui", "service": "hybrid-search-ui"}
+INDEX_RUN = {
+    "aws_region": "us-east-1",
+    "cluster": "hybrid-search-ui",
+    "service": "hybrid-search-ui",
+}
 TASK_ARN = "arn:aws:ecs:us-east-1:1:task/hybrid-search-ui/abc123"
 TASK_DEF = "arn:aws:ecs:us-east-1:1:task-definition/ui:1"
 
@@ -144,7 +148,7 @@ def test_returns_after_successful_run_task(capsys):
     run_task = next(call for call in run.calls if "run-task" in call)
     assert "--overrides" in run_task
     overrides = json.loads(run_task[run_task.index("--overrides") + 1])
-    assert overrides["containerOverrides"][0]["command"] == ["hybridrag", "index", "create"]
+    assert overrides["containerOverrides"][0]["command"] == ["hybrid-search", "index", "create"]
     assert any(call[:3] == ["aws", "logs", "tail"] for call in run.calls)
     captured = capsys.readouterr()
     assert "Started task" in captured.out

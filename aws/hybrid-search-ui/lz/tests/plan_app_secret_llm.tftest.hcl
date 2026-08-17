@@ -100,7 +100,7 @@ run "llm_grove_sets_provider_and_base_url" {
       local.llm_container_env["MONGODB_URI"] != "",
       local.llm_container_env["MONGODB_DATABASE"] == "hybrid_search",
       local.llm_container_env["VOYAGE_BASE_URL"] == "https://ai.mongodb.com/v1",
-      local.llm_container_env["DEFAULT_QUERY_MODE"] == "mix",
+      local.llm_container_env["TOP_K"] == "20",
       !contains(keys(local.llm_container_env), "GROVE_BASE_URL"),
     ])
     error_message = "Grove LLM should set LLM_PROVIDER and inline GROVE_* extras as app secret keys"

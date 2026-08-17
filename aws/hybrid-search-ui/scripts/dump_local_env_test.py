@@ -12,12 +12,7 @@ _SECRET = {
             "ENABLE_LLM": "true",
             "LLM_PROVIDER": "anthropic",
             "SKIP_INDEX_CREATION": "true",
-            "DEFAULT_QUERY_MODE": "mix",
-            "DEFAULT_TOP_K": "60",
-            "DEFAULT_RERANK_TOP_K": "10",
-            "ENABLE_RERANK": "true",
-            "ENABLE_ENTITY_BOOSTING": "true",
-            "ENABLE_IMPLICIT_EXPANSION": "true",
+            "TOP_K": "20",
             "CHAINLIT_DEMO_USERNAME": "demo",
         },
         "secret_keys": [
@@ -44,7 +39,7 @@ def test_maps_public_uri_and_drops_chainlit() -> None:
     assert env["VOYAGE_API_KEY"] == "voyage-key"
     assert env["ANTHROPIC_API_KEY"] == "llm-key"
     assert env["SKIP_INDEX_CREATION"] == "true"
-    assert env["DEFAULT_QUERY_MODE"] == "mix"
+    assert env["TOP_K"] == "20"
     assert "CHAINLIT_AUTH_SECRET" not in env
     assert "CHAINLIT_DEMO_PASSWORD" not in env
     assert "CHAINLIT_DEMO_USERNAME" not in env

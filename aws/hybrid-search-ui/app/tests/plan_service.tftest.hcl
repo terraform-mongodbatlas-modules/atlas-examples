@@ -45,6 +45,7 @@ mock_provider "aws" {
             MONGODB_URI            = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
             MONGODB_DATABASE       = "hybrid_search"
             VOYAGE_BASE_URL        = "https://ai.mongodb.com/v1"
+            TOP_K                  = "20"
           }
           secret_keys = ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"]
         }

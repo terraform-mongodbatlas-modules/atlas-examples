@@ -1,29 +1,10 @@
 default:
     @just --list
 
-hybridrag_repo := "https://github.com/EspenAlbert/Hybrid-Search-RAG.git"
-# Pin to the index-create commit after it is on the fork remote.
-hybridrag_ref := "lz-module-demo"
-hybridrag_dir := justfile_directory() + "/.vendor/Hybrid-Search-RAG"
 seed_dir := justfile_directory() + "/scripts"
 
-# Clone or update the pinned HybridRAG fork under .vendor/.
-clone-hybridrag:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    dir="{{hybridrag_dir}}"
-    ref="{{hybridrag_ref}}"
-    if [[ -d "${dir}/.git" ]]; then
-      git -C "${dir}" fetch --depth 1 origin "${ref}" || git -C "${dir}" fetch --depth 1 origin
-      git -C "${dir}" checkout "${ref}"
-    else
-      mkdir -p "$(dirname "${dir}")"
-      git clone "{{hybridrag_repo}}" "${dir}"
-      git -C "${dir}" checkout "${ref}"
-    fi
-
-# ECR login, build linux/arm64 HybridRAG UI image (--target production-ui), tag, and push.
-build-push repo_url tag="0.0.1": clone-hybridrag
+# ECR login, build linux/arm64 UI image from example Dockerfile, tag, and push.
+build-push repo_url tag="0.0.1":
     #!/usr/bin/env bash
     set -euo pipefail
     repo_url="{{repo_url}}"
@@ -32,10 +13,9 @@ build-push repo_url tag="0.0.1": clone-hybridrag
       | docker login --username AWS --password-stdin "${repo_url%/*}"
     image_uri="${repo_url}:{{tag}}"
     docker build --platform linux/arm64 \
-      -f "{{hybridrag_dir}}/Dockerfile" \
-      --target production-ui \
+      -f "{{justfile_directory()}}/Dockerfile" \
       -t "${image_uri}" \
-      "{{hybridrag_dir}}"
+      "{{justfile_directory()}}"
     docker push "${image_uri}"
     echo "Pushed ${image_uri}"
 
@@ -68,7 +48,7 @@ delete-llm-secret name="hybrid-search-ui-llm" region="us-east-1":
     aws secretsmanager delete-secret --secret-id "{{name}}" --force-delete-without-recovery --region "{{region}}" >/dev/null
     echo "Deleted {{name}}"
 
-# One-shot ECS RunTask of the live UI image: hybridrag index create. Blocking until exit 0.
+# One-shot ECS RunTask of the live UI image: hybrid-search index create. Blocking until exit 0.
 index-create:
     uv run python "{{justfile_directory()}}/scripts/index_create.py" "{{justfile_directory()}}/app"
 
@@ -87,4 +67,3 @@ dump-local-env region="" output="secrets/.env.local":
     else
       uv run python "${script}" --output "${out}"
     fi
-
