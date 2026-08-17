@@ -1,20 +1,23 @@
 # Hybrid Search UI on AWS
 
-You end with a CloudFront URL and a chat that answers from files you uploaded. Hybrid search runs in Atlas. The app never sees a public Mongo endpoint. Terraform is two stacks: Landing Zone, then ECS.
+You end with a CloudFront URL and a Chainlit chat that answers from files you uploaded in the browser. Upload runs extract → Voyage `voyage-context-4` auto-chunk/embed → upsert into `chunks`. Each question embeds the query, runs Atlas `$rankFusion` (vector + text pipelines on those chunks), then optionally calls an LLM. Answers list source filenames. The app never sees a public Mongo endpoint. Terraform is two stacks: Landing Zone, then ECS.
+
+The `$rankFusion` pipeline in `src/hybrid_search/search.py` is adapted from [Hybrid-Search-RAG](https://github.com/romiluz13/Hybrid-Search-RAG) (`hybrid_search_with_rank_fusion`, Apache-2.0). The shipped app is the in-example `hybrid_search` package in this directory, not HybridRAG.
 
 ## What this creates
 
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role, Voyage AI model API key.
 - **AWS:** VPC (private subnets plus NAT and public subnets for the ALB), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
-- **App:** ECS cluster, Fargate service running the HybridRAG UI image (`production-ui`, port 8001). Indexes are a one-shot `ecs run-task` of that same image, not a second service.
-
-App code is [HybridRAG](https://github.com/romiluz13/Hybrid-Search-RAG) (Apache-2.0). This example clones a pin of [this fork](https://github.com/EspenAlbert/Hybrid-Search-RAG): `production-ui` image, Chainlit password auth, and `hybridrag index create` that waits until search indexes are READY.
+- **App:** ECS cluster, Fargate service running the in-example Chainlit image (port 8001), built from this directory's `Dockerfile`. Indexes are a one-shot `ecs run-task` of that same image with `hybrid-search index create`, not a second service.
 
 ```sh
 aws/hybrid-search-ui/
 ├── README.md
+├── Dockerfile
 ├── justfile
+├── src/hybrid_search/  # in-example Python app
 ├── scripts/            # seed download (cache/ is gitignored)
+├── docker/             # local compose stacks
 ├── lz/                 # Atlas + AWS infra, Voyage, Chainlit, app secret
 └── app/                # ECS cluster + service
 aws/modules/lz/
@@ -48,6 +51,7 @@ terraform -chdir=lz apply
 
 ```sh
 # ECR is IMMUTABLE: bump image_tag in app/terraform.tfvars and the tag argument on every push.
+# just build-push builds the example-root Dockerfile (linux/arm64).
 just build-push "$(terraform -chdir=lz output -raw ecr_repository_url)" 0.0.1
 
 cp app/terraform.tfvars.example app/terraform.tfvars
@@ -59,11 +63,11 @@ terraform -chdir=app apply
 ## Create indexes
 
 ```sh
-# RunTask of the live UI image with command ["hybridrag", "index", "create"]. Blocks until exit 0.
+# RunTask of the live UI image with command ["hybrid-search", "index", "create"]. Blocks until exit 0.
 just index-create
 ```
 
-The UI task sets `SKIP_INDEX_CREATION=true`, so the first chat does not submit Atlas Search or Vector index creates. `just index-create` runs the same image with `hybridrag index create`, which always creates indexes even when that env is set. Skipping `just index-create` still leaves a healthy UI that cannot search.
+The UI task sets `SKIP_INDEX_CREATION=true`, so the first chat does not submit Atlas Search or Vector index creates. `just index-create` runs the same image with `hybrid-search index create`, which always creates indexes even when that env is set. Skipping `just index-create` still leaves a healthy UI that cannot search.
 
 ## Download seed files and open the UI
 
@@ -80,7 +84,7 @@ Log in as `demo` with the password from `terraform -chdir=lz output -raw chainli
 
 The browser tab is **MongoDB AI risk**. Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`).
 
-NIST PDFs take several minutes because entity extract runs per chunk. The UI shows `Chunk N of M` and a live elapsed time. A second upload while that runs is queued, not complete.
+NIST PDFs can take several minutes because Voyage embeds every chunk. The UI shows `Embedding {n} chunks`, then `Stored {n} chunks`, then `Completed processing file`, with a live elapsed time.
 
 ## Tear down
 
@@ -141,63 +145,15 @@ The deploy step runs `just create-llm-secret` before `lz apply`. It writes a Sec
 
 The key is inlined as `llm_env_name` (default `ANTHROPIC_API_KEY`). `LLM_PROVIDER` is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`). Pin the model in `llm_env` (`ANTHROPIC_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `GROVE_MODEL`). Grove also needs `GROVE_BASE_URL`. OpenAI extras (`OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) go in `llm_env` too. Commented examples are in `lz/terraform.tfvars.example`.
 
-### Why is each chat answer slow?
+### How do I tune retrieval breadth?
 
-The deployed UI defaults to **`mix` query mode** with **`DEFAULT_TOP_K=60`**. That runs local graph search, global graph search, hybrid chunk search, and naive vector search in one pass, then reranks dozens of chunks with Voyage before the LLM answers. A single question can take **1–2 minutes** on a cold path (embeddings, graph fan-out, rerank, LLM).
+`TOP_K` caps how many chunks `$rankFusion` returns before the LLM answers. The default is **20** (set in lz `llm_container_env` and passed to the ECS task).
 
-In the chat UI you can switch mode without redeploying: `/mode hybrid` (vector + keyword fusion) or `/mode naive` (vector only). Type `/faq` in Chainlit for the full in-app guide.
+To change it on a deployed stack, edit `TOP_K` in `lz/main.tf` `llm_container_env` (or add a tfvars knob if you fork the example), re-apply lz, then re-apply app so the task picks up the new secret. For local Docker, set `TOP_K` in `secrets/.env.local` or compose env.
 
-### How do I tune query performance?
+### Local Docker without ECS
 
-Set **`rag_performance`** in `lz/terraform.tfvars` before `lz apply` (or change it and re-apply to refresh the app secret container env). Values are passed to the ECS task as environment variables.
-
-**Defaults (production-shaped quality):**
-
-- `default_query_mode = "mix"`
-- `default_top_k = 60`
-- `default_rerank_top_k = 10`
-- `enable_rerank = true`
-- `enable_entity_boosting = true`
-- `enable_implicit_expansion = true`
-
-**Faster demo (lower latency, less graph coverage):**
-
-```hcl
-rag_performance = {
-  default_query_mode        = "hybrid"
-  default_top_k             = 20
-  default_rerank_top_k      = 5
-  enable_rerank             = true
-  enable_entity_boosting    = false
-  enable_implicit_expansion = false
-}
-```
-
-**Fastest smoke test (vector search only):**
-
-```hcl
-rag_performance = {
-  default_query_mode        = "naive"
-  default_top_k             = 10
-  default_rerank_top_k      = 3
-  enable_rerank             = false
-  enable_entity_boosting    = false
-  enable_implicit_expansion = false
-}
-```
-
-**Field to env var mapping:**
-
-- **`default_query_mode`** → `DEFAULT_QUERY_MODE`: retrieval strategy (`mix`, `hybrid`, `naive`, `local`, `global`, `bypass`)
-- **`default_top_k`** → `DEFAULT_TOP_K`: graph and entity fan-out before reranking
-- **`default_rerank_top_k`** → `DEFAULT_RERANK_TOP_K`: chunks kept after Voyage rerank
-- **`enable_rerank`** → `ENABLE_RERANK`: Voyage rerank pass
-- **`enable_entity_boosting`** → `ENABLE_ENTITY_BOOSTING`: entity overlap boost after rerank
-- **`enable_implicit_expansion`** → `ENABLE_IMPLICIT_EXPANSION`: pre-retrieval entity expansion
-
-`/mode` in Chainlit overrides the mode for the current session only. `rag_performance` sets the startup default for new chats.
-
-For local Docker (no ECS), run `just dump-local-env` (needs `public_debug_access` in lz tfvars) or copy `docker/.env.local.example` in the HybridRAG fork. See `docs/16/p16_hybridrag-ui-local-docker.md` in the workspace.
+Run `just dump-local-env` (needs `public_debug_access` in lz tfvars) to write gitignored `secrets/.env.local`, then use `docker/docker-compose.local-ui.yml` or `docker-compose.local-ui-atlas.yml`. See `docs/16/p16_hybrid-search-ui-local-docker.md` in the workspace for full steps.
 
 ### What is the app secret name?
 
@@ -213,7 +169,7 @@ This example uses `regions[0]` (default `us-east-1`). The app provider is `us-ea
 
 ### What is `public_debug_access`?
 
-Opt-in SCRAM plus one IPv4 for laptop `mongosh`, local HybridRAG Docker, or `just dump-local-env`. Not on the happy path. See commented example in `lz/terraform.tfvars.example` or `lz/variables.tf`.
+Opt-in SCRAM plus one IPv4 for laptop `mongosh`, local hybrid-search Docker, or `just dump-local-env`. Not on the happy path. See commented example in `lz/terraform.tfvars.example` or `lz/variables.tf`.
 
 ### How do I use a custom domain?
 
