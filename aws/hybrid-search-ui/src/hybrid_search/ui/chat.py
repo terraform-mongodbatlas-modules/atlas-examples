@@ -44,9 +44,9 @@ INGEST_ASK_PROMPT = (
     f"Choose pdf, txt, or md to ingest (up to {INGEST_MAX_FILES} files, "
     f"{INGEST_MAX_SIZE_MB} MB per batch)."
 )
-INGEST_CONTINUE_PROMPT = "Upload another batch or finish ingesting?"
+INGEST_PICK_PROMPT = "Select files to upload."
 INGEST_ACTION_NAME = "ingest"
-INGEST_MORE_CHOICE = "more"
+INGEST_SELECT_CHOICE = "select"
 INGEST_DONE_CHOICE = "done"
 
 
@@ -163,7 +163,7 @@ async def _handle_query(query: str):
 
 async def _pick_ingest_files():
     return await cl.AskFileMessage(
-        content=INGEST_ASK_PROMPT,
+        content=INGEST_PICK_PROMPT,
         accept=_ASK_ACCEPT,
         max_files=INGEST_MAX_FILES,
         max_size_mb=INGEST_MAX_SIZE_MB,
@@ -172,14 +172,14 @@ async def _pick_ingest_files():
     ).send()
 
 
-async def _ask_upload_more() -> bool:
+async def _ask_select_or_done() -> bool:
     ask = cl.AskActionMessage(
-        content=INGEST_CONTINUE_PROMPT,
+        content=INGEST_ASK_PROMPT,
         actions=[
             cl.Action(
                 name=INGEST_ACTION_NAME,
-                payload={"choice": INGEST_MORE_CHOICE},
-                label="Upload another batch",
+                payload={"choice": INGEST_SELECT_CHOICE},
+                label="Select files",
             ),
             cl.Action(
                 name=INGEST_ACTION_NAME,
@@ -194,17 +194,17 @@ async def _ask_upload_more() -> bool:
     if response is None:
         return False
     await ask.remove()
-    return response.get("payload", {}).get("choice") == INGEST_MORE_CHOICE
+    return response.get("payload", {}).get("choice") == INGEST_SELECT_CHOICE
 
 
 async def _ingest_interactive() -> None:
     while True:
+        if not await _ask_select_or_done():
+            return
         files = await _pick_ingest_files()
         if files is None:
-            return
+            continue
         await _ingest_named_paths([(item.name, Path(item.path)) for item in files])
-        if not await _ask_upload_more():
-            return
 
 
 async def _delete_ingested_files() -> None:
