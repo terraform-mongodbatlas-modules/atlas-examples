@@ -78,10 +78,11 @@ async def ingest_file(
     settings: HybridSearchSettings,
     collection: AsyncIOMotorCollection,
     voyage: voyageai.AsyncClient,
+    source_name: str | None = None,
     on_progress: OnProgress | None = None,
 ) -> IngestResult:
     extracted = extract_module.extract_text(path)
-    file_path = str(path)
+    file_path = source_name or str(path)
     batches = _text_batches(path, extracted.text)
     chunk_index = 0
     total = 0

@@ -94,6 +94,34 @@ async def test_ingest_skips_empty_chunks_and_zero_vectors(tmp_path: Path, monkey
 
 
 @pytest.mark.asyncio
+async def test_ingest_uses_source_name_for_stored_file_path(tmp_path: Path, monkeypatch):
+    path = tmp_path / "upload-temp.txt"
+    path.write_text("hello world")
+    settings = HybridSearchSettings(
+        mongodb_uri=SecretStr("mongodb://localhost"),
+        voyage_api_key=SecretStr("key"),
+    )
+    collection = MagicMock()
+    collection.bulk_write = AsyncMock()
+
+    async def fake_embed(_text, *, client, settings):
+        del client, settings
+        return DocumentEmbedResult(chunk_texts=["chunk-a"], embeddings=[[0.1]])
+
+    monkeypatch.setattr(ingest_module.voyage_module, "embed_document", fake_embed)
+    await ingest_module.ingest_file(
+        path,
+        settings=settings,
+        collection=collection,
+        voyage=MagicMock(),
+        source_name="NIST.AI.100-1.pdf",
+    )
+    ops = collection.bulk_write.await_args.args[0]
+    assert ops[0]._filter == {"_id": "NIST.AI.100-1.pdf#0"}
+    assert ops[0]._doc["file_path"] == "NIST.AI.100-1.pdf"
+
+
+@pytest.mark.asyncio
 async def test_ingest_progress_callback(tmp_path: Path, monkeypatch):
     path = tmp_path / "doc.txt"
     path.write_text("hello")
