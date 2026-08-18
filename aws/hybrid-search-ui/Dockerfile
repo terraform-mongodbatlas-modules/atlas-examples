@@ -7,14 +7,12 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project --extra ui --extra aws
 
+COPY chainlit.md ./
+COPY chainlit.md chainlit_en-US.md
+COPY docker/chainlit/ .chainlit/
+
 COPY src/ ./src/
 RUN uv sync --frozen --no-dev --extra ui --extra aws
-
-COPY chainlit.md ./
-RUN mkdir -p .chainlit
-COPY docker/chainlit-config.toml .chainlit/config.toml
-RUN .venv/bin/python -c "from chainlit.config import init_config; init_config()" \
-    && cp chainlit.md chainlit_en-US.md
 
 RUN useradd --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app
