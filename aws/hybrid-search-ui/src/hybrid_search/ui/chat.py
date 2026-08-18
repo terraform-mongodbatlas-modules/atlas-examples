@@ -42,6 +42,10 @@ INGEST_ASK_PROMPT = (
     f"Choose pdf, txt, or md to ingest (up to {INGEST_MAX_FILES} files, "
     f"{INGEST_MAX_SIZE_MB} MB per batch)."
 )
+INGEST_CONTINUE_PROMPT = "Upload another batch or finish ingesting?"
+INGEST_ACTION_NAME = "ingest"
+INGEST_MORE_CHOICE = "more"
+INGEST_DONE_CHOICE = "done"
 
 
 def is_allowed_upload(path: Path) -> bool:
@@ -97,17 +101,7 @@ async def on_chat_start():
 @cl.on_message
 async def on_message(message: cl.Message):
     if message.command == INGEST_COMMAND_ID or message.content == UPLOAD_STARTER["message"]:
-        files = await cl.AskFileMessage(
-            content=INGEST_ASK_PROMPT,
-            accept=_ASK_ACCEPT,
-            max_files=INGEST_MAX_FILES,
-            max_size_mb=INGEST_MAX_SIZE_MB,
-            timeout=300,
-            raise_on_timeout=False,
-        ).send()
-        if files is None:
-            return
-        await _ingest_named_paths([(item.name, Path(item.path)) for item in files])
+        await _ingest_interactive()
         return
     if message.command == DELETE_COMMAND_ID or message.content == DELETE_STARTER["message"]:
         await _delete_ingested_files()
@@ -163,6 +157,52 @@ async def _handle_query(query: str):
     else:
         footer = "### Sources\nNo sources retrieved"
     await cl.Message(content=f"{result.answer}\n\n{footer}").send()
+
+
+async def _pick_ingest_files():
+    return await cl.AskFileMessage(
+        content=INGEST_ASK_PROMPT,
+        accept=_ASK_ACCEPT,
+        max_files=INGEST_MAX_FILES,
+        max_size_mb=INGEST_MAX_SIZE_MB,
+        timeout=300,
+        raise_on_timeout=False,
+    ).send()
+
+
+async def _ask_upload_more() -> bool:
+    ask = cl.AskActionMessage(
+        content=INGEST_CONTINUE_PROMPT,
+        actions=[
+            cl.Action(
+                name=INGEST_ACTION_NAME,
+                payload={"choice": INGEST_MORE_CHOICE},
+                label="Upload another batch",
+            ),
+            cl.Action(
+                name=INGEST_ACTION_NAME,
+                payload={"choice": INGEST_DONE_CHOICE},
+                label="Done uploading",
+            ),
+        ],
+        timeout=300,
+        raise_on_timeout=False,
+    )
+    response = await ask.send()
+    if response is None:
+        return False
+    await ask.remove()
+    return response.get("payload", {}).get("choice") == INGEST_MORE_CHOICE
+
+
+async def _ingest_interactive() -> None:
+    while True:
+        files = await _pick_ingest_files()
+        if files is None:
+            return
+        await _ingest_named_paths([(item.name, Path(item.path)) for item in files])
+        if not await _ask_upload_more():
+            return
 
 
 async def _delete_ingested_files() -> None:
