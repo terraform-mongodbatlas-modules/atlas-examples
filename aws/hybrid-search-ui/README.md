@@ -155,6 +155,14 @@ To change it on a deployed stack, edit `TOP_K` in `lz/main.tf` `llm_container_en
 
 Run `just dump-local-env` (needs `public_debug_access` in lz tfvars) to write gitignored `secrets/.env.local`, then use `docker/docker-compose.local-ui.yml` or `docker-compose.local-ui-atlas.yml`. See `docs/16/p16_hybrid-search-ui-local-docker.md` in the workspace for full steps.
 
+### Why does search fail with `localhost:28000`?
+
+`$rankFusion` runs `$search` on the Atlas cluster. `mongod` then connects to Atlas Search (`mongot`) at `127.0.0.1:28000` on that same node. `HostUnreachable` / connection refused means `mongot` is not listening. The UI is not talking to MongoDB on your laptop, so this is not a failed `MONGODB_URI` load. If Voyage embeddings succeed and this error follows, the URI loaded.
+
+This example does not create dedicated Search Nodes. They are optional production isolation ([Search deployment options](https://www.mongodb.com/docs/search/deployment/deployment-options/)). On M10+ Atlas, including this sharded lab cluster, `mongot` runs next to `mongod` after the first Search or Vector Search index exists.
+
+Confirm `chunks.text_idx` and `chunks.vector_idx` are READY. `just dump-local-env` copies `SKIP_INDEX_CREATION=true` from the ECS secret, so local compose will not create indexes on boot. Run `just index-create` if they were never created, then wait until READY. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
+
 ### What is the app secret name?
 
 Default `app_secret_name` is `hybrid-search-ui-app` (`<ecs_apps.ui.name>-app`). If you change `ecs_apps.ui.name`, set `app_secret_name` in `app/terraform.tfvars` to match before app apply.
