@@ -58,6 +58,22 @@ async def list_ingested_files(collection: AsyncIOMotorCollection) -> list[Ingest
     ]
 
 
+async def ingested_display_names(collection: AsyncIOMotorCollection) -> set[str]:
+    file_paths = await collection.distinct("file_path")
+    return {Path(path).name for path in file_paths if path}
+
+
+def skip_reason_for_filename(
+    name: str,
+    *,
+    ingested: set[str],
+    batch: set[str],
+) -> str | None:
+    if name in ingested or name in batch:
+        return "already ingested"
+    return None
+
+
 async def delete_by_file_path(
     file_path: str,
     *,

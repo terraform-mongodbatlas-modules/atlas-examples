@@ -149,6 +149,27 @@ async def test_ingest_progress_callback(tmp_path: Path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_ingested_display_names():
+    collection = MagicMock()
+    collection.distinct = AsyncMock(return_value=["NIST.AI.100-1.pdf", "/tmp/notes.txt"])
+    names = await ingest_module.ingested_display_names(collection)
+    assert names == {"NIST.AI.100-1.pdf", "notes.txt"}
+
+
+def test_skip_reason_for_filename():
+    ingested = {"a.pdf"}
+    batch: set[str] = set()
+    assert ingest_module.skip_reason_for_filename("a.pdf", ingested=ingested, batch=batch) == (
+        "already ingested"
+    )
+    assert ingest_module.skip_reason_for_filename("b.pdf", ingested=ingested, batch=batch) is None
+    batch.add("b.pdf")
+    assert ingest_module.skip_reason_for_filename("b.pdf", ingested=ingested, batch=batch) == (
+        "already ingested"
+    )
+
+
+@pytest.mark.asyncio
 async def test_list_ingested_files_groups_by_file_path():
     collection = MagicMock()
     collection.aggregate = MagicMock(

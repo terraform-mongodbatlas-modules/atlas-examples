@@ -14,7 +14,9 @@ from hybrid_search.ingest import (
     delete_all_chunks,
     delete_by_file_path,
     ingest_file,
+    ingested_display_names,
     list_ingested_files,
+    skip_reason_for_filename,
 )
 from hybrid_search.mongo import chunks_collection, get_client
 from hybrid_search.settings import get_settings
@@ -239,15 +241,22 @@ async def _delete_ingested_files() -> None:
 
 
 async def _ingest_named_paths(named_paths: list[tuple[str, Path]]) -> None:
-    progress = [
-        FileProgress(name=name, status="waiting")
-        if is_allowed_upload(path)
-        else FileProgress(name=name, status="skipped", detail="unsupported type")
-        for name, path in named_paths
-    ]
     settings = cl.user_session.get("settings")
     collection = cl.user_session.get("collection")
     voyage = cl.user_session.get("voyage")
+    ingested_names = await ingested_display_names(collection)
+    batch_names: set[str] = set()
+    progress: list[FileProgress] = []
+    for name, path in named_paths:
+        if not is_allowed_upload(path):
+            progress.append(FileProgress(name=name, status="skipped", detail="unsupported type"))
+            continue
+        skip_reason = skip_reason_for_filename(name, ingested=ingested_names, batch=batch_names)
+        if skip_reason:
+            progress.append(FileProgress(name=name, status="skipped", detail=skip_reason))
+            continue
+        batch_names.add(name)
+        progress.append(FileProgress(name=name, status="waiting"))
     async with cl.Step(name="Ingest", type="tool", default_open=True) as step:
 
         async def paint() -> None:
