@@ -13,7 +13,7 @@ from pymongo import ReplaceOne
 from hybrid_search import extract as extract_module
 from hybrid_search import voyage as voyage_module
 from hybrid_search.settings import HybridSearchSettings
-from hybrid_search.voyage import DocumentEmbedResult
+from hybrid_search.voyage import DocumentEmbedResult, is_zero_vector
 
 
 @dataclass(frozen=True)
@@ -83,10 +83,10 @@ def _upsert_ops(
     embed: DocumentEmbedResult,
 ) -> list[ReplaceOne]:
     ops: list[ReplaceOne] = []
-    for offset, (content, vector) in enumerate(
-        zip(embed.chunk_texts, embed.embeddings, strict=True)
-    ):
-        chunk_index = start_index + offset
+    chunk_index = start_index
+    for content, vector in zip(embed.chunk_texts, embed.embeddings, strict=True):
+        if not content.strip() or is_zero_vector(vector):
+            continue
         doc_id = chunk_doc_id(file_path, chunk_index)
         ops.append(
             ReplaceOne(
@@ -101,4 +101,5 @@ def _upsert_ops(
                 upsert=True,
             )
         )
+        chunk_index += 1
     return ops

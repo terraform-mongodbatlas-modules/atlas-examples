@@ -66,6 +66,34 @@ async def test_ingest_splits_large_text(tmp_path: Path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_ingest_skips_empty_chunks_and_zero_vectors(tmp_path: Path, monkeypatch):
+    path = tmp_path / "doc.txt"
+    path.write_text("hello")
+    settings = HybridSearchSettings(
+        mongodb_uri=SecretStr("mongodb://localhost"),
+        voyage_api_key=SecretStr("key"),
+    )
+    collection = MagicMock()
+    collection.bulk_write = AsyncMock()
+
+    async def fake_embed(_text, *, client, settings):
+        del client, settings
+        return DocumentEmbedResult(
+            chunk_texts=["", "good", "   "],
+            embeddings=[[0.0, 0.0], [0.1], [0.2, 0.0]],
+        )
+
+    monkeypatch.setattr(ingest_module.voyage_module, "embed_document", fake_embed)
+    result = await ingest_module.ingest_file(
+        path, settings=settings, collection=collection, voyage=MagicMock()
+    )
+    assert result.chunk_count == 1
+    ops = collection.bulk_write.await_args.args[0]
+    assert len(ops) == 1
+    assert ops[0]._doc["content"] == "good"
+
+
+@pytest.mark.asyncio
 async def test_ingest_progress_callback(tmp_path: Path, monkeypatch):
     path = tmp_path / "doc.txt"
     path.write_text("hello")

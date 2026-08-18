@@ -13,6 +13,10 @@ class DocumentEmbedResult:
     embeddings: list[list[float]]
 
 
+def is_zero_vector(vector: list[float]) -> bool:
+    return not vector or all(value == 0.0 for value in vector)
+
+
 def build_voyage_client(settings: HybridSearchSettings) -> voyageai.AsyncClient:
     kwargs: dict[str, str] = {"api_key": settings.voyage_api_key.get_secret_value()}
     if settings.voyage_base_url:

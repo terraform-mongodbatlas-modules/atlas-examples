@@ -29,7 +29,7 @@ def extract_text(path: Path) -> ExtractResult:
             raise RuntimeError(msg)
         doc = pymupdf.open(path)
         try:
-            pages = [page.get_text() for page in doc]
+            pages = [page.get_text() for page in doc if page.get_text().strip()]
         finally:
             doc.close()
         return ExtractResult(text="\n\n".join(pages))
@@ -45,7 +45,10 @@ def iter_pdf_page_groups(path: Path, *, max_pages_per_group: int) -> Iterator[st
     try:
         batch: list[str] = []
         for page in doc:
-            batch.append(page.get_text())
+            text = page.get_text()
+            if not text.strip():
+                continue
+            batch.append(text)
             if len(batch) >= max_pages_per_group:
                 yield "\n\n".join(batch)
                 batch = []

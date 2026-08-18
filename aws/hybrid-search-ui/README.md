@@ -76,7 +76,7 @@ just seed-download
 open "$(terraform -chdir=lz output -raw https_url)"
 ```
 
-Log in as `demo` with the password from `terraform -chdir=lz output -raw chainlit_demo_password`. Upload files from `scripts/cache/` (NIST PDFs and OWASP markdown). Try:
+Log in as `demo` with the password from `terraform -chdir=lz output -raw chainlit_demo_password`. Click **Upload documents** or the composer **Ingest** button, then choose files from `scripts/cache/` (NIST PDFs and OWASP markdown). Try:
 
 - What are the four functions of the AI RMF?
 - How should we measure generative AI risk?
@@ -84,7 +84,7 @@ Log in as `demo` with the password from `terraform -chdir=lz output -raw chainli
 
 The browser tab is **MongoDB AI risk**. Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`).
 
-NIST PDFs can take several minutes because Voyage embeds every chunk. The UI shows `Embedding {n} chunks`, then `Stored {n} chunks`, then `Completed processing file`, with a live elapsed time.
+NIST PDFs can take several minutes because Voyage embeds every chunk. Progress updates an **Ingest** step in the thread with chunk counts and elapsed time.
 
 ## Tear down
 

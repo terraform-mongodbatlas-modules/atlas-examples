@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import chainlit as cl
@@ -12,11 +13,12 @@ from hybrid_search.indexes import create_chunks_indexes_if_missing
 from hybrid_search.ingest import ingest_file
 from hybrid_search.mongo import chunks_collection, get_client
 from hybrid_search.settings import get_settings
-from hybrid_search.ui.demo import DEMO_STARTERS
-from hybrid_search.ui.ingest_progress import render_ingest_progress
+from hybrid_search.ui.demo import DEMO_STARTERS, INGEST_COMMAND, INGEST_COMMAND_ID, UPLOAD_STARTER
+from hybrid_search.ui.ingest_progress import FileProgress, render_ingest_batch
 from hybrid_search.ui.query_logic import answer_query
 
 ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
+_ASK_ACCEPT = ["application/pdf", "text/plain", "text/markdown", "text/x-markdown"]
 
 
 def is_allowed_upload(path: Path) -> bool:
@@ -41,7 +43,7 @@ if (
 
 @cl.set_starters
 async def set_starters():
-    return [cl.Starter(label=item["label"], message=item["message"]) for item in DEMO_STARTERS]
+    return [cl.Starter(**UPLOAD_STARTER), *[cl.Starter(**item) for item in DEMO_STARTERS]]
 
 
 @cl.on_chat_start
@@ -61,12 +63,32 @@ async def on_chat_start():
         await cl.Message(
             content=(f"Startup failed. Check MONGODB_URI, VOYAGE_API_KEY, and Atlas access: {exc}")
         ).send()
+        return
+    await cl.context.emitter.set_commands([INGEST_COMMAND])
 
 
 @cl.on_message
 async def on_message(message: cl.Message):
-    if message.elements:
-        await _handle_uploads(message.elements)
+    if message.command == INGEST_COMMAND_ID or message.content == UPLOAD_STARTER["message"]:
+        files = await cl.AskFileMessage(
+            content="Choose pdf, txt, or md to ingest",
+            accept=_ASK_ACCEPT,
+            max_files=10,
+            max_size_mb=100,
+            timeout=300,
+            raise_on_timeout=False,
+        ).send()
+        if files is None:
+            return
+        await _ingest_named_paths([(item.name, Path(item.path)) for item in files])
+        return
+    uploads = [
+        (element.name or Path(element.path).name, Path(element.path))
+        for element in message.elements or []
+        if element.path
+    ]
+    if uploads:
+        await _ingest_named_paths(uploads)
         return
     await _handle_query(message.content)
 
@@ -84,47 +106,61 @@ async def _handle_query(query: str):
     await cl.Message(content=f"{result.answer}\n\n{footer}").send()
 
 
-async def _handle_uploads(elements: list[cl.Element]):
-    uploads = [element for element in elements if element.path]
-    total = len(uploads)
-    rejected: list[str] = []
-    for file_idx, element in enumerate(uploads):
-        path = Path(element.path)
-        if not is_allowed_upload(path):
-            rejected.append(path.name)
-            continue
-        display_name = element.name or path.name
-        await _ingest_upload(path, display_name, file_idx, total)
-    if rejected:
-        names = ", ".join(rejected)
-        await cl.Message(content=f"Unsupported file type: {names}. Use pdf, txt, or md.").send()
-
-
-async def _ingest_upload(path: Path, display_name: str, file_idx: int, total_files: int):
+async def _ingest_named_paths(named_paths: list[tuple[str, Path]]) -> None:
+    progress = [
+        FileProgress(name=name, status="waiting")
+        if is_allowed_upload(path)
+        else FileProgress(name=name, status="skipped", detail="unsupported type")
+        for name, path in named_paths
+    ]
     settings = cl.user_session.get("settings")
     collection = cl.user_session.get("collection")
     voyage = cl.user_session.get("voyage")
-    start = time.monotonic()
-    msg = cl.Message(content="")
-    await msg.send()
+    async with cl.Step(name="Ingest", type="tool", default_open=True) as step:
 
-    async def on_progress(step: str):
-        msg.content = render_ingest_progress(
-            file_name=display_name,
-            file_idx=file_idx,
-            total_files=total_files,
-            elapsed_s=time.monotonic() - start,
-            step=step,
-        )
-        await msg.update()
+        async def paint() -> None:
+            step.output = render_ingest_batch(progress)
+            await step.update()
 
-    result = await ingest_file(
-        path,
-        settings=settings,
-        collection=collection,
-        voyage=voyage,
-        on_progress=on_progress,
-    )
-    await cl.Message(
-        content=f"Finished `{display_name}` ({result.chunk_count} chunks stored)."
-    ).send()
+        await paint()
+        for i, (_, path) in enumerate(named_paths):
+            if progress[i].status == "skipped":
+                continue
+            start = time.monotonic()
+            progress[i] = replace(progress[i], status="running")
+            await paint()
+
+            async def on_progress(step_name: str, idx: int = i, started: float = start) -> None:
+                progress[idx] = replace(
+                    progress[idx],
+                    status="running",
+                    step=step_name,
+                    elapsed_s=time.monotonic() - started,
+                )
+                await paint()
+
+            try:
+                result = await ingest_file(
+                    path,
+                    settings=settings,
+                    collection=collection,
+                    voyage=voyage,
+                    on_progress=on_progress,
+                )
+            except Exception as exc:  # noqa: BLE001  one file must not abort the batch
+                progress[i] = replace(
+                    progress[i],
+                    status="error",
+                    elapsed_s=time.monotonic() - start,
+                    detail=str(exc),
+                )
+                await paint()
+                continue
+            progress[i] = replace(
+                progress[i],
+                status="done",
+                elapsed_s=time.monotonic() - start,
+                chunk_count=result.chunk_count,
+                step="",
+            )
+            await paint()

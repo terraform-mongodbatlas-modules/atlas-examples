@@ -2,12 +2,10 @@
 name = "MongoDB AI risk"
 description = "Ask NIST AI RMF and OWASP GenAI docs using MongoDB Atlas hybrid search."
 language = "en-US"
+cot = "tool_call"
 
 [features.spontaneous_file_upload]
-enabled = true
-accept = ["application/pdf", "text/plain", "text/markdown", "text/x-markdown"]
-max_files = 20
-max_size_mb = 500
+enabled = false
 
 [meta]
 generated_by = "2.11.1"
