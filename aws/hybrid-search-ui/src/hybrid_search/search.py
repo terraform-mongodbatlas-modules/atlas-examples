@@ -120,17 +120,19 @@ async def search(
     settings: HybridSearchSettings,
 ) -> list[dict[str, Any]]:
     if is_zero_vector(query_vector):
-        msg = "Query embedding is a zero vector; try different wording."
-        raise ValueError(msg)
-    pipeline = build_rank_fusion_pipeline(query_text, query_vector, settings=settings)
-    try:
-        docs = await _run_search_pipeline(collection, pipeline)
-    except OperationFailure as exc:
-        if "zero vector" not in str(exc).lower():
-            raise
-        # existing chunks may still have zero vectors from before ingest filtering
+        # ponytail: Atlas AI stage has returned all-zero embeddings; text search still works
         pipeline = build_text_search_pipeline(query_text, settings=settings)
         docs = await _run_search_pipeline(collection, pipeline)
+    else:
+        pipeline = build_rank_fusion_pipeline(query_text, query_vector, settings=settings)
+        try:
+            docs = await _run_search_pipeline(collection, pipeline)
+        except OperationFailure as exc:
+            if "zero vector" not in str(exc).lower():
+                raise
+            # existing chunks may still have zero vectors from before ingest filtering
+            pipeline = build_text_search_pipeline(query_text, settings=settings)
+            docs = await _run_search_pipeline(collection, pipeline)
     return [
         {
             "file_path": doc.get("file_path", ""),

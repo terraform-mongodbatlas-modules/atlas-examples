@@ -41,6 +41,24 @@ def test_text_search_pipeline_shape():
 
 
 @pytest.mark.asyncio
+async def test_search_falls_back_to_text_on_zero_query_vector():
+    settings = HybridSearchSettings(
+        mongodb_uri=SecretStr("mongodb://localhost"),
+        voyage_api_key=SecretStr("key"),
+    )
+    collection = MagicMock()
+    cursor = MagicMock()
+    cursor.to_list = AsyncMock(
+        return_value=[{"file_path": "a.pdf", "content": "ctx", "hybrid_score": 1.0}]
+    )
+    collection.aggregate = MagicMock(return_value=cursor)
+
+    docs = await search("risk", [0.0, 0.0], collection=collection, settings=settings)
+    assert docs == [{"file_path": "a.pdf", "content": "ctx", "score": 1.0}]
+    collection.aggregate.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_search_falls_back_to_text_on_zero_vector_error():
     settings = HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),

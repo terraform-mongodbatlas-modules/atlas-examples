@@ -118,3 +118,39 @@ async def test_ingest_progress_callback(tmp_path: Path, monkeypatch):
         on_progress=steps.append,
     )
     assert steps == ["Embedding 2 chunks", "Stored 2 chunks", "Completed processing file"]
+
+
+@pytest.mark.asyncio
+async def test_list_ingested_files_groups_by_file_path():
+    collection = MagicMock()
+    collection.aggregate = MagicMock(
+        return_value=MagicMock(
+            to_list=AsyncMock(
+                return_value=[
+                    {"_id": "/tmp/a.pdf", "chunk_count": 3},
+                    {"_id": "/tmp/b.txt", "chunk_count": 1},
+                ]
+            )
+        )
+    )
+    files = await ingest_module.list_ingested_files(collection)
+    assert [item.display_name for item in files] == ["a.pdf", "b.txt"]
+    assert files[0].chunk_count == 3
+
+
+@pytest.mark.asyncio
+async def test_delete_by_file_path():
+    collection = MagicMock()
+    collection.delete_many = AsyncMock(return_value=MagicMock(deleted_count=5))
+    result = await ingest_module.delete_by_file_path("/tmp/a.pdf", collection=collection)
+    assert result.chunk_count == 5
+    collection.delete_many.assert_awaited_once_with({"file_path": "/tmp/a.pdf"})
+
+
+@pytest.mark.asyncio
+async def test_delete_all_chunks():
+    collection = MagicMock()
+    collection.delete_many = AsyncMock(return_value=MagicMock(deleted_count=12))
+    deleted = await ingest_module.delete_all_chunks(collection=collection)
+    assert deleted == 12
+    collection.delete_many.assert_awaited_once_with({})

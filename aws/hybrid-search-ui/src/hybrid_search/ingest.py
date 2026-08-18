@@ -13,11 +13,27 @@ from pymongo import ReplaceOne
 from hybrid_search import extract as extract_module
 from hybrid_search import voyage as voyage_module
 from hybrid_search.settings import HybridSearchSettings
-from hybrid_search.voyage import DocumentEmbedResult, is_zero_vector
+from hybrid_search.voyage import DocumentEmbedResult, assert_nonzero_embeddings, is_zero_vector
 
 
 @dataclass(frozen=True)
 class IngestResult:
+    chunk_count: int
+
+
+@dataclass(frozen=True)
+class IngestedFile:
+    file_path: str
+    chunk_count: int
+
+    @property
+    def display_name(self) -> str:
+        return Path(self.file_path).name
+
+
+@dataclass(frozen=True)
+class DeleteResult:
+    file_path: str
     chunk_count: int
 
 
@@ -26,6 +42,34 @@ def chunk_doc_id(file_path: str, chunk_index: int) -> str:
 
 
 OnProgress = Callable[[str], Any]
+
+
+async def list_ingested_files(collection: AsyncIOMotorCollection) -> list[IngestedFile]:
+    pipeline = [
+        {"$group": {"_id": "$file_path", "chunk_count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}},
+    ]
+    cursor = collection.aggregate(pipeline)
+    docs = await cursor.to_list(length=None)
+    return [
+        IngestedFile(file_path=doc["_id"], chunk_count=doc["chunk_count"])
+        for doc in docs
+        if doc.get("_id")
+    ]
+
+
+async def delete_by_file_path(
+    file_path: str,
+    *,
+    collection: AsyncIOMotorCollection,
+) -> DeleteResult:
+    result = await collection.delete_many({"file_path": file_path})
+    return DeleteResult(file_path=file_path, chunk_count=result.deleted_count)
+
+
+async def delete_all_chunks(*, collection: AsyncIOMotorCollection) -> int:
+    result = await collection.delete_many({})
+    return result.deleted_count
 
 
 async def ingest_file(
@@ -43,6 +87,7 @@ async def ingest_file(
     total = 0
     for batch in batches:
         embed = await voyage_module.embed_document(batch, client=voyage, settings=settings)
+        assert_nonzero_embeddings(embed, voyage_base_url=settings.voyage_base_url)
         await _emit_progress(on_progress, f"Embedding {len(embed.chunk_texts)} chunks")
         ops = _upsert_ops(file_path, chunk_index, embed)
         if ops:

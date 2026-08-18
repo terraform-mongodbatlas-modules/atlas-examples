@@ -17,6 +17,22 @@ def is_zero_vector(vector: list[float]) -> bool:
     return not vector or all(value == 0.0 for value in vector)
 
 
+def assert_nonzero_embeddings(
+    embed: DocumentEmbedResult,
+    *,
+    voyage_base_url: str | None,
+) -> None:
+    if not embed.embeddings or not all(is_zero_vector(vector) for vector in embed.embeddings):
+        return
+    base = voyage_base_url or "https://api.voyageai.com/v1"
+    msg = (
+        "Voyage returned zero embeddings. "
+        f"Check VOYAGE_API_KEY and VOYAGE_BASE_URL ({base}). "
+        "Atlas AI staging (ai-stage.mongodb.com) has returned all-zero vectors in lab tests."
+    )
+    raise RuntimeError(msg)
+
+
 def build_voyage_client(settings: HybridSearchSettings) -> voyageai.AsyncClient:
     kwargs: dict[str, str] = {"api_key": settings.voyage_api_key.get_secret_value()}
     if settings.voyage_base_url:

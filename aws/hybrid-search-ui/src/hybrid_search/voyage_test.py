@@ -41,6 +41,12 @@ def test_is_zero_vector():
     assert is_zero_vector([0.1, 0.0]) is False
 
 
+def test_assert_nonzero_embeddings_raises_on_zero():
+    embed = DocumentEmbedResult(chunk_texts=["a"], embeddings=[[0.0, 0.0]])
+    with pytest.raises(RuntimeError, match="zero embeddings"):
+        voyage_module.assert_nonzero_embeddings(embed, voyage_base_url="https://ai-stage.mongodb.com/v1")
+
+
 @pytest.mark.asyncio
 async def test_embed_query_disables_auto_chunk(settings):
     client = MagicMock()
