@@ -16,7 +16,7 @@ def test_extract_txt(tmp_path: Path):
 def test_pdf_requires_pymupdf(tmp_path: Path, monkeypatch):
     path = tmp_path / "doc.pdf"
     path.write_bytes(b"%PDF-1.4")
-    monkeypatch.setattr(extract_module, "fitz", None)
+    monkeypatch.setattr(extract_module, "pymupdf", None)
     with pytest.raises(RuntimeError, match="pymupdf"):
         extract_module.extract_text(path)
 
@@ -39,8 +39,8 @@ def test_iter_pdf_page_groups(monkeypatch):
         def close(self) -> None:
             return None
 
-    fake_fitz = type("fitz", (), {"open": staticmethod(lambda path: FakeDoc(path))})
-    monkeypatch.setattr(extract_module, "fitz", fake_fitz)
+    fake_pymupdf = type("pymupdf", (), {"open": staticmethod(lambda path: FakeDoc(path))})
+    monkeypatch.setattr(extract_module, "pymupdf", fake_pymupdf)
     groups = list(extract_module.iter_pdf_page_groups(Path("x.pdf"), max_pages_per_group=2))
     assert groups == ["p1\n\np2", "p3"]
 

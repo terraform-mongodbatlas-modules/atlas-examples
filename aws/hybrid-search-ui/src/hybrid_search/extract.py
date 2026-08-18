@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
-    import fitz
+    import pymupdf
 except ImportError:
-    fitz = None
+    pymupdf = None
 
 VOYAGE_AUTO_CHUNK_TOKEN_CAP = 120_000
 _CHARS_PER_TOKEN_ESTIMATE = 4
@@ -24,10 +24,10 @@ def extract_text(path: Path) -> ExtractResult:
     if suffix in {".txt", ".md"}:
         return ExtractResult(text=path.read_text())
     if suffix == ".pdf":
-        if fitz is None:
+        if pymupdf is None:
             msg = "PDF extract requires pymupdf; install with uv sync --extra ui"
             raise RuntimeError(msg)
-        doc = fitz.open(path)
+        doc = pymupdf.open(path)
         try:
             pages = [page.get_text() for page in doc]
         finally:
@@ -38,10 +38,10 @@ def extract_text(path: Path) -> ExtractResult:
 
 
 def iter_pdf_page_groups(path: Path, *, max_pages_per_group: int) -> Iterator[str]:
-    if fitz is None:
+    if pymupdf is None:
         msg = "PDF page groups require pymupdf; install with uv sync --extra ui"
         raise RuntimeError(msg)
-    doc = fitz.open(path)
+    doc = pymupdf.open(path)
     try:
         batch: list[str] = []
         for page in doc:

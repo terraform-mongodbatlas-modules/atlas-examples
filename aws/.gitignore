@@ -1,3 +1,4 @@
 **/.vendor/
+hybrid-search-ui/.chainlit/
 hybrid-search-ui/scripts/cache/
 hybrid-search-ui/secrets/

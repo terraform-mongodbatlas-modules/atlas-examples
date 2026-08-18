@@ -67,3 +67,9 @@ dump-local-env region="" output="secrets/.env.local":
     else
       uv run python "${script}" --output "${out}"
     fi
+    echo
+    echo "Run the UI locally:"
+    compose="{{justfile_directory()}}/docker/docker-compose.local-ui.yml"
+    echo "  docker compose -f ${compose} --env-file ${out} up --build"
+    echo
+    echo "Open http://localhost:8001"
