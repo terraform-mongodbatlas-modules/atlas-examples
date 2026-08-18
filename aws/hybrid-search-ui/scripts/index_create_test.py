@@ -148,7 +148,11 @@ def test_returns_after_successful_run_task(capsys):
     run_task = next(call for call in run.calls if "run-task" in call)
     assert "--overrides" in run_task
     overrides = json.loads(run_task[run_task.index("--overrides") + 1])
-    assert overrides["containerOverrides"][0]["command"] == ["hybrid-search", "index", "create"]
+    assert overrides["containerOverrides"][0]["command"] == [
+        ".venv/bin/hybrid-search",
+        "index",
+        "create",
+    ]
     assert any(call[:3] == ["aws", "logs", "tail"] for call in run.calls)
     captured = capsys.readouterr()
     assert "Started task" in captured.out

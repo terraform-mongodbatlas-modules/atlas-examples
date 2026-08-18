@@ -15,7 +15,7 @@ from typing import Any
 _READY_RE = re.compile(r"(\S+\.\S+)\s+READY\b")
 
 DEFAULT_APP_DIR = Path(__file__).resolve().parent.parent / "app"
-INDEX_CMD = ["hybrid-search", "index", "create"]
+INDEX_CMD = [".venv/bin/hybrid-search", "index", "create"]
 Run = Callable[..., CompletedProcess[str]]
 
 
