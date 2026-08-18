@@ -23,6 +23,9 @@ from hybrid_search.ui.demo import (
     DELETE_COMMAND,
     DELETE_COMMAND_ID,
     DELETE_STARTER,
+    DEMO_ACTION_NAME,
+    DEMO_COMMAND,
+    DEMO_COMMAND_ID,
     DEMO_STARTERS,
     INGEST_COMMAND,
     INGEST_COMMAND_ID,
@@ -33,6 +36,12 @@ from hybrid_search.ui.query_logic import answer_query
 
 ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
 _ASK_ACCEPT = ["application/pdf", "text/plain", "text/markdown", "text/x-markdown"]
+INGEST_MAX_FILES = 10
+INGEST_MAX_SIZE_MB = 100
+INGEST_ASK_PROMPT = (
+    f"Choose pdf, txt, or md to ingest (up to {INGEST_MAX_FILES} files, "
+    f"{INGEST_MAX_SIZE_MB} MB per batch)."
+)
 
 
 def is_allowed_upload(path: Path) -> bool:
@@ -82,17 +91,17 @@ async def on_chat_start():
             content=(f"Startup failed. Check MONGODB_URI, VOYAGE_API_KEY, and Atlas access: {exc}")
         ).send()
         return
-    await cl.context.emitter.set_commands([INGEST_COMMAND, DELETE_COMMAND])
+    await cl.context.emitter.set_commands([INGEST_COMMAND, DELETE_COMMAND, DEMO_COMMAND])
 
 
 @cl.on_message
 async def on_message(message: cl.Message):
     if message.command == INGEST_COMMAND_ID or message.content == UPLOAD_STARTER["message"]:
         files = await cl.AskFileMessage(
-            content="Choose pdf, txt, or md to ingest",
+            content=INGEST_ASK_PROMPT,
             accept=_ASK_ACCEPT,
-            max_files=10,
-            max_size_mb=100,
+            max_files=INGEST_MAX_FILES,
+            max_size_mb=INGEST_MAX_SIZE_MB,
             timeout=300,
             raise_on_timeout=False,
         ).send()
@@ -103,6 +112,9 @@ async def on_message(message: cl.Message):
     if message.command == DELETE_COMMAND_ID or message.content == DELETE_STARTER["message"]:
         await _delete_ingested_files()
         return
+    if message.command == DEMO_COMMAND_ID:
+        await _show_demo_questions()
+        return
     uploads = [
         (element.name or Path(element.path).name, Path(element.path))
         for element in message.elements or []
@@ -112,6 +124,32 @@ async def on_message(message: cl.Message):
         await _ingest_named_paths(uploads)
         return
     await _handle_query(message.content)
+
+
+async def _show_demo_questions() -> None:
+    actions = [
+        cl.Action(
+            name=DEMO_ACTION_NAME,
+            payload={"message": item["message"]},
+            label=item["label"],
+        )
+        for item in DEMO_STARTERS
+    ]
+    ask = cl.AskActionMessage(
+        content="Try a demo question:",
+        actions=actions,
+        timeout=300,
+        raise_on_timeout=False,
+    )
+    response = await ask.send()
+    if response is None:
+        return
+    query = response.get("payload", {}).get("message")
+    if not query:
+        return
+    await ask.remove()
+    await cl.Message(content=query, type="user_message").send()
+    await _handle_query(query)
 
 
 async def _handle_query(query: str):
@@ -177,7 +215,7 @@ async def _ingest_named_paths(named_paths: list[tuple[str, Path]]) -> None:
             await step.update()
 
         await paint()
-        for i, (_, path) in enumerate(named_paths):
+        for i, (name, path) in enumerate(named_paths):
             if progress[i].status == "skipped":
                 continue
             start = time.monotonic()
@@ -199,6 +237,7 @@ async def _ingest_named_paths(named_paths: list[tuple[str, Path]]) -> None:
                     settings=settings,
                     collection=collection,
                     voyage=voyage,
+                    source_name=name,
                     on_progress=on_progress,
                 )
             except Exception as exc:  # noqa: BLE001  one file must not abort the batch

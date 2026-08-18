@@ -17,6 +17,8 @@ DEMO_STARTERS = [
 
 INGEST_COMMAND_ID = "Ingest"
 DELETE_COMMAND_ID = "Delete"
+DEMO_COMMAND_ID = "Demo"
+DEMO_ACTION_NAME = "demo"
 
 INGEST_COMMAND = {
     "id": INGEST_COMMAND_ID,
@@ -29,6 +31,13 @@ DELETE_COMMAND = {
     "id": DELETE_COMMAND_ID,
     "icon": "trash-2",
     "description": "Delete ingested documents",
+    "button": True,
+}
+
+DEMO_COMMAND = {
+    "id": DEMO_COMMAND_ID,
+    "icon": "message-circle-question",
+    "description": "Show demo questions",
     "button": True,
 }
 
