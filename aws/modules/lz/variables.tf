@@ -136,14 +136,15 @@ variable "manual_scaling" {
 }
 
 variable "vpc_config" {
-  description = "App VPC for PrivateLink and ECS. create=true manages one private VPC per cluster AWS region; create=false requires a full by_region entry per region. enable_nat_gateway turns on NAT in every managed region; single_nat_gateway shares one NAT across AZs (default true; set false for per-AZ HA). ecs_apps.*.internet_egress enables NAT per app region and HTTPS egress from the app security group."
+  description = "App VPC for PrivateLink and ECS. create=true manages one private VPC per cluster AWS region; create=false requires a full by_region entry per region. enable_nat_gateway turns on NAT in every managed region; single_nat_gateway shares one NAT across AZs (default true; set false for per-AZ HA). ecs_apps.*.internet_egress enables NAT per app region and HTTPS egress from the app security group. skip_interface_endpoints omits interface endpoints for ecr.api, ecr.dkr, logs, secretsmanager, and sts (requires NAT so Fargate can reach those APIs over public HTTPS). Does not skip the S3 gateway endpoint or Atlas PrivateLink."
   type = object({
-    create             = optional(bool, true)
-    base_cidr          = optional(string, "10.0.0.0/8")
-    az_count           = optional(number, 2)
-    enable_nat_gateway = optional(bool, false)
-    single_nat_gateway = optional(bool, true)
-    create_igw         = optional(bool, false)
+    create                   = optional(bool, true)
+    base_cidr                = optional(string, "10.0.0.0/8")
+    az_count                 = optional(number, 2)
+    enable_nat_gateway       = optional(bool, false)
+    single_nat_gateway       = optional(bool, true)
+    create_igw               = optional(bool, false)
+    skip_interface_endpoints = optional(bool, false)
     by_region = optional(map(object({
       cidr                    = optional(string)
       az_count                = optional(number)

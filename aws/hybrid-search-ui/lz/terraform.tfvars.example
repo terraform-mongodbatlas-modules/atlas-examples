@@ -7,6 +7,12 @@ cluster_name = "hybrid-search-ui"
 # Cheap personal lab (before first apply):
 # cluster_type = "REPLICASET"
 
+# Skip AWS interface VPC endpoints (ECR, logs, Secrets Manager, STS). NAT stays
+# on via ecs_apps.ui.internet_egress; AWS API calls go NAT to public endpoints.
+# Does not skip Atlas PrivateLink or the S3 gateway. About $2.40/day off in
+# us-east-1 with two AZs.
+# vpc_config = { skip_interface_endpoints = true }
+
 # Skip WAF (not the WebSocket or upload fallback; lab should keep WAF on):
 # http_edges = { main = { waf = { enabled = false } } }
 

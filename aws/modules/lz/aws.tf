@@ -204,12 +204,15 @@ resource "aws_security_group" "app" {
     cidr_blocks = [local.app_network[each.key].vpc_cidr_block]
   }
 
-  egress {
-    description = "VPC interface endpoints HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [local.app_network[each.key].vpc_cidr_block]
+  dynamic "egress" {
+    for_each = var.vpc_config.skip_interface_endpoints ? [] : [1]
+    content {
+      description = "VPC interface endpoints HTTPS"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = [local.app_network[each.key].vpc_cidr_block]
+    }
   }
 
   egress {
@@ -247,7 +250,7 @@ resource "aws_security_group" "app" {
 }
 
 resource "aws_security_group" "vpc_endpoints" {
-  for_each = local.app_aws_regions
+  for_each = var.vpc_config.skip_interface_endpoints ? toset([]) : local.app_aws_regions
 
   region      = each.key
   name_prefix = "${var.default_resource_name_prefix}-vpce-"
@@ -270,7 +273,7 @@ resource "aws_security_group" "vpc_endpoints" {
 }
 
 resource "aws_vpc_endpoint" "interface" {
-  for_each = {
+  for_each = var.vpc_config.skip_interface_endpoints ? {} : {
     for pair in setproduct(tolist(local.app_aws_regions), ["ecr.api", "ecr.dkr", "logs", "secretsmanager", "sts"]) :
     "${pair[0]}-${pair[1]}" => {
       region  = pair[0]
@@ -299,6 +302,13 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = local.app_network[each.key].private_route_table_ids
 
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-s3-${each.key}" })
+
+  lifecycle {
+    precondition {
+      condition     = !var.vpc_config.skip_interface_endpoints || contains(local.app_regions_with_internet_egress, each.key)
+      error_message = "vpc_config.skip_interface_endpoints requires NAT (vpc_config.enable_nat_gateway or ecs_apps.*.internet_egress) so tasks can reach AWS APIs."
+    }
+  }
 }
 
 resource "aws_security_group_rule" "atlas_pl_ingress_from_app" {

@@ -102,6 +102,7 @@ terraform -chdir=lz destroy
 The following stay billed while the stack is up:
 
 - **NAT Gateway:** Hourly plus data. This example sets `internet_egress = true` so Voyage (and an optional LLM) can reach the internet. Leave NAT on for the walkthrough.
+- **VPC interface endpoints:** Five AWS interface endpoints (ECR API, ECR DKR, CloudWatch Logs, Secrets Manager, STS) bill per AZ-hour in private subnets. About $2.40/day in `us-east-1` with two AZs. Atlas PrivateLink is separate and is not controlled by this knob.
 - **Atlas cluster:** Default is a sharded cluster (one shard) with compute auto-scaling from M10 to M200. Disk GB auto-scales either way.
 - **KMS, log export, backup export:** On by default via `atlas_integrations`. A customer-managed key has a monthly charge and a pending-delete window after destroy. Log and backup export create S3 buckets.
 - **CloudFront WAF:** AWS Managed Rules Common Rule Set, about $6/month if you leave the stack up.
@@ -124,6 +125,7 @@ atlas_integrations = {
 ```
 
 - **Skip WAF:** `http_edges = { main = { waf = { enabled = false } } }`. Do not use this to unblock Chainlit uploads or WebSockets; see [How do I turn WAF off?](#how-do-i-turn-waf-off) and [What is the file upload size limit?](#what-is-the-file-upload-size-limit).
+- **Skip AWS interface VPC endpoints:** `vpc_config = { skip_interface_endpoints = true }`. Requires NAT (`internet_egress` is already true for this example). AWS API traffic uses public endpoints over NAT; Atlas PrivateLink and the S3 gateway stay.
 
 ### How do I turn WAF off?
 

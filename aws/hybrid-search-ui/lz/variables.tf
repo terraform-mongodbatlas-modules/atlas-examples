@@ -67,12 +67,13 @@ variable "manual_scaling" {
 variable "vpc_config" {
   description = "App VPC for PrivateLink and ECS. Same type as modules/lz; that module validates the value."
   type = object({
-    create             = optional(bool, true)
-    base_cidr          = optional(string, "10.0.0.0/8")
-    az_count           = optional(number, 2)
-    enable_nat_gateway = optional(bool, false)
-    single_nat_gateway = optional(bool, true)
-    create_igw         = optional(bool, false)
+    create                   = optional(bool, true)
+    base_cidr                = optional(string, "10.0.0.0/8")
+    az_count                 = optional(number, 2)
+    enable_nat_gateway       = optional(bool, false)
+    single_nat_gateway       = optional(bool, true)
+    create_igw               = optional(bool, false)
+    skip_interface_endpoints = optional(bool, false)
     by_region = optional(map(object({
       cidr                    = optional(string)
       az_count                = optional(number)
