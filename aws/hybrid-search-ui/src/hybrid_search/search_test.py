@@ -6,7 +6,14 @@ import pytest
 from pydantic import SecretStr
 from pymongo.errors import OperationFailure
 
-from hybrid_search.search import build_rank_fusion_pipeline, build_text_search_pipeline, search
+from hybrid_search.search import (
+    build_rank_fusion_pipeline,
+    build_text_search_pipeline,
+    build_vector_search_pipeline,
+    search,
+    search_with_modes,
+)
+from hybrid_search.search_modes import SearchModes
 from hybrid_search.settings import HybridSearchSettings
 
 
@@ -40,18 +47,61 @@ def test_text_search_pipeline_shape():
     assert pipeline[2] == {"$addFields": {"hybrid_score": {"$meta": "searchScore"}}}
 
 
-@pytest.mark.asyncio
-async def test_search_falls_back_to_text_on_zero_query_vector():
+def test_vector_search_pipeline_shape():
     settings = HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),
         voyage_api_key=SecretStr("key"),
+        top_k=5,
     )
+    pipeline = build_vector_search_pipeline([0.1, 0.2], settings=settings)
+    assert pipeline[0]["$vectorSearch"]["index"] == "vector_idx"
+    assert pipeline[1] == {"$limit": 5}
+    assert pipeline[2] == {"$addFields": {"hybrid_score": {"$meta": "vectorSearchScore"}}}
+    assert pipeline[3] == {"$project": {"vector": 0}}
+
+
+def _settings() -> HybridSearchSettings:
+    return HybridSearchSettings(
+        mongodb_uri=SecretStr("mongodb://localhost"),
+        voyage_api_key=SecretStr("key"),
+    )
+
+
+def _mock_collection(docs: list[dict]) -> MagicMock:
     collection = MagicMock()
     cursor = MagicMock()
-    cursor.to_list = AsyncMock(
-        return_value=[{"file_path": "a.pdf", "content": "ctx", "hybrid_score": 1.0}]
-    )
+    cursor.to_list = AsyncMock(return_value=docs)
     collection.aggregate = MagicMock(return_value=cursor)
+    return collection
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("modes", "query_vector", "expected_root"),
+    [
+        (SearchModes(keyword=True, vector=False), None, "$search"),
+        (SearchModes(keyword=False, vector=True), [0.1, 0.2], "$vectorSearch"),
+        (SearchModes(keyword=True, vector=True), [0.1, 0.2], "$rankFusion"),
+    ],
+)
+async def test_search_with_modes_pipeline(modes, query_vector, expected_root):
+    collection = _mock_collection([{"file_path": "a.pdf", "content": "ctx", "hybrid_score": 1.0}])
+    docs = await search_with_modes(
+        "risk",
+        query_vector,
+        modes=modes,
+        collection=collection,
+        settings=_settings(),
+    )
+    assert docs == [{"file_path": "a.pdf", "content": "ctx", "score": 1.0}]
+    pipeline = collection.aggregate.call_args.args[0]
+    assert expected_root in pipeline[0]
+
+
+@pytest.mark.asyncio
+async def test_search_falls_back_to_text_on_zero_query_vector():
+    settings = _settings()
+    collection = _mock_collection([{"file_path": "a.pdf", "content": "ctx", "hybrid_score": 1.0}])
 
     docs = await search("risk", [0.0, 0.0], collection=collection, settings=settings)
     assert docs == [{"file_path": "a.pdf", "content": "ctx", "score": 1.0}]
@@ -60,14 +110,13 @@ async def test_search_falls_back_to_text_on_zero_query_vector():
 
 @pytest.mark.asyncio
 async def test_search_falls_back_to_text_on_zero_vector_error():
-    settings = HybridSearchSettings(
-        mongodb_uri=SecretStr("mongodb://localhost"),
-        voyage_api_key=SecretStr("key"),
-    )
+    settings = _settings()
     collection = MagicMock()
     first_cursor = MagicMock()
     first_cursor.to_list = AsyncMock(
-        side_effect=OperationFailure("Cosine similarity cannot be calculated against a zero vector.")
+        side_effect=OperationFailure(
+            "Cosine similarity cannot be calculated against a zero vector."
+        )
     )
     second_cursor = MagicMock()
     second_cursor.to_list = AsyncMock(

@@ -5,6 +5,7 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo.errors import OperationFailure
 
+from hybrid_search.search_modes import SearchModes
 from hybrid_search.settings import HybridSearchSettings
 from hybrid_search.voyage import is_zero_vector
 
@@ -62,6 +63,28 @@ def build_text_search_pipeline(
     ]
 
 
+def build_vector_search_pipeline(
+    query_vector: list[float],
+    *,
+    settings: HybridSearchSettings,
+) -> list[dict[str, Any]]:
+    top_k = settings.top_k
+    return [
+        {
+            "$vectorSearch": {
+                "index": settings.vector_index_name,
+                "path": VECTOR_PATH,
+                "queryVector": query_vector,
+                "numCandidates": top_k * NUM_CANDIDATES_MULTIPLIER,
+                "limit": top_k,
+            }
+        },
+        {"$limit": top_k},
+        {"$addFields": {"hybrid_score": {"$meta": "vectorSearchScore"}}},
+        {"$project": {"vector": 0}},
+    ]
+
+
 def build_rank_fusion_pipeline(
     query_text: str,
     query_vector: list[float],
@@ -112,27 +135,7 @@ def build_rank_fusion_pipeline(
     ]
 
 
-async def search(
-    query_text: str,
-    query_vector: list[float],
-    *,
-    collection: AsyncIOMotorCollection,
-    settings: HybridSearchSettings,
-) -> list[dict[str, Any]]:
-    if is_zero_vector(query_vector):
-        # ponytail: Atlas AI stage has returned all-zero embeddings; text search still works
-        pipeline = build_text_search_pipeline(query_text, settings=settings)
-        docs = await _run_search_pipeline(collection, pipeline)
-    else:
-        pipeline = build_rank_fusion_pipeline(query_text, query_vector, settings=settings)
-        try:
-            docs = await _run_search_pipeline(collection, pipeline)
-        except OperationFailure as exc:
-            if "zero vector" not in str(exc).lower():
-                raise
-            # existing chunks may still have zero vectors from before ingest filtering
-            pipeline = build_text_search_pipeline(query_text, settings=settings)
-            docs = await _run_search_pipeline(collection, pipeline)
+def _docs_to_results(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
             "file_path": doc.get("file_path", ""),
@@ -141,6 +144,70 @@ async def search(
         }
         for doc in docs
     ]
+
+
+async def search_with_modes(
+    query_text: str,
+    query_vector: list[float] | None,
+    *,
+    modes: SearchModes,
+    collection: AsyncIOMotorCollection,
+    settings: HybridSearchSettings,
+) -> list[dict[str, Any]]:
+    modes.validate_retrieval()
+
+    if modes.keyword and not modes.vector:
+        pipeline = build_text_search_pipeline(query_text, settings=settings)
+        docs = await _run_search_pipeline(collection, pipeline)
+        return _docs_to_results(docs)
+
+    if modes.vector and not modes.keyword:
+        if query_vector is None:
+            msg = "query_vector is required when vector search is enabled"
+            raise ValueError(msg)
+        if is_zero_vector(query_vector):
+            return []
+        pipeline = build_vector_search_pipeline(query_vector, settings=settings)
+        try:
+            docs = await _run_search_pipeline(collection, pipeline)
+        except OperationFailure as exc:
+            if "zero vector" not in str(exc).lower():
+                raise
+            return []
+        return _docs_to_results(docs)
+
+    if query_vector is None or is_zero_vector(query_vector):
+        # ponytail: Atlas AI stage has returned all-zero embeddings; text search still works
+        pipeline = build_text_search_pipeline(query_text, settings=settings)
+        docs = await _run_search_pipeline(collection, pipeline)
+        return _docs_to_results(docs)
+
+    pipeline = build_rank_fusion_pipeline(query_text, query_vector, settings=settings)
+    try:
+        docs = await _run_search_pipeline(collection, pipeline)
+    except OperationFailure as exc:
+        if "zero vector" not in str(exc).lower():
+            raise
+        # existing chunks may still have zero vectors from before ingest filtering
+        pipeline = build_text_search_pipeline(query_text, settings=settings)
+        docs = await _run_search_pipeline(collection, pipeline)
+    return _docs_to_results(docs)
+
+
+async def search(
+    query_text: str,
+    query_vector: list[float],
+    *,
+    collection: AsyncIOMotorCollection,
+    settings: HybridSearchSettings,
+) -> list[dict[str, Any]]:
+    return await search_with_modes(
+        query_text,
+        query_vector,
+        modes=SearchModes(keyword=True, vector=True, llm=True),
+        collection=collection,
+        settings=settings,
+    )
 
 
 async def _run_search_pipeline(
