@@ -23,15 +23,14 @@ from hybrid_search.settings import get_settings
 from hybrid_search.ui.delete_logic import format_ingested_file_list, resolve_delete_selection
 from hybrid_search.ui.demo import (
     DELETE_COMMAND,
-    DELETE_COMMAND_ID,
     DELETE_STARTER,
     DEMO_ACTION_NAME,
     DEMO_COMMAND,
-    DEMO_COMMAND_ID,
     DEMO_STARTERS,
     INGEST_COMMAND,
-    INGEST_COMMAND_ID,
     UPLOAD_STARTER,
+    Mode,
+    resolve_mode,
 )
 from hybrid_search.ui.ingest_progress import FileProgress, render_ingest_batch
 from hybrid_search.ui.query_logic import answer_query
@@ -48,6 +47,7 @@ INGEST_PICK_PROMPT = "Select files to upload."
 INGEST_ACTION_NAME = "ingest"
 INGEST_SELECT_CHOICE = "select"
 INGEST_DONE_CHOICE = "done"
+INGEST_BACK_CHOICE = "back"
 
 
 def is_allowed_upload(path: Path) -> bool:
@@ -100,16 +100,21 @@ async def on_chat_start():
     await cl.context.emitter.set_commands([INGEST_COMMAND, DELETE_COMMAND, DEMO_COMMAND])
 
 
+async def _run_mode(mode: Mode) -> None:
+    match mode:
+        case Mode.INGEST:
+            await _ingest_interactive()
+        case Mode.DELETE:
+            await _delete_ingested_files()
+        case Mode.DEMO:
+            await _show_demo_questions()
+
+
 @cl.on_message
 async def on_message(message: cl.Message):
-    if message.command == INGEST_COMMAND_ID or message.content == UPLOAD_STARTER["message"]:
-        await _ingest_interactive()
-        return
-    if message.command == DELETE_COMMAND_ID or message.content == DELETE_STARTER["message"]:
-        await _delete_ingested_files()
-        return
-    if message.command == DEMO_COMMAND_ID:
-        await _show_demo_questions()
+    mode = resolve_mode(command=message.command, content=message.content)
+    if mode:
+        await _run_mode(mode)
         return
     uploads = [
         (element.name or Path(element.path).name, Path(element.path))
@@ -162,6 +167,32 @@ async def _handle_query(query: str):
 
 
 async def _pick_ingest_files():
+    ask = cl.AskActionMessage(
+        content=INGEST_PICK_PROMPT,
+        actions=[
+            cl.Action(
+                name=INGEST_ACTION_NAME,
+                payload={"choice": INGEST_SELECT_CHOICE},
+                label="Choose files",
+            ),
+            cl.Action(
+                name=INGEST_ACTION_NAME,
+                payload={"choice": INGEST_BACK_CHOICE},
+                label="Back",
+            ),
+        ],
+        timeout=300,
+        raise_on_timeout=False,
+    )
+    response = await ask.send()
+    if response is None:
+        return None
+    await ask.remove()
+    choice = response.get("payload", {}).get("choice")
+    if choice == INGEST_BACK_CHOICE:
+        return None
+    if choice != INGEST_SELECT_CHOICE:
+        return None
     return await cl.AskFileMessage(
         content=INGEST_PICK_PROMPT,
         accept=_ASK_ACCEPT,
@@ -202,7 +233,7 @@ async def _ingest_interactive() -> None:
         if not await _ask_select_or_done():
             return
         files = await _pick_ingest_files()
-        if files is None:
+        if not files:
             continue
         await _ingest_named_paths([(item.name, Path(item.path)) for item in files])
 
@@ -222,6 +253,11 @@ async def _delete_ingested_files() -> None:
     if response is None:
         return
     selection = response.get("output", "")
+    mode = resolve_mode(content=selection)
+    if mode:
+        if mode != Mode.DELETE:
+            await _run_mode(mode)
+        return
     file_paths = resolve_delete_selection(selection, files)
     if file_paths is None:
         await cl.Message(content="Could not match that selection. Try a number or filename.").send()

@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+from enum import StrEnum
+
+
+class Mode(StrEnum):
+    INGEST = "ingest"
+    DELETE = "delete"
+    DEMO = "demo"
+
 DEMO_STARTERS = [
     {
         "label": "AI RMF functions",
@@ -52,3 +60,14 @@ DELETE_STARTER = {
     "message": "Delete files",
     "command": DELETE_COMMAND_ID,
 }
+
+
+def resolve_mode(*, command: str | None = None, content: str = "") -> Mode | None:
+    text = content.strip()
+    if command == INGEST_COMMAND_ID or text in {UPLOAD_STARTER["message"], INGEST_COMMAND_ID}:
+        return Mode.INGEST
+    if command == DELETE_COMMAND_ID or text in {DELETE_STARTER["message"], DELETE_COMMAND_ID}:
+        return Mode.DELETE
+    if command == DEMO_COMMAND_ID or text == DEMO_COMMAND_ID:
+        return Mode.DEMO
+    return None
