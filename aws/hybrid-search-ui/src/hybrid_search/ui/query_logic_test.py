@@ -58,7 +58,7 @@ async def test_answer_query_modes(modes, expect_embed, expect_generate):
         assert result.answer == "generated"
     else:
         generate.assert_not_awaited()
-        assert result.answer == ""
+        assert result.answer is None
         assert result.source_files == ["a.pdf"]
 
 

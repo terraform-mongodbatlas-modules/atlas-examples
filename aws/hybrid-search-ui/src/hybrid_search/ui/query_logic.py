@@ -6,7 +6,7 @@ from typing import Any
 import voyageai
 from motor.motor_asyncio import AsyncIOMotorCollection
 
-from hybrid_search.generate import GenerateResult, generate_answer, unique_source_files
+from hybrid_search.generate import generate_answer, unique_source_files
 from hybrid_search.search import search_with_modes
 from hybrid_search.search_modes import DEFAULT, SearchModes
 from hybrid_search.settings import HybridSearchSettings
@@ -73,7 +73,7 @@ async def answer_query(
     collection: AsyncIOMotorCollection,
     voyage: voyageai.AsyncClient,
     modes: SearchModes = DEFAULT,
-) -> GenerateResult:
+) -> QueryResult:
     references = await retrieve(
         query,
         modes=modes,
@@ -81,7 +81,4 @@ async def answer_query(
         collection=collection,
         voyage=voyage,
     )
-    result = await answer_or_format(query, references, modes=modes, settings=settings)
-    if result.answer is not None:
-        return GenerateResult(answer=result.answer, source_files=result.source_files)
-    return GenerateResult(answer="", source_files=result.source_files)
+    return await answer_or_format(query, references, modes=modes, settings=settings)

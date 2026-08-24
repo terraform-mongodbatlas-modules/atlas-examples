@@ -86,6 +86,18 @@ The browser tab is **MongoDB AI risk**. Each answer lists source filenames at th
 
 NIST PDFs can take several minutes because Voyage embeds every chunk. Progress updates an **Ingest** step in the thread with chunk counts and elapsed time.
 
+### Search modes
+
+Open **Chat Settings** (gear icon) to toggle retrieval and answer stages per chat session. All three default to on.
+
+- **Keyword search:** Atlas Search text index on chunk content.
+- **Vector search:** Voyage query embed plus Atlas Vector Search.
+- **LLM answer:** pydantic-ai answer over retrieved chunks. Off skips the LLM and shows ranked hits (score, filename, snippet) instead.
+
+Common no-LLM demos: keyword only, vector only, or keyword + vector with **LLM answer** off (`$rankFusion` hits without a provider key).
+
+`ENABLE_LLM=false` in deploy env disables LLM for every session. The **LLM answer** toggle is a per-session override when the env allows LLM.
+
 ## Tear down
 
 Destroy the app stack first (ECS ENIs hold the infra security group), then lz:

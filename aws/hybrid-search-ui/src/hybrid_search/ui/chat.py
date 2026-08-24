@@ -38,6 +38,7 @@ from hybrid_search.ui.demo import (
 from hybrid_search.ui.ingest_progress import FileProgress, render_ingest_batch
 from hybrid_search.ui.mode_router import UiMode, get_ui_mode, resolve_mode, set_ui_mode
 from hybrid_search.ui.query_logic import answer_query
+from hybrid_search.ui.result_format import format_retrieval_results
 from hybrid_search.ui.search_settings import (
     SEARCH_MODES_KEY,
     confirmation_message,
@@ -193,12 +194,16 @@ async def _handle_query(query: str):
     result = await answer_query(
         query, settings=settings, collection=collection, voyage=voyage, modes=modes
     )
-    if result.source_files:
-        sources = "\n".join(f"- {name}" for name in result.source_files)
-        footer = f"### Sources\n{sources}"
+    if result.answer:
+        if result.source_files:
+            sources = "\n".join(f"- {name}" for name in result.source_files)
+            footer = f"### Sources\n{sources}"
+        else:
+            footer = "### Sources\nNo sources retrieved"
+        content = f"{result.answer}\n\n{footer}"
     else:
-        footer = "### Sources\nNo sources retrieved"
-    await cl.Message(content=f"{result.answer}\n\n{footer}").send()
+        content = format_retrieval_results(result.references, modes=result.modes)
+    await cl.Message(content=content).send()
 
 
 async def _ingest_interactive() -> None:
