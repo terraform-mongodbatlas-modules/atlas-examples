@@ -183,6 +183,9 @@ module "atlas_aws" {
     for r in local.regions_resolved : {
       region     = r.atlas_name
       subnet_ids = local.privatelink_subnet_ids_by_region[r.aws_name]
+      security_group = {
+        inbound_cidr_blocks = [local.privatelink_inbound_cidr_by_region[r.aws_name]]
+      }
     }
   ]
 

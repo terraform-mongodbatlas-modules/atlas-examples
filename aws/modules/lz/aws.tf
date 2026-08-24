@@ -18,6 +18,13 @@ locals {
     } : {
     for region, cfg in var.vpc_config.by_region : region => cfg.private_subnet_ids
   }
+  privatelink_inbound_cidr_by_region = {
+    for region in local.aws_regions : region => (
+      var.vpc_config.create
+      ? module.vpc[region].vpc_cidr_block
+      : var.vpc_config.by_region[region].vpc_cidr_block
+    )
+  }
 
   app_aws_regions = setunion(
     toset([for app in local.ecs_apps : app.aws_region]),
