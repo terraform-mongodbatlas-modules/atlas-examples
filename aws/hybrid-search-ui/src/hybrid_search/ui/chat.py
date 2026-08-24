@@ -36,9 +36,15 @@ from hybrid_search.ui.demo import (
     Mode,
 )
 from hybrid_search.ui.ingest_progress import FileProgress, render_ingest_batch
-from hybrid_search.ui.mode_router import UiMode, get_ui_mode, resolve_mode, set_ui_mode
+from hybrid_search.ui.mode_router import (
+    PENDING_FILE_ASK_KEY,
+    UiMode,
+    get_ui_mode,
+    resolve_mode,
+    set_ui_mode,
+)
 from hybrid_search.ui.query_logic import answer_query
-from hybrid_search.ui.result_format import format_retrieval_results
+from hybrid_search.ui.result_format import format_retrieval_body, retrieval_header
 from hybrid_search.ui.search_settings import (
     SEARCH_MODES_KEY,
     confirmation_message,
@@ -153,6 +159,7 @@ async def on_message(message: cl.Message):
     ]
     if uploads:
         await _ingest_named_paths(uploads)
+        set_ui_mode(UiMode.QUERY)
         return
     if get_ui_mode() == UiMode.DELETE:
         await _handle_delete_text_fallback(message.content)
@@ -202,23 +209,51 @@ async def _handle_query(query: str):
             footer = "### Sources\nNo sources retrieved"
         content = f"{result.answer}\n\n{footer}"
     else:
-        content = format_retrieval_results(result.references, modes=result.modes)
+        async with cl.Step(
+            name=retrieval_header(result.modes),
+            type="tool",
+            default_open=True,
+        ) as step:
+            step.output = format_retrieval_body(result.references, modes=result.modes)
+            await step.update()
+        return
     await cl.Message(content=content).send()
 
 
-async def _ingest_interactive() -> None:
-    files = await cl.AskFileMessage(
+async def _prompt_file_pick() -> list[cl.AskFileResponse] | None:
+    ask = cl.AskFileMessage(
         content=INGEST_ASK_PROMPT,
         accept=_ASK_ACCEPT,
         max_files=INGEST_MAX_FILES,
         max_size_mb=INGEST_MAX_SIZE_MB,
         timeout=300,
         raise_on_timeout=False,
+    )
+    cl.user_session.set(PENDING_FILE_ASK_KEY, ask)
+    try:
+        return await ask.send()
+    finally:
+        cl.user_session.set(PENDING_FILE_ASK_KEY, None)
+
+
+async def _ingest_interactive() -> None:
+    set_ui_mode(UiMode.INGEST)
+    cancel_msg = await cl.Message(
+        content="Cancel returns to search without uploading.",
+        actions=[cl.Action(name=CANCEL_ACTION, payload={}, label="Cancel upload")],
     ).send()
+    files = await _prompt_file_pick()
+    await cancel_msg.remove()
     set_ui_mode(UiMode.QUERY)
     if not files:
         return
     await _ingest_named_paths([(item.name, Path(item.path)) for item in files])
+
+
+async def _cancel_pending_file_ask() -> None:
+    ask = cl.user_session.get(PENDING_FILE_ASK_KEY)
+    if ask is not None:
+        await ask.remove()
 
 
 async def _delete_ingested_files() -> None:
@@ -302,6 +337,7 @@ async def on_delete_all(_action: cl.Action):
 
 @cl.action_callback(CANCEL_ACTION)
 async def on_cancel(_action: cl.Action):
+    await _cancel_pending_file_ask()
     set_ui_mode(UiMode.QUERY)
 
 

@@ -4,9 +4,11 @@ from enum import StrEnum
 
 import chainlit as cl
 
-from hybrid_search.ui.demo import Mode, resolve_mode as _resolve_mode
+from hybrid_search.ui.demo import Mode
+from hybrid_search.ui.demo import resolve_mode as _resolve_mode
 
 UI_MODE_KEY = "ui_mode"
+PENDING_FILE_ASK_KEY = "pending_file_ask"
 
 
 class UiMode(StrEnum):
