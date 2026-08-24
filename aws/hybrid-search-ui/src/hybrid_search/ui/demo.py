@@ -8,6 +8,7 @@ class Mode(StrEnum):
     DELETE = "delete"
     DEMO = "demo"
 
+
 DEMO_STARTERS = [
     {
         "label": "AI RMF functions",
@@ -27,6 +28,9 @@ INGEST_COMMAND_ID = "Ingest"
 DELETE_COMMAND_ID = "Delete"
 DEMO_COMMAND_ID = "Demo"
 DEMO_ACTION_NAME = "demo"
+DELETE_FILE_ACTION = "delete_file"
+DELETE_ALL_ACTION = "delete_all"
+CANCEL_ACTION = "cancel"
 
 INGEST_COMMAND = {
     "id": INGEST_COMMAND_ID,

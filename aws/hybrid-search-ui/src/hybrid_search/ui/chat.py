@@ -22,7 +22,10 @@ from hybrid_search.mongo import chunks_collection, get_client
 from hybrid_search.settings import get_settings
 from hybrid_search.ui.delete_logic import format_ingested_file_list, resolve_delete_selection
 from hybrid_search.ui.demo import (
+    CANCEL_ACTION,
+    DELETE_ALL_ACTION,
     DELETE_COMMAND,
+    DELETE_FILE_ACTION,
     DELETE_STARTER,
     DEMO_ACTION_NAME,
     DEMO_COMMAND,
@@ -30,9 +33,9 @@ from hybrid_search.ui.demo import (
     INGEST_COMMAND,
     UPLOAD_STARTER,
     Mode,
-    resolve_mode,
 )
 from hybrid_search.ui.ingest_progress import FileProgress, render_ingest_batch
+from hybrid_search.ui.mode_router import UiMode, get_ui_mode, resolve_mode, set_ui_mode
 from hybrid_search.ui.query_logic import answer_query
 
 ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
@@ -43,11 +46,6 @@ INGEST_ASK_PROMPT = (
     f"Choose pdf, txt, or md to ingest (up to {INGEST_MAX_FILES} files, "
     f"{INGEST_MAX_SIZE_MB} MB per batch)."
 )
-INGEST_PICK_PROMPT = "Select files to upload."
-INGEST_ACTION_NAME = "ingest"
-INGEST_SELECT_CHOICE = "select"
-INGEST_DONE_CHOICE = "done"
-INGEST_BACK_CHOICE = "back"
 
 
 def is_allowed_upload(path: Path) -> bool:
@@ -97,7 +95,18 @@ async def on_chat_start():
             content=(f"Startup failed. Check MONGODB_URI, VOYAGE_API_KEY, and Atlas access: {exc}")
         ).send()
         return
+    set_ui_mode(UiMode.QUERY)
     await cl.context.emitter.set_commands([INGEST_COMMAND, DELETE_COMMAND, DEMO_COMMAND])
+
+
+def _mode_to_ui_mode(mode: Mode) -> UiMode:
+    match mode:
+        case Mode.INGEST:
+            return UiMode.INGEST
+        case Mode.DELETE:
+            return UiMode.DELETE
+        case Mode.DEMO:
+            return UiMode.QUERY
 
 
 async def _run_mode(mode: Mode) -> None:
@@ -114,6 +123,7 @@ async def _run_mode(mode: Mode) -> None:
 async def on_message(message: cl.Message):
     mode = resolve_mode(command=message.command, content=message.content)
     if mode:
+        set_ui_mode(_mode_to_ui_mode(mode))
         await _run_mode(mode)
         return
     uploads = [
@@ -123,6 +133,9 @@ async def on_message(message: cl.Message):
     ]
     if uploads:
         await _ingest_named_paths(uploads)
+        return
+    if get_ui_mode() == UiMode.DELETE:
+        await _handle_delete_text_fallback(message.content)
         return
     await _handle_query(message.content)
 
@@ -166,76 +179,19 @@ async def _handle_query(query: str):
     await cl.Message(content=f"{result.answer}\n\n{footer}").send()
 
 
-async def _pick_ingest_files():
-    ask = cl.AskActionMessage(
-        content=INGEST_PICK_PROMPT,
-        actions=[
-            cl.Action(
-                name=INGEST_ACTION_NAME,
-                payload={"choice": INGEST_SELECT_CHOICE},
-                label="Choose files",
-            ),
-            cl.Action(
-                name=INGEST_ACTION_NAME,
-                payload={"choice": INGEST_BACK_CHOICE},
-                label="Back",
-            ),
-        ],
-        timeout=300,
-        raise_on_timeout=False,
-    )
-    response = await ask.send()
-    if response is None:
-        return None
-    await ask.remove()
-    choice = response.get("payload", {}).get("choice")
-    if choice == INGEST_BACK_CHOICE:
-        return None
-    if choice != INGEST_SELECT_CHOICE:
-        return None
-    return await cl.AskFileMessage(
-        content=INGEST_PICK_PROMPT,
+async def _ingest_interactive() -> None:
+    files = await cl.AskFileMessage(
+        content=INGEST_ASK_PROMPT,
         accept=_ASK_ACCEPT,
         max_files=INGEST_MAX_FILES,
         max_size_mb=INGEST_MAX_SIZE_MB,
         timeout=300,
         raise_on_timeout=False,
     ).send()
-
-
-async def _ask_select_or_done() -> bool:
-    ask = cl.AskActionMessage(
-        content=INGEST_ASK_PROMPT,
-        actions=[
-            cl.Action(
-                name=INGEST_ACTION_NAME,
-                payload={"choice": INGEST_SELECT_CHOICE},
-                label="Select files",
-            ),
-            cl.Action(
-                name=INGEST_ACTION_NAME,
-                payload={"choice": INGEST_DONE_CHOICE},
-                label="Done uploading",
-            ),
-        ],
-        timeout=300,
-        raise_on_timeout=False,
-    )
-    response = await ask.send()
-    if response is None:
-        return False
-    await ask.remove()
-    return response.get("payload", {}).get("choice") == INGEST_SELECT_CHOICE
-
-
-async def _ingest_interactive() -> None:
-    while True:
-        if not await _ask_select_or_done():
-            return
-        files = await _pick_ingest_files()
-        if not files:
-            continue
-        await _ingest_named_paths([(item.name, Path(item.path)) for item in files])
+    set_ui_mode(UiMode.QUERY)
+    if not files:
+        return
+    await _ingest_named_paths([(item.name, Path(item.path)) for item in files])
 
 
 async def _delete_ingested_files() -> None:
@@ -244,26 +200,28 @@ async def _delete_ingested_files() -> None:
     listing = format_ingested_file_list(files)
     if not files:
         await cl.Message(content=listing).send()
+        set_ui_mode(UiMode.QUERY)
         return
-    response = await cl.AskUserMessage(
-        content=listing,
-        timeout=300,
-        raise_on_timeout=False,
-    ).send()
-    if response is None:
-        return
-    selection = response.get("output", "")
-    mode = resolve_mode(content=selection)
-    if mode:
-        if mode != Mode.DELETE:
-            await _run_mode(mode)
-        return
-    file_paths = resolve_delete_selection(selection, files)
-    if file_paths is None:
-        await cl.Message(content="Could not match that selection. Try a number or filename.").send()
-        return
+    actions = [
+        cl.Action(
+            name=DELETE_FILE_ACTION,
+            payload={"index": index},
+            label=f"Delete {item.display_name}",
+        )
+        for index, item in enumerate(files, start=1)
+    ]
+    actions.extend(
+        [
+            cl.Action(name=DELETE_ALL_ACTION, payload={}, label="Delete all"),
+            cl.Action(name=CANCEL_ACTION, payload={}, label="Cancel"),
+        ]
+    )
+    await cl.Message(content=listing, actions=actions).send()
+
+
+async def _perform_delete(*, collection, file_paths: list[str], delete_all: bool) -> None:
     async with cl.Step(name="Delete", type="tool", default_open=True) as step:
-        if selection.strip().lower() == "all":
+        if delete_all:
             deleted = await delete_all_chunks(collection=collection)
             step.output = f"Deleted all ingested chunks ({deleted} total)."
         else:
@@ -274,6 +232,50 @@ async def _delete_ingested_files() -> None:
                 lines.append(f"- {name}: {result.chunk_count} chunks")
             step.output = "**Deleted**\n\n" + "\n".join(lines)
         await step.update()
+
+
+async def _handle_delete_text_fallback(selection: str) -> None:
+    collection = cl.user_session.get("collection")
+    files = await list_ingested_files(collection)
+    file_paths = resolve_delete_selection(selection, files)
+    if file_paths is None:
+        await cl.Message(content="Could not match that selection. Try a number or filename.").send()
+        return
+    await _perform_delete(
+        collection=collection,
+        file_paths=file_paths,
+        delete_all=selection.strip().lower() == "all",
+    )
+    set_ui_mode(UiMode.QUERY)
+
+
+@cl.action_callback(DELETE_FILE_ACTION)
+async def on_delete_file(action: cl.Action):
+    index = action.payload.get("index")
+    if not isinstance(index, int):
+        return
+    collection = cl.user_session.get("collection")
+    files = await list_ingested_files(collection)
+    if not 1 <= index <= len(files):
+        await cl.Message(content="That file is no longer available.").send()
+        set_ui_mode(UiMode.QUERY)
+        return
+    await _perform_delete(
+        collection=collection, file_paths=[files[index - 1].file_path], delete_all=False
+    )
+    set_ui_mode(UiMode.QUERY)
+
+
+@cl.action_callback(DELETE_ALL_ACTION)
+async def on_delete_all(_action: cl.Action):
+    collection = cl.user_session.get("collection")
+    await _perform_delete(collection=collection, file_paths=[], delete_all=True)
+    set_ui_mode(UiMode.QUERY)
+
+
+@cl.action_callback(CANCEL_ACTION)
+async def on_cancel(_action: cl.Action):
+    set_ui_mode(UiMode.QUERY)
 
 
 async def _ingest_named_paths(named_paths: list[tuple[str, Path]]) -> None:

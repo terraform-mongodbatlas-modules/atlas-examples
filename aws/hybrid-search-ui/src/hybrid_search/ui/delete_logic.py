@@ -12,7 +12,7 @@ def format_ingested_file_list(files: list[IngestedFile]) -> str:
     lines.extend(
         [
             "",
-            "Reply with a number, comma-separated numbers, a filename, or `all` to delete.",
+            "Use the buttons below, or reply with a number, comma-separated numbers, a filename, or `all`.",
         ]
     )
     return "\n".join(lines)
