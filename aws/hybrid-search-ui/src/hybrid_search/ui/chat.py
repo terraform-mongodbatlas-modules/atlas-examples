@@ -19,6 +19,7 @@ from hybrid_search.ingest import (
     skip_reason_for_filename,
 )
 from hybrid_search.mongo import chunks_collection, get_client
+from hybrid_search.search_modes import DEFAULT
 from hybrid_search.settings import get_settings
 from hybrid_search.ui.delete_logic import format_ingested_file_list, resolve_delete_selection
 from hybrid_search.ui.demo import (
@@ -37,6 +38,12 @@ from hybrid_search.ui.demo import (
 from hybrid_search.ui.ingest_progress import FileProgress, render_ingest_batch
 from hybrid_search.ui.mode_router import UiMode, get_ui_mode, resolve_mode, set_ui_mode
 from hybrid_search.ui.query_logic import answer_query
+from hybrid_search.ui.search_settings import (
+    SEARCH_MODES_KEY,
+    confirmation_message,
+    modes_from_settings,
+    send_default_settings,
+)
 
 ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
 _ASK_ACCEPT = ["application/pdf", "text/plain", "text/markdown", "text/x-markdown"]
@@ -97,6 +104,18 @@ async def on_chat_start():
         return
     set_ui_mode(UiMode.QUERY)
     await cl.context.emitter.set_commands([INGEST_COMMAND, DELETE_COMMAND, DEMO_COMMAND])
+    await send_default_settings()
+
+
+@cl.on_settings_update
+async def on_settings_update(settings: dict):
+    try:
+        modes = modes_from_settings(settings)
+    except ValueError as exc:
+        await cl.Message(content=str(exc)).send()
+        return
+    cl.user_session.set(SEARCH_MODES_KEY, modes)
+    await cl.Message(content=confirmation_message(modes)).send()
 
 
 def _mode_to_ui_mode(mode: Mode) -> UiMode:
@@ -170,7 +189,10 @@ async def _handle_query(query: str):
     settings = cl.user_session.get("settings")
     collection = cl.user_session.get("collection")
     voyage = cl.user_session.get("voyage")
-    result = await answer_query(query, settings=settings, collection=collection, voyage=voyage)
+    modes = cl.user_session.get(SEARCH_MODES_KEY, DEFAULT)
+    result = await answer_query(
+        query, settings=settings, collection=collection, voyage=voyage, modes=modes
+    )
     if result.source_files:
         sources = "\n".join(f"- {name}" for name in result.source_files)
         footer = f"### Sources\n{sources}"
