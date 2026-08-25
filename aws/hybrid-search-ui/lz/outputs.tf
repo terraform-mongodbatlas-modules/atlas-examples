@@ -1,6 +1,6 @@
 output "https_url" {
-  description = "CloudFront HTTPS URL for the UI."
-  value       = module.lz.aws.http_edges["main"].https_url
+  description = "CloudFront HTTPS URL for the UI. Null when http_edges is empty."
+  value       = try(module.lz.aws.http_edges["main"].https_url, null)
 }
 
 output "ecr_repository_url" {

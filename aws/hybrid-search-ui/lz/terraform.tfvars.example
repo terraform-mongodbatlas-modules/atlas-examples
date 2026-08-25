@@ -16,8 +16,13 @@ cluster_name = "hybrid-search-ui"
 # Skip WAF (not the WebSocket or upload fallback; lab should keep WAF on):
 # http_edges = { main = { waf = { enabled = false } } }
 
-# Opt-in SCRAM + one IPv4 for laptop mongosh / local app (not on the happy path):
-# public_debug_access = { ip_address = "203.0.113.10" }
+# Local-only: skip ALB + CloudFront + WAF. Pair with public_debug_access and
+# just dump-local-env after apply (do not apply the app stack).
+# http_edges = {}
+
+# Opt-in SCRAM + one IPv4 for laptop mongosh / local app (not on the happy path).
+# Find the IPv4 with: curl -fsS https://ifconfig.me
+# public_debug_access = { ip_address = "1.2.3.4" }
 
 # Optional LLM (just create-llm-secret, then paste the name).
 # LLM_PROVIDER is inferred from llm_env_name.

@@ -66,7 +66,17 @@ module "lz" {
       }
     }
   }
-  ecs_apps            = var.ecs_apps
+  ecs_apps = {
+    for k, app in var.ecs_apps : k => {
+      name             = app.name
+      ecr_key          = app.ecr_key
+      aws_region       = app.aws_region
+      primary_database = app.primary_database
+      routing          = length(var.http_edges) == 0 ? null : app.routing
+      internet_egress  = app.internet_egress
+      roles            = app.roles
+    }
+  }
   tags                = var.tags
   public_debug_access = var.public_debug_access
 }
@@ -109,7 +119,7 @@ resource "aws_secretsmanager_secret_version" "app" {
     ecr_repository_url = local.ui.ecr_repository_url
     network            = local.ui.network
     iam                = local.ui.iam
-    routing = merge(local.ui.routing, {
+    routing = local.ui.routing == null ? null : merge(local.ui.routing, {
       health_check_path   = "/"
       origin_header_value = module.lz.http_edge_origin_header_values[local.ui.routing.edge]
     })

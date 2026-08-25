@@ -141,7 +141,7 @@ variable "ecr_repositories" {
 }
 
 variable "http_edges" {
-  description = "HTTP edges (ALB + CloudFront + WAF). Same type as modules/lz."
+  description = "HTTP edges (ALB + CloudFront + WAF). Same type as modules/lz. Set http_edges = {} (see terraform.tfvars.example) to skip ALB, CloudFront, and WAF when you only run the UI locally."
   type = map(object({
     aws_region          = optional(string)
     aliases             = optional(list(string), [])
