@@ -58,6 +58,12 @@ just create-llm-secret
 # Creates the project, cluster, VPC, CloudFront, IAM, ECR, Voyage key, and nested app secret JSON.
 terraform -chdir=lz init
 terraform -chdir=lz apply
+
+# Optional local UI (needs public_debug_access). Skip Build the image and deploy the UI.
+just dump-local-env
+# dump-local-env prints:
+docker compose -f docker/docker-compose.local-ui.yml --env-file secrets/.env.local up --build
+# Open http://localhost:8001
 ```
 
 ## Build the image and deploy the UI
@@ -182,7 +188,7 @@ To change it on a deployed stack, edit `TOP_K` in `lz/main.tf` `llm_container_en
 
 ### Local Docker without ECS
 
-Set `public_debug_access` and `http_edges = {}` in lz tfvars before apply (see [Before you start](#before-you-start)). Then `just dump-local-env` writes gitignored `secrets/.env.local` with `SKIP_INDEX_CREATION=false`. Use `docker/docker-compose.local-ui.yml` or `docker-compose.local-ui-atlas.yml`.
+The optional `just dump-local-env` step after lz apply writes `secrets/.env.local` with `SKIP_INDEX_CREATION=false` and prints the compose command. For a local MongoDB instead of Atlas, use `docker/docker-compose.local-ui-atlas.yml`.
 
 ### Why does search fail with `localhost:28000`?
 
