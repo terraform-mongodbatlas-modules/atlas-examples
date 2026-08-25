@@ -7,6 +7,8 @@ from pydantic import SecretStr
 from pymongo.errors import OperationFailure
 
 from hybrid_search.search import (
+    ZERO_QUERY_EMBEDDING,
+    RetrievalPipeline,
     build_rank_fusion_pipeline,
     build_text_search_pipeline,
     build_vector_search_pipeline,
@@ -77,25 +79,58 @@ def _mock_collection(docs: list[dict]) -> MagicMock:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("modes", "query_vector", "expected_root"),
+    ("modes", "query_vector", "expected_root", "expected_pipeline"),
     [
-        (SearchModes(keyword=True, vector=False), None, "$search"),
-        (SearchModes(keyword=False, vector=True), [0.1, 0.2], "$vectorSearch"),
-        (SearchModes(keyword=True, vector=True), [0.1, 0.2], "$rankFusion"),
+        (
+            SearchModes(keyword=True, vector=False),
+            None,
+            "$search",
+            RetrievalPipeline.KEYWORD,
+        ),
+        (
+            SearchModes(keyword=False, vector=True),
+            [0.1, 0.2],
+            "$vectorSearch",
+            RetrievalPipeline.VECTOR,
+        ),
+        (
+            SearchModes(keyword=True, vector=True),
+            [0.1, 0.2],
+            "$rankFusion",
+            RetrievalPipeline.RANK_FUSION,
+        ),
     ],
 )
-async def test_search_with_modes_pipeline(modes, query_vector, expected_root):
+async def test_search_with_modes_pipeline(modes, query_vector, expected_root, expected_pipeline):
     collection = _mock_collection([{"file_path": "a.pdf", "content": "ctx", "hybrid_score": 1.0}])
-    docs = await search_with_modes(
+    result = await search_with_modes(
         "risk",
         query_vector,
         modes=modes,
         collection=collection,
         settings=_settings(),
     )
-    assert docs == [{"file_path": "a.pdf", "content": "ctx", "score": 1.0}]
+    assert result.references == [{"file_path": "a.pdf", "content": "ctx", "score": 1.0}]
+    assert result.pipeline == expected_pipeline
+    assert result.vector_skipped_reason is None
     pipeline = collection.aggregate.call_args.args[0]
     assert expected_root in pipeline[0]
+
+
+@pytest.mark.asyncio
+async def test_search_with_modes_hybrid_falls_back_on_zero_query_vector():
+    collection = _mock_collection([{"file_path": "a.pdf", "content": "ctx", "hybrid_score": 1.0}])
+    result = await search_with_modes(
+        "risk",
+        [0.0, 0.0],
+        modes=SearchModes(keyword=True, vector=True),
+        collection=collection,
+        settings=_settings(),
+    )
+    assert result.pipeline == RetrievalPipeline.KEYWORD
+    assert result.vector_skipped_reason == ZERO_QUERY_EMBEDDING
+    pipeline = collection.aggregate.call_args.args[0]
+    assert "$search" in pipeline[0]
 
 
 @pytest.mark.asyncio

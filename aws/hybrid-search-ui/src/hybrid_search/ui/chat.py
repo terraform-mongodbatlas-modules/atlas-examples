@@ -43,8 +43,7 @@ from hybrid_search.ui.mode_router import (
     resolve_mode,
     set_ui_mode,
 )
-from hybrid_search.ui.query_logic import answer_query
-from hybrid_search.ui.result_format import format_retrieval_body, retrieval_header
+from hybrid_search.ui.query_steps import run_query_with_steps
 from hybrid_search.ui.search_settings import (
     SEARCH_MODES_KEY,
     confirmation_message,
@@ -198,26 +197,17 @@ async def _handle_query(query: str):
     collection = cl.user_session.get("collection")
     voyage = cl.user_session.get("voyage")
     modes = cl.user_session.get(SEARCH_MODES_KEY, DEFAULT)
-    result = await answer_query(
+    result = await run_query_with_steps(
         query, settings=settings, collection=collection, voyage=voyage, modes=modes
     )
-    if result.answer:
-        if result.source_files:
-            sources = "\n".join(f"- {name}" for name in result.source_files)
-            footer = f"### Sources\n{sources}"
-        else:
-            footer = "### Sources\nNo sources retrieved"
-        content = f"{result.answer}\n\n{footer}"
-    else:
-        async with cl.Step(
-            name=retrieval_header(result.modes),
-            type="tool",
-            default_open=True,
-        ) as step:
-            step.output = format_retrieval_body(result.references, modes=result.modes)
-            await step.update()
+    if not result.answer:
         return
-    await cl.Message(content=content).send()
+    if result.source_files:
+        sources = "\n".join(f"- {name}" for name in result.source_files)
+        footer = f"### Sources\n{sources}"
+    else:
+        footer = "### Sources\nNo sources retrieved"
+    await cl.Message(content=f"{result.answer}\n\n{footer}").send()
 
 
 async def _prompt_file_pick() -> list[cl.AskFileResponse] | None:

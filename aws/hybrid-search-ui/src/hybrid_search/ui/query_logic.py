@@ -7,7 +7,7 @@ import voyageai
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from hybrid_search.generate import generate_answer, unique_source_files
-from hybrid_search.search import search_with_modes
+from hybrid_search.search import SearchResult, search_with_modes
 from hybrid_search.search_modes import DEFAULT, SearchModes
 from hybrid_search.settings import HybridSearchSettings
 from hybrid_search.voyage import embed_query
@@ -19,6 +19,7 @@ class QueryResult:
     answer: str | None
     source_files: list[str]
     modes: SearchModes
+    search_result: SearchResult
 
 
 async def retrieve(
@@ -28,7 +29,7 @@ async def retrieve(
     settings: HybridSearchSettings,
     collection: AsyncIOMotorCollection,
     voyage: voyageai.AsyncClient,
-) -> list[dict[str, Any]]:
+) -> SearchResult:
     modes.validate_retrieval()
     query_vector = None
     if modes.vector:
@@ -44,11 +45,12 @@ async def retrieve(
 
 async def answer_or_format(
     query: str,
-    references: list[dict[str, Any]],
+    search_result: SearchResult,
     *,
     modes: SearchModes,
     settings: HybridSearchSettings,
 ) -> QueryResult:
+    references = search_result.references
     source_files = unique_source_files(references)
     if modes.llm and settings.enable_llm:
         result = await generate_answer(query, references, settings=settings)
@@ -57,12 +59,14 @@ async def answer_or_format(
             answer=result.answer,
             source_files=result.source_files,
             modes=modes,
+            search_result=search_result,
         )
     return QueryResult(
         references=references,
         answer=None,
         source_files=source_files,
         modes=modes,
+        search_result=search_result,
     )
 
 
@@ -74,11 +78,11 @@ async def answer_query(
     voyage: voyageai.AsyncClient,
     modes: SearchModes = DEFAULT,
 ) -> QueryResult:
-    references = await retrieve(
+    search_result = await retrieve(
         query,
         modes=modes,
         settings=settings,
         collection=collection,
         voyage=voyage,
     )
-    return await answer_or_format(query, references, modes=modes, settings=settings)
+    return await answer_or_format(query, search_result, modes=modes, settings=settings)

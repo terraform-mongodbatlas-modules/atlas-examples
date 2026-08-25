@@ -6,11 +6,16 @@ import pytest
 from pydantic import SecretStr
 
 from hybrid_search.generate import GenerateResult
+from hybrid_search.search import RetrievalPipeline, SearchResult
 from hybrid_search.search_modes import SearchModes
 from hybrid_search.settings import HybridSearchSettings
 from hybrid_search.ui import query_logic
 
 _REFERENCES = [{"file_path": "docs/a.pdf", "content": "ctx", "score": 0.9}]
+_SEARCH_RESULT = SearchResult(
+    references=_REFERENCES,
+    pipeline=RetrievalPipeline.RANK_FUSION,
+)
 _SETTINGS = HybridSearchSettings(
     mongodb_uri=SecretStr("mongodb://localhost"),
     voyage_api_key=SecretStr("key"),
@@ -32,7 +37,7 @@ async def test_answer_query_modes(modes, expect_embed, expect_generate):
     collection = MagicMock()
     voyage = MagicMock()
     embed = AsyncMock(return_value=[0.1, 0.2])
-    search = AsyncMock(return_value=_REFERENCES)
+    search = AsyncMock(return_value=_SEARCH_RESULT)
     generate = AsyncMock(return_value=GenerateResult(answer="generated", source_files=["a.pdf"]))
     with (
         patch(f"{_MODULE}.embed_query", embed),
@@ -60,18 +65,24 @@ async def test_answer_query_modes(modes, expect_embed, expect_generate):
         generate.assert_not_awaited()
         assert result.answer is None
         assert result.source_files == ["a.pdf"]
+    assert result.search_result.pipeline == RetrievalPipeline.RANK_FUSION
 
 
 @pytest.mark.asyncio
 async def test_retrieve_keyword_only_passes_no_vector():
     collection = MagicMock()
     voyage = MagicMock()
-    search = AsyncMock(return_value=_REFERENCES)
+    search = AsyncMock(
+        return_value=SearchResult(
+            references=_REFERENCES,
+            pipeline=RetrievalPipeline.KEYWORD,
+        )
+    )
     with (
         patch(f"{_MODULE}.embed_query", AsyncMock()) as embed,
         patch(f"{_MODULE}.search_with_modes", search),
     ):
-        refs = await query_logic.retrieve(
+        search_result = await query_logic.retrieve(
             "risk",
             modes=SearchModes(keyword=True, vector=False),
             settings=_SETTINGS,
@@ -81,4 +92,5 @@ async def test_retrieve_keyword_only_passes_no_vector():
 
     embed.assert_not_awaited()
     assert search.await_args.args[1] is None
-    assert refs == _REFERENCES
+    assert search_result.references == _REFERENCES
+    assert search_result.pipeline == RetrievalPipeline.KEYWORD
