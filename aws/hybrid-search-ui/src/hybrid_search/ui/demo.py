@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from pathlib import Path
+
+import yaml
+from pydantic import BaseModel, Field
 
 
 class Mode(StrEnum):
@@ -9,20 +13,14 @@ class Mode(StrEnum):
     DEMO = "demo"
 
 
-DEMO_STARTERS = [
-    {
-        "label": "AI RMF functions",
-        "message": "What are the four functions of the AI RMF?",
-    },
-    {
-        "label": "Measure GenAI risk",
-        "message": "How should we measure generative AI risk?",
-    },
-    {
-        "label": "Prompt injection",
-        "message": "What is prompt injection and how do we mitigate it?",
-    },
-]
+class DemoQuery(BaseModel):
+    label: str
+    message: str
+
+
+class DemoQueriesFile(BaseModel):
+    queries: list[DemoQuery] = Field(min_length=1)
+
 
 INGEST_COMMAND_ID = "Ingest"
 DELETE_COMMAND_ID = "Delete"
@@ -64,6 +62,25 @@ DELETE_STARTER = {
     "message": "Delete files",
     "command": DELETE_COMMAND_ID,
 }
+
+
+def load_demo_queries(path: Path) -> list[DemoQuery]:
+    if not path.is_file():
+        raise FileNotFoundError(f"Demo queries file not found: {path}")
+    try:
+        data = yaml.safe_load(path.read_text())
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Invalid demo queries YAML in {path}: {exc}") from exc
+    return DemoQueriesFile.model_validate(data).queries
+
+
+def query_from_demo_response(response: dict | None) -> str | None:
+    if response is None or response.get("name") == CANCEL_ACTION:
+        return None
+    query = response.get("payload", {}).get("message")
+    if not query:
+        return None
+    return query
 
 
 def resolve_mode(*, command: str | None = None, content: str = "") -> Mode | None:

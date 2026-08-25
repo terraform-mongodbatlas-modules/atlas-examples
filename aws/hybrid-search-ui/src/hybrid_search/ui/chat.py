@@ -31,10 +31,11 @@ from hybrid_search.ui.demo import (
     DELETE_STARTER,
     DEMO_ACTION_NAME,
     DEMO_COMMAND,
-    DEMO_STARTERS,
     INGEST_COMMAND,
     UPLOAD_STARTER,
     Mode,
+    load_demo_queries,
+    query_from_demo_response,
 )
 from hybrid_search.ui.ingest_progress import FileProgress, render_ingest_batch
 from hybrid_search.ui.mode_router import (
@@ -85,10 +86,11 @@ if (
 
 @cl.set_starters
 async def set_starters():
+    queries = load_demo_queries(get_settings().demo_queries_path)
     return [
         cl.Starter(**UPLOAD_STARTER),
         cl.Starter(**DELETE_STARTER),
-        *[cl.Starter(**item) for item in DEMO_STARTERS],
+        *[cl.Starter(label=q.label, message=q.message) for q in queries],
     ]
 
 
@@ -97,6 +99,7 @@ async def on_chat_start():
     settings = get_settings()
     apply_log_level(settings.log_level)
     try:
+        load_demo_queries(settings.demo_queries_path)
         client = get_client(settings)
         collection = chunks_collection(client, settings)
         voyage = voyage_module.build_voyage_client(settings)
@@ -171,14 +174,16 @@ async def on_message(message: cl.Message):
 
 
 async def _show_demo_questions() -> None:
+    queries = load_demo_queries(get_settings().demo_queries_path)
     actions = [
         cl.Action(
             name=DEMO_ACTION_NAME,
-            payload={"message": item["message"]},
-            label=item["label"],
+            payload={"message": q.message},
+            label=q.label,
         )
-        for item in DEMO_STARTERS
+        for q in queries
     ]
+    actions.append(cl.Action(name=CANCEL_ACTION, payload={}, label="Cancel"))
     ask = cl.AskActionMessage(
         content="Try a demo question:",
         actions=actions,
@@ -186,12 +191,11 @@ async def _show_demo_questions() -> None:
         raise_on_timeout=False,
     )
     response = await ask.send()
-    if response is None:
-        return
-    query = response.get("payload", {}).get("message")
-    if not query:
-        return
     await ask.remove()
+    query = query_from_demo_response(response)
+    if not query:
+        set_ui_mode(UiMode.QUERY)
+        return
     await cl.Message(content=query, type="user_message").send()
     await _handle_query(query)
 

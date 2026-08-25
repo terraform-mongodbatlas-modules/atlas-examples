@@ -38,3 +38,4 @@ services:
       GROVE_API_KEY: ${GROVE_API_KEY:-}
       GROVE_BASE_URL: ${GROVE_BASE_URL:-}
       GROVE_MODEL: ${GROVE_MODEL:-}
+      DEMO_QUERIES_PATH: ${DEMO_QUERIES_PATH:-demo_queries.yaml}

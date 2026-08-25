@@ -1032,6 +1032,7 @@ aws = [
 ui = [
     { name = "chainlit" },
     { name = "pymupdf" },
+    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -1051,6 +1052,7 @@ requires-dist = [
     { name = "pymongo" },
     { name = "pymongo", extras = ["aws"], marker = "extra == 'aws'" },
     { name = "pymupdf", marker = "extra == 'ui'" },
+    { name = "pyyaml", marker = "extra == 'ui'" },
     { name = "typer" },
     { name = "voyageai" },
 ]

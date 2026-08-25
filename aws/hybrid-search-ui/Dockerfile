@@ -10,6 +10,7 @@ RUN uv sync --frozen --no-dev --no-install-project --extra ui --extra aws
 COPY chainlit.md ./
 COPY chainlit.md chainlit_en-US.md
 COPY docker/chainlit/ .chainlit/
+COPY demo_queries.yaml ./
 
 COPY src/ ./src/
 RUN uv sync --frozen --no-dev --extra ui --extra aws

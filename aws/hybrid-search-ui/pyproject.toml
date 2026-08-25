@@ -18,7 +18,7 @@ hybrid-search = "hybrid_search.cli.app:main"
 
 [project.optional-dependencies]
 aws = ["pymongo[aws]"]
-ui = ["chainlit", "pymupdf"]
+ui = ["chainlit", "pymupdf", "pyyaml"]
 
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio", "ruff"]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import pytest
 from pydantic import SecretStr
@@ -35,14 +36,17 @@ def test_defaults():
     assert settings.mongodb_database == "hybrid_search"
     assert settings.vector_index_name == "vector_idx"
     assert settings.text_index_name == "text_idx"
+    assert settings.demo_queries_path == Path("demo_queries.yaml")
 
 
 def test_env_override(monkeypatch):
     monkeypatch.setenv("TOP_K", "15")
+    monkeypatch.setenv("DEMO_QUERIES_PATH", "/tmp/custom.yaml")
     monkeypatch.setenv("MONGODB_URI", "mongodb://localhost:27017")
     monkeypatch.setenv("VOYAGE_API_KEY", "key")
     settings = HybridSearchSettings()
     assert settings.top_k == 15
+    assert settings.demo_queries_path == Path("/tmp/custom.yaml")
 
 
 def test_rejects_bad_mongodb_uri():

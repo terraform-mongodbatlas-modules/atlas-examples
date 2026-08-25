@@ -56,7 +56,7 @@ index-create:
 seed-download:
     uv run python "{{seed_dir}}/download.py"
 
-# Dump gitignored secrets/.env.local for docker-compose.local-ui.yml (needs public_debug_access).
+# Dump gitignored secrets/.env.local for docker-compose.local-ui.yml (needs public_debug_access; SKIP_INDEX_CREATION=false).
 dump-local-env region="" output="secrets/.env.local":
     #!/usr/bin/env bash
     set -euo pipefail

@@ -21,7 +21,6 @@ _CONTAINER_ENV_KEYS = (
     "VOYAGE_BASE_URL",
     "LLM_PROVIDER",
     "ENABLE_LLM",
-    "SKIP_INDEX_CREATION",
     "TOP_K",
 )
 _ENV_ORDER = (
@@ -79,6 +78,9 @@ def local_env_from_secret(
         value = secret.get(key)
         if value is not None:
             env[key] = str(value)
+
+    # ECS sets this true; local compose should create indexes on boot.
+    env["SKIP_INDEX_CREATION"] = "false"
 
     return env, warnings
 

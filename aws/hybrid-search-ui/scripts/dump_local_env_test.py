@@ -38,7 +38,7 @@ def test_maps_public_uri_and_drops_chainlit() -> None:
     assert env["MONGODB_URI"] == "mongodb+srv://debug:pass@cluster/hybrid_search"
     assert env["VOYAGE_API_KEY"] == "voyage-key"
     assert env["ANTHROPIC_API_KEY"] == "llm-key"
-    assert env["SKIP_INDEX_CREATION"] == "true"
+    assert env["SKIP_INDEX_CREATION"] == "false"
     assert env["TOP_K"] == "20"
     assert "CHAINLIT_AUTH_SECRET" not in env
     assert "CHAINLIT_DEMO_PASSWORD" not in env

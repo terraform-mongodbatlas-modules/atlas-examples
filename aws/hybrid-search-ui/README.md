@@ -15,9 +15,10 @@ aws/hybrid-search-ui/
 ├── README.md
 ├── Dockerfile
 ├── justfile
+├── demo_queries.yaml   # starter chips and Demo picker
 ├── src/hybrid_search/  # in-example Python app
 ├── scripts/            # seed download (cache/ is gitignored)
-├── docker/             # local compose stacks
+├── docker/             # local compose stacks; chainlit/config.toml is the image UI title
 ├── lz/                 # Atlas + AWS infra, Voyage, Chainlit, app secret
 └── app/                # ECS cluster + service
 aws/modules/lz/
@@ -34,6 +35,18 @@ Copy tfvars, then set `atlas_org_id` and `cluster_name`:
 cp lz/terraform.tfvars.example lz/terraform.tfvars
 ```
 
+Optional: local Docker after apply (`just dump-local-env` writes gitignored `secrets/.env.local`). Uncomment in `lz/terraform.tfvars` and skip the app stack:
+
+```hcl
+public_debug_access = { ip_address = "1.2.3.4" }
+http_edges          = {}
+```
+
+```sh
+# Your public IPv4 for public_debug_access
+curl -fsS https://ifconfig.me
+```
+
 This stack costs money while it is up (NAT, auto-scaling cluster, WAF). See [How much does this cost?](#how-much-does-this-cost).
 
 ## Deploy Atlas and AWS infra
@@ -48,6 +61,11 @@ terraform -chdir=lz apply
 ```
 
 ## Build the image and deploy the UI
+
+Edit the following before `just build-push` if this hallway demo should not use the NIST/OWASP defaults. `demo_queries.yaml` and `docker/chainlit/config.toml` are copied into the image.
+
+- **Demo questions:** `demo_queries.yaml`. `label` is the chip/button text; `message` is the query. After deploy, mount a file and set `DEMO_QUERIES_PATH` instead of rebuilding.
+- **Page title:** `[UI] name` in `.chainlit/config.toml` (local `chainlit run`) and `docker/chainlit/config.toml` (what the image copies to `.chainlit/`). Default is `MongoDB AI risk`.
 
 ```sh
 # ECR is IMMUTABLE: bump image_tag in app/terraform.tfvars and the tag argument on every push.
@@ -76,13 +94,9 @@ just seed-download
 open "$(terraform -chdir=lz output -raw https_url)"
 ```
 
-Log in as `demo` with the password from `terraform -chdir=lz output -raw chainlit_demo_password`. Click **Upload documents** or the composer **Ingest** button, then choose files from `scripts/cache/` (NIST PDFs and OWASP markdown). Try:
+Log in as `demo` with the password from `terraform -chdir=lz output -raw chainlit_demo_password`. Click **Upload documents** or the composer **Ingest** button, then choose files from `scripts/cache/` (NIST PDFs and OWASP markdown). Starter chips and the composer **Demo** button read `demo_queries.yaml`. **Cancel** on the Demo picker returns to ordinary search.
 
-- What are the four functions of the AI RMF?
-- How should we measure generative AI risk?
-- What is prompt injection and how do we mitigate it?
-
-The browser tab is **MongoDB AI risk**. Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`).
+The browser tab is **MongoDB AI risk** (`[UI] name` in the Chainlit config). Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`).
 
 NIST PDFs can take several minutes because Voyage embeds every chunk. Progress updates an **Ingest** step in the thread with chunk counts and elapsed time.
 
@@ -137,6 +151,7 @@ atlas_integrations = {
 ```
 
 - **Skip WAF:** `http_edges = { main = { waf = { enabled = false } } }`. Do not use this to unblock Chainlit uploads or WebSockets; see [How do I turn WAF off?](#how-do-i-turn-waf-off) and [What is the file upload size limit?](#what-is-the-file-upload-size-limit).
+- **Skip ALB, CloudFront, and WAF:** `http_edges = {}` when you only run locally. Skip the app stack. NAT and the Atlas cluster still bill.
 - **Skip AWS interface VPC endpoints:** `vpc_config = { skip_interface_endpoints = true }`. Requires NAT (`internet_egress` is already true for this example). AWS API traffic uses public endpoints over NAT; Atlas PrivateLink and the S3 gateway stay.
 
 ### How do I turn WAF off?
@@ -167,7 +182,7 @@ To change it on a deployed stack, edit `TOP_K` in `lz/main.tf` `llm_container_en
 
 ### Local Docker without ECS
 
-Run `just dump-local-env` (needs `public_debug_access` in lz tfvars) to write gitignored `secrets/.env.local`, then use `docker/docker-compose.local-ui.yml` or `docker-compose.local-ui-atlas.yml`. See `docs/16/p16_hybrid-search-ui-local-docker.md` in the workspace for full steps.
+Set `public_debug_access` and `http_edges = {}` in lz tfvars before apply (see [Before you start](#before-you-start)). Then `just dump-local-env` writes gitignored `secrets/.env.local` with `SKIP_INDEX_CREATION=false`. Use `docker/docker-compose.local-ui.yml` or `docker-compose.local-ui-atlas.yml`.
 
 ### Why does search fail with `localhost:28000`?
 
@@ -175,7 +190,7 @@ Run `just dump-local-env` (needs `public_debug_access` in lz tfvars) to write gi
 
 This example does not create dedicated Search Nodes. They are optional production isolation ([Search deployment options](https://www.mongodb.com/docs/search/deployment/deployment-options/)). On M10+ Atlas, including this sharded lab cluster, `mongot` runs next to `mongod` after the first Search or Vector Search index exists.
 
-Confirm `chunks.text_idx` and `chunks.vector_idx` are READY. `just dump-local-env` copies `SKIP_INDEX_CREATION=true` from the ECS secret, so local compose will not create indexes on boot. Run `just index-create` if they were never created, then wait until READY. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
+Confirm `chunks.text_idx` and `chunks.vector_idx` are READY. `just dump-local-env` writes `SKIP_INDEX_CREATION=false`, so local compose creates indexes on boot. For the ECS UI, run `just index-create` if they were never created, then wait until READY. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
 
 ### What is the app secret name?
 
@@ -191,7 +206,7 @@ This example uses `regions[0]` (default `us-east-1`). The app provider is `us-ea
 
 ### What is `public_debug_access`?
 
-Opt-in SCRAM plus one IPv4 for laptop `mongosh`, local hybrid-search Docker, or `just dump-local-env`. Not on the happy path. See commented example in `lz/terraform.tfvars.example` or `lz/variables.tf`.
+Opt-in SCRAM plus one IPv4 for laptop `mongosh`, local hybrid-search Docker, or `just dump-local-env`. Not on the happy path. Find the IPv4 with `curl -fsS https://ifconfig.me`. See commented example in `lz/terraform.tfvars.example` or `lz/variables.tf`.
 
 ### How do I use a custom domain?
 

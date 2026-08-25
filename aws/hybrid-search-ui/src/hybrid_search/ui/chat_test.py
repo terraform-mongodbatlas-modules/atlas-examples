@@ -18,10 +18,13 @@ def test_upload_extension_filter():
 
 
 @pytest.mark.asyncio
-async def test_on_chat_start_logs_startup_failure(monkeypatch, caplog):
+async def test_on_chat_start_logs_startup_failure(monkeypatch, caplog, tmp_path):
+    queries = tmp_path / "demo_queries.yaml"
+    queries.write_text("queries:\n  - label: A\n    message: What is A?\n")
     settings = HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),
         voyage_api_key=SecretStr("key"),
+        demo_queries_path=queries,
     )
     sent: list[str] = []
 

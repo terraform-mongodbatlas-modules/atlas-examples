@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import SecretStr, field_validator
@@ -42,6 +43,7 @@ class HybridSearchSettings(BaseSettings):
     grove_base_url: str | None = None
     skip_index_creation: bool = False
     log_level: LogLevel = "INFO"
+    demo_queries_path: Path = Path("demo_queries.yaml")
 
     @field_validator("log_level", mode="before")
     @classmethod
