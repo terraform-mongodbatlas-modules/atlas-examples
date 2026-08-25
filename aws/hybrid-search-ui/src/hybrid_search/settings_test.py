@@ -83,5 +83,4 @@ def test_apply_log_level_configures_root_and_hybrid_search(monkeypatch):
     monkeypatch.setattr(logging, "basicConfig", fake_basic_config)
     apply_log_level("DEBUG")
     assert configured["level"] == "DEBUG"
-    assert logging.getLogger("hybrid_search").level == logging.DEBUG
     apply_log_level("INFO")

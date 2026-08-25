@@ -78,4 +78,3 @@ def apply_log_level(level: str) -> None:
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    logging.getLogger("hybrid_search").setLevel(level)
