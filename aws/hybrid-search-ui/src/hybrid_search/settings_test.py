@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 from pydantic import SecretStr
 
-from hybrid_search.settings import HybridSearchSettings, clear_settings_cache, get_settings
+from hybrid_search.settings import (
+    HybridSearchSettings,
+    apply_log_level,
+    clear_settings_cache,
+    get_settings,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -53,3 +60,28 @@ def test_skip_index_creation_env(monkeypatch):
     monkeypatch.setenv("VOYAGE_API_KEY", "key")
     clear_settings_cache()
     assert get_settings().skip_index_creation is True
+
+
+def test_log_level_default():
+    assert _settings().log_level == "INFO"
+
+
+def test_log_level_env_uppercases(monkeypatch):
+    monkeypatch.setenv("LOG_LEVEL", "debug")
+    monkeypatch.setenv("MONGODB_URI", "mongodb://localhost")
+    monkeypatch.setenv("VOYAGE_API_KEY", "key")
+    clear_settings_cache()
+    assert get_settings().log_level == "DEBUG"
+
+
+def test_apply_log_level_configures_root_and_hybrid_search(monkeypatch):
+    configured: dict[str, object] = {}
+
+    def fake_basic_config(**kwargs: object) -> None:
+        configured.update(kwargs)
+
+    monkeypatch.setattr(logging, "basicConfig", fake_basic_config)
+    apply_log_level("DEBUG")
+    assert configured["level"] == "DEBUG"
+    assert logging.getLogger("hybrid_search").level == logging.DEBUG
+    apply_log_level("INFO")

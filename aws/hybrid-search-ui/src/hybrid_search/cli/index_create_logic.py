@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from pydantic import BaseModel, Field
 
@@ -11,6 +12,8 @@ from hybrid_search.indexes import (
 )
 from hybrid_search.mongo import chunks_collection, get_client
 from hybrid_search.settings import HybridSearchSettings
+
+logger = logging.getLogger(__name__)
 
 
 class IndexCreateInput(BaseModel):
@@ -32,10 +35,10 @@ async def _index_create_async(input: IndexCreateInput) -> IndexCreateResult:
     try:
         collection = chunks_collection(client, settings)
         await create_chunks_indexes_if_missing(collection, settings)
-        ready = await wait_chunks_indexes_ready(client[settings.mongodb_database], settings)
+        ready = await wait_chunks_indexes_ready(collection, settings)
         lines = [format_index_ready_line(coll, name) for coll, name, _ in ready]
         for line in lines:
-            print(line)
+            logger.info(line)
         return IndexCreateResult(ready_lines=lines)
     except (TimeoutError, RuntimeError):
         return IndexCreateResult(exit_code=1)

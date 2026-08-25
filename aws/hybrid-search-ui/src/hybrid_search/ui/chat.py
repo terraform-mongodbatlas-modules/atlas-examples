@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import time
 from dataclasses import replace
@@ -20,7 +21,7 @@ from hybrid_search.ingest import (
 )
 from hybrid_search.mongo import chunks_collection, get_client
 from hybrid_search.search_modes import DEFAULT
-from hybrid_search.settings import get_settings
+from hybrid_search.settings import apply_log_level, get_settings
 from hybrid_search.ui.delete_logic import format_ingested_file_list, resolve_delete_selection
 from hybrid_search.ui.demo import (
     CANCEL_ACTION,
@@ -51,6 +52,7 @@ from hybrid_search.ui.search_settings import (
     send_default_settings,
 )
 
+logger = logging.getLogger(__name__)
 ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
 _ASK_ACCEPT = ["application/pdf", "text/plain", "text/markdown", "text/x-markdown"]
 INGEST_MAX_FILES = 10
@@ -93,6 +95,7 @@ async def set_starters():
 @cl.on_chat_start
 async def on_chat_start():
     settings = get_settings()
+    apply_log_level(settings.log_level)
     try:
         client = get_client(settings)
         collection = chunks_collection(client, settings)
@@ -104,6 +107,7 @@ async def on_chat_start():
         cl.user_session.set("collection", collection)
         cl.user_session.set("voyage", voyage)
     except (OSError, ValueError, RuntimeError, TypeError, PyMongoError) as exc:
+        logger.exception("Startup failed")
         await cl.Message(
             content=(f"Startup failed. Check MONGODB_URI, VOYAGE_API_KEY, and Atlas access: {exc}")
         ).send()

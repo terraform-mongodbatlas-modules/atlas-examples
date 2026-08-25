@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -17,7 +18,7 @@ def _clear_settings():
     clear_settings_cache()
 
 
-def test_index_create_prints_ready_lines(monkeypatch):
+def test_index_create_logs_ready_lines(monkeypatch, caplog):
     settings = HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),
         voyage_api_key=SecretStr("key"),
@@ -45,13 +46,13 @@ def test_index_create_prints_ready_lines(monkeypatch):
             ]
         ),
     )
-    printed: list[str] = []
-    monkeypatch.setattr("builtins.print", lambda line: printed.append(line))
+    caplog.set_level(logging.INFO)
 
     result = index_create(IndexCreateInput(settings=settings))
     assert result.exit_code == 0
     assert len(result.ready_lines) == 2
-    assert all(" READY" in line and "chunks." in line for line in printed)
+    assert "chunks.vector_idx READY" in caplog.text
+    assert "chunks.text_idx READY" in caplog.text
 
 
 def test_index_create_ignores_skip_flag(monkeypatch):

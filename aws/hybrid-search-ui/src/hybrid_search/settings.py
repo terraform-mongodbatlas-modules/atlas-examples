@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import sys
 from functools import lru_cache
 from typing import Literal
 
@@ -7,6 +9,7 @@ from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LlmProvider = Literal["anthropic", "openai", "gemini", "grove"]
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 class HybridSearchSettings(BaseSettings):
@@ -38,6 +41,16 @@ class HybridSearchSettings(BaseSettings):
     grove_model: str = "gpt-4o"
     grove_base_url: str | None = None
     skip_index_creation: bool = False
+    log_level: LogLevel = "INFO"
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def normalize_log_level(cls, value: object) -> object:
+        match value:
+            case str():
+                return value.upper()
+            case _:
+                return value
 
     @field_validator("mongodb_uri")
     @classmethod
@@ -56,3 +69,13 @@ def get_settings() -> HybridSearchSettings:
 
 def clear_settings_cache() -> None:
     get_settings.cache_clear()
+
+
+def apply_log_level(level: str) -> None:
+    logging.basicConfig(
+        level=level,
+        stream=sys.stdout,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    logging.getLogger("hybrid_search").setLevel(level)
