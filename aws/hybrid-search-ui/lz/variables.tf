@@ -109,8 +109,7 @@ variable "atlas_integrations" {
         log_types   = set(string)
         prefix_path = string
         })), [
-        { log_types = ["MONGOD"], prefix_path = "operational" },
-        { log_types = ["MONGOD_AUDIT"], prefix_path = "audit" },
+        { log_types = ["MONGOD", "MONGOD_AUDIT"], prefix_path = "logs" },
       ])
       expiration_days = optional(number, 90)
     }), {})
