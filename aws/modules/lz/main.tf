@@ -174,8 +174,9 @@ module "atlas_project" {
 }
 
 module "atlas_aws" {
+  source  = "terraform-mongodbatlas-modules/atlas-aws/mongodbatlas"
   # Temporary: use the upstream branch until the AWS provider 6 deprecation fix is released.
-  source = "git::https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws.git?ref=CLOUDP-433803_allow-module-managed-kms-key-t"
+  # source = "git::https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-atlas-aws.git?ref=CLOUDP-433803_allow-module-managed-kms-key-t"
 
   project_id = module.atlas_project.id
 
