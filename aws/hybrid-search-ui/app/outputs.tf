@@ -1,5 +1,5 @@
 output "index_run" {
-  description = "Locator for just index-create (region, cluster, service)."
+  description = "Locator for just create-index (region, cluster, service)."
   value       = module.ecs_service.index_run
 }
 

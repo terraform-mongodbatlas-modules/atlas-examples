@@ -50,11 +50,11 @@ delete-llm-secret name="hybrid-search-ui-llm" region="us-east-1":
     echo "Deleted {{name}}"
 
 # One-shot ECS RunTask of the live UI image: hybrid-search index create. Blocking until exit 0.
-index-create:
+create-index:
     uv run python "{{justfile_directory()}}/scripts/index_create.py" "{{justfile_directory()}}/app"
 
 # Download the AI-governance seed pack into a gitignored cache (no ingest).
-seed-download:
+download-seed:
     uv run python "{{seed_dir}}/download.py"
 
 # Dump gitignored secrets/.env.local for docker-compose.local-ui.yml (needs public_debug_access; SKIP_INDEX_CREATION=false).

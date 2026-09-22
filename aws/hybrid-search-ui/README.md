@@ -107,15 +107,15 @@ terraform -chdir=app apply
 
 ```sh
 # RunTask of the live UI image with command ["hybrid-search", "index", "create"]. Blocks until exit 0.
-just index-create
+just create-index
 ```
 
-The UI task sets `SKIP_INDEX_CREATION=true`, so the first chat does not submit Atlas Search or Vector index creates. `just index-create` runs the same image with `hybrid-search index create`, which always creates indexes even when that env is set. Skipping `just index-create` still leaves a healthy UI that cannot search.
+The UI task sets `SKIP_INDEX_CREATION=true`, so the first chat does not submit Atlas Search or Vector index creates. `just create-index` runs the same image with `hybrid-search index create`, which always creates indexes even when that env is set. Skipping `just create-index` still leaves a healthy UI that cannot search.
 
 ## Download seed files and open the UI
 
 ```sh
-just seed-download
+just download-seed
 open "$(terraform -chdir=lz output -raw https_url)"
 ```
 
@@ -236,7 +236,7 @@ The optional `just dump-local-env` step after lz apply writes `secrets/.env.loca
 
 This example does not create dedicated Search Nodes. They are optional production isolation ([Search deployment options](https://www.mongodb.com/docs/search/deployment/deployment-options/)). On M10+ Atlas, including this sharded lab cluster, `mongot` runs next to `mongod` after the first Search or Vector Search index exists.
 
-Confirm `chunks.text_idx` and `chunks.autoembed_idx` are READY. `just dump-local-env` writes `SKIP_INDEX_CREATION=false`, so local compose creates indexes on boot. For the ECS UI, run `just index-create` if they were never created, then wait until READY. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
+Confirm `chunks.text_idx` and `chunks.autoembed_idx` are READY. `just dump-local-env` writes `SKIP_INDEX_CREATION=false`, so local compose creates indexes on boot. For the ECS UI, run `just create-index` if they were never created, then wait until READY. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
 
 ### What is the app secret name?
 
