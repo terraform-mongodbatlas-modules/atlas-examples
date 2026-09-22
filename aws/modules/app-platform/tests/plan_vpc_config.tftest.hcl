@@ -1,39 +1,21 @@
-mock_provider "mongodbatlas" {}
 mock_provider "aws" {
+  override_during = plan
+
   mock_data "aws_availability_zones" {
     defaults = { names = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e", "us-east-1f"] }
   }
+
   mock_data "aws_caller_identity" {
     defaults = { account_id = "123456789012" }
   }
 }
+
 mock_provider "random" {
   override_during = plan
+
   mock_resource "random_password" {
     defaults = { result = "test-password" }
   }
-}
-
-override_module {
-  target          = module.atlas_cluster
-  override_during = plan
-  outputs = {
-    cluster_name = "hybridrag-ui"
-    state_name   = "IDLE"
-    connection_strings = {
-      standard_srv = "mongodb+srv://cluster.example.mongodb.net"
-      private_srv  = ""
-      private_endpoint = [{
-        srv_connection_string = "mongodb+srv://pl-0.example.mongodb.net"
-        endpoints             = []
-      }]
-    }
-  }
-}
-
-variables {
-  atlas_org_id = "org123"
-  cluster_name = "hybridrag-ui"
 }
 
 run "multi_region_auto_vpc" {
@@ -86,9 +68,9 @@ run "vpc_byo_all_regions" {
   assert {
     condition = alltrue([
       length(module.vpc) == 0,
-      local.privatelink_subnet_ids_by_region["us-west-2"] == tolist(["subnet-west-a", "subnet-west-b"]),
+      local.region_network["us-west-2"].private_subnet_ids == tolist(["subnet-west-a", "subnet-west-b"]),
     ])
-    error_message = "BYO path should not create managed VPC modules and should feed PrivateLink subnets"
+    error_message = "BYO path should not create managed VPC modules and should expose the caller subnets for PrivateLink"
   }
 }
 

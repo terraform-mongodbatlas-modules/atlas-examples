@@ -1,148 +1,6 @@
 data "aws_caller_identity" "current" {}
 
-locals {
-  managed_vpc_regions = var.vpc_config.create ? toset(local.aws_regions) : toset([])
-  vpc_cidr_by_region = {
-    for i, region in local.aws_regions :
-    region => coalesce(
-      try(var.vpc_config.by_region[region].cidr, null),
-      cidrsubnet(var.vpc_config.base_cidr, 8, i)
-    )
-  }
-  vpc_az_count_by_region = {
-    for region in local.aws_regions :
-    region => coalesce(try(var.vpc_config.by_region[region].az_count, null), var.vpc_config.az_count)
-  }
-  privatelink_subnet_ids_by_region = var.vpc_config.create ? {
-    for region, mod in module.vpc : region => mod.private_subnets
-    } : {
-    for region, cfg in var.vpc_config.by_region : region => cfg.private_subnet_ids
-  }
-  privatelink_inbound_cidr_by_region = {
-    for region in local.aws_regions : region => (
-      var.vpc_config.create
-      ? module.vpc[region].vpc_cidr_block
-      : var.vpc_config.by_region[region].vpc_cidr_block
-    )
-  }
-
-  app_aws_regions = setunion(
-    toset([for app in local.ecs_apps : app.aws_region]),
-    local.ecs_alb_regions
-  )
-  app_network = {
-    for region in local.app_aws_regions : region => {
-      vpc_id             = var.vpc_config.create ? module.vpc[region].vpc_id : var.vpc_config.by_region[region].vpc_id
-      private_subnet_ids = var.vpc_config.create ? module.vpc[region].private_subnets : var.vpc_config.by_region[region].private_subnet_ids
-      public_subnet_ids = var.vpc_config.create ? (
-        contains(local.ecs_alb_regions, region) ? module.vpc[region].public_subnets : []
-        ) : (
-        try(var.vpc_config.by_region[region].public_subnet_ids, [])
-      )
-      vpc_cidr_block          = var.vpc_config.create ? module.vpc[region].vpc_cidr_block : var.vpc_config.by_region[region].vpc_cidr_block
-      private_route_table_ids = var.vpc_config.create ? module.vpc[region].private_route_table_ids : var.vpc_config.by_region[region].private_route_table_ids
-    }
-  }
-
-  mongo_private_connection_string = try(coalesce(
-    try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
-    try(module.atlas_cluster.connection_strings.private_srv, ""),
-    module.atlas_cluster.connection_strings.standard_srv
-    ), "NO_CONNECTION_STRING_AVAILABLE"
-  )
-  mongo_private_connection_string_uses_standard_srv = (
-    local.mongo_private_connection_string == module.atlas_cluster.connection_strings.standard_srv
-  )
-  mongo_private_connection_string_unavailable = (
-    local.mongo_private_connection_string == "NO_CONNECTION_STRING_AVAILABLE"
-  )
-
-  aws_to_atlas_region = {
-    for r in local.regions_resolved : r.aws_name => r.atlas_name
-  }
-  mongo_private_srv_by_atlas_region = merge([
-    for pe in try(module.atlas_cluster.connection_strings.private_endpoint, []) : {
-      for ep in try(pe.endpoints, []) :
-      ep.region => pe.srv_connection_string
-      if try(pe.srv_connection_string, "") != ""
-    }
-  ]...)
-  mongo_private_connection_strings_by_region = {
-    for region in local.app_aws_regions : region => coalesce(
-      try(local.mongo_private_srv_by_atlas_region[local.aws_to_atlas_region[region]], ""),
-      local.mongo_private_connection_string
-    )
-  }
-
-  mongo_iam_auth_query = "authSource=%24external&authMechanism=MONGODB-AWS"
-
-  mongo_iam_connection_strings_by_region = {
-    for region, srv in local.mongo_private_connection_strings_by_region :
-    region => (
-      srv == "" || srv == "NO_CONNECTION_STRING_AVAILABLE"
-      ? srv
-      : strcontains(srv, "?")
-      ? "${srv}&${local.mongo_iam_auth_query}"
-      : "${srv}/?${local.mongo_iam_auth_query}"
-    )
-  }
-
-  public_debug_password = var.public_debug_access != null ? coalesce(
-    try(var.public_debug_access.password, null),
-    try(random_password.public_debug[0].result, null)
-  ) : null
-
-  public_debug_connection_string = var.public_debug_access != null ? format(
-    "mongodb+srv://%s:%s@%s/?authSource=admin",
-    urlencode(var.public_debug_access.username),
-    urlencode(local.public_debug_password),
-    trimprefix(module.atlas_cluster.connection_strings.standard_srv, "mongodb+srv://")
-  ) : null
-
-  ecs_container_ports_by_region = {
-    for region in local.ecs_alb_regions : region => distinct([
-      for app in local.ecs_routing_apps :
-      app.routing.container_port
-      if local.http_edges[app.routing.edge].aws_region == region
-    ])
-  }
-
-  ecs_internet_egress_regions = toset([
-    for app in local.ecs_apps : app.aws_region
-    if app.internet_egress
-  ])
-  enable_nat_gateway_by_region = {
-    for region in local.managed_vpc_regions :
-    region => var.vpc_config.enable_nat_gateway || contains(local.ecs_internet_egress_regions, region)
-  }
-  app_regions_with_internet_egress = toset(concat(
-    var.vpc_config.enable_nat_gateway ? tolist(local.app_aws_regions) : [],
-    tolist(local.ecs_internet_egress_regions)
-  ))
-}
-
-check "mongo_private_connection_string_standard_srv_fallback" {
-  assert {
-    condition     = !local.mongo_private_connection_string_uses_standard_srv
-    error_message = <<-EOT
-      mongo_private_connection_string fell back to standard_srv (non-PrivateLink).
-      Atlas did not publish private_endpoint or private_srv SRV connection strings yet.
-      ECS apps will receive the public Atlas SRV; traffic may not route over PrivateLink.
-    EOT
-  }
-}
-
-check "mongo_private_connection_string_unavailable" {
-  assert {
-    condition     = !local.mongo_private_connection_string_unavailable
-    error_message = <<-EOT
-      mongo_private_connection_string is NO_CONNECTION_STRING_AVAILABLE.
-      Atlas did not publish private_endpoint, private_srv, or standard_srv connection strings.
-      This can happen when the cluster is paused; otherwise it should not occur (cluster state: ${module.atlas_cluster.state_name}).
-    EOT
-  }
-}
-
+# --- VPC ----------------------------------------------------------------------
 module "vpc" {
   for_each = local.managed_vpc_regions
 
@@ -159,6 +17,7 @@ module "vpc" {
   tags                  = var.tags
 }
 
+# --- HTTP edge (ALB + CloudFront + WAF) ---------------------------------------
 module "http_edge" {
   for_each = local.http_edges
 
@@ -175,6 +34,7 @@ module "http_edge" {
   tags                = var.tags
 }
 
+# --- App security groups ------------------------------------------------------
 resource "aws_security_group" "app" {
   for_each = local.app_aws_regions
 
@@ -279,6 +139,7 @@ resource "aws_security_group" "vpc_endpoints" {
   }
 }
 
+# --- VPC endpoints ------------------------------------------------------------
 resource "aws_vpc_endpoint" "interface" {
   for_each = var.vpc_config.skip_interface_endpoints ? {} : {
     for pair in concat(
@@ -342,19 +203,7 @@ resource "aws_vpc_endpoint" "s3" {
   }
 }
 
-resource "aws_security_group_rule" "atlas_pl_ingress_from_app" {
-  for_each = local.app_aws_regions
-
-  region                   = each.key
-  type                     = "ingress"
-  from_port                = 1024
-  to_port                  = 65535
-  protocol                 = "tcp"
-  security_group_id        = module.atlas_aws.privatelink[each.key].security_group_id
-  source_security_group_id = aws_security_group.app[each.key].id
-  description              = "MongoDB Atlas PrivateLink from app SG"
-}
-
+# --- ECS task and execution roles --------------------------------------------
 resource "aws_iam_role" "ecs_task" {
   for_each = local.ecs_apps
 
@@ -410,4 +259,14 @@ resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
       Resource = "arn:aws:secretsmanager:${each.value.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${each.value.runtime_secret_name}-*"
     }]
   })
+}
+
+# Caller-owned task-role policies (for example Bedrock). The caller authors the
+# JSON; this module only attaches it, so the caller does not write IAM here.
+resource "aws_iam_role_policy" "extra" {
+  for_each = local.extra_task_policies
+
+  name   = each.value.name
+  role   = aws_iam_role.ecs_task[each.value.app_key].id
+  policy = each.value.policy
 }

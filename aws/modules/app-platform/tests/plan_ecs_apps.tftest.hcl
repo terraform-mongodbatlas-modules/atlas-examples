@@ -1,7 +1,3 @@
-mock_provider "mongodbatlas" {
-  override_during = plan
-}
-
 mock_provider "aws" {
   override_during = plan
 
@@ -24,6 +20,13 @@ mock_provider "aws" {
   mock_data "aws_cloudfront_origin_request_policy" {
     defaults = { id = "origin-req" }
   }
+
+  mock_resource "aws_cloudfront_distribution" {
+    defaults = {
+      domain_name = "d111111abcdef8.cloudfront.net"
+      id          = "E123456789"
+    }
+  }
 }
 
 mock_provider "random" {
@@ -32,28 +35,6 @@ mock_provider "random" {
   mock_resource "random_password" {
     defaults = { result = "test-origin-header-value-32chars" }
   }
-}
-
-override_module {
-  target          = module.atlas_cluster
-  override_during = plan
-  outputs = {
-    cluster_name = "hybridrag-ui"
-    state_name   = "IDLE"
-    connection_strings = {
-      standard_srv = "mongodb+srv://cluster.example.mongodb.net"
-      private_srv  = ""
-      private_endpoint = [{
-        srv_connection_string = "mongodb+srv://pl-0.example.mongodb.net"
-        endpoints             = []
-      }]
-    }
-  }
-}
-
-variables {
-  atlas_org_id = "org123"
-  cluster_name = "hybridrag-ui"
 }
 
 run "ecs_ui_path" {
@@ -82,19 +63,16 @@ run "ecs_ui_path" {
     condition = alltrue([
       length(aws_iam_role.ecs_task) == 1,
       length(aws_iam_role.ecs_task_execution) == 1,
-      length(mongodbatlas_database_user.ecs) == 1,
       length(module.http_edge) == 1,
       length(aws_security_group.app) == 1,
       output.ecs_apps["ui"].name == "hybridrag-ui",
       output.ecs_apps["ui"].runtime_secret_name == "hybridrag-ui-app",
       output.ecs_apps["ui"].routing.container_port == 8001,
+      output.ecs_apps["ui"].mongo.database_name == "hybridrag",
       !contains(keys(output.ecs_apps["ui"].routing), "health_check_path"),
       !contains(keys(output.ecs_apps["ui"]), "task_cpu"),
-      !contains(keys(output.ecs_apps["ui"]), "handoff_secret_name"),
-      output.ecs_apps["ui"].routing.origin_header_name == "X-Origin-Verify",
-      output.ecs_apps["ui"].mongo.database_name == "hybridrag",
       !contains(keys(output.ecs_apps["ui"]), "ecs_cluster_arn"),
-      !contains(keys(output.ecs_apps["ui"]), "container_env_vars"),
+      output.ecs_apps["ui"].routing.origin_header_name == "X-Origin-Verify",
       contains(keys(nonsensitive(output.http_edge_origin_header_values)), "main"),
       module.http_edge["main"].origin_header_name == "X-Origin-Verify",
       strcontains(
@@ -102,11 +80,37 @@ run "ecs_ui_path" {
         "secret:hybridrag-ui-app-*"
       ),
     ])
-    error_message = "ECS UI path should create IAM, DB user, HTTP edge, name-glob secrets IAM, and typed ecs_apps without ecs_cluster or container_env_vars"
+    error_message = "ECS UI path should create IAM, HTTP edge, name-glob secrets IAM, and typed ecs_apps without ecs_cluster"
   }
 }
 
-run "lz_only_no_public_edge" {
+run "extra_task_policies_attach" {
+  command = plan
+
+  variables {
+    ecr_repositories = { ui = {} }
+    ecs_apps = {
+      ui = {
+        ecr_key = "ui"
+        roles   = [{ database_name = "hybridrag" }]
+        extra_task_policies = {
+          bedrock-converse = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
+        }
+      }
+    }
+  }
+
+  assert {
+    condition = alltrue([
+      length(aws_iam_role_policy.extra) == 1,
+      aws_iam_role_policy.extra["ui-bedrock-converse"].name == "bedrock-converse",
+      strcontains(aws_iam_role_policy.extra["ui-bedrock-converse"].policy, "2012-10-17"),
+    ])
+    error_message = "extra_task_policies should attach one caller-authored task-role policy per entry"
+  }
+}
+
+run "platform_only_no_public_edge" {
   command = plan
 
   assert {
@@ -158,4 +162,3 @@ run "ecs_routing_requires_path_or_host" {
     var.ecs_apps,
   ]
 }
-

@@ -46,7 +46,7 @@ mock_provider "random" {
 }
 
 override_module {
-  target          = module.lz.module.atlas_cluster
+  target          = module.atlas_cluster
   override_during = plan
   outputs = {
     cluster_name = "hybrid-search-ui"
@@ -77,16 +77,16 @@ run "app_secret_nests_groups_without_voyage_key" {
     condition = alltrue([
       local.container_secret_keys == ["CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
       !contains(local.container_secret_keys, "VOYAGE_API_KEY"),
-      local.llm_container_env["ENABLE_LLM"] == "false",
-      local.llm_container_env["SKIP_INDEX_CREATION"] == "true",
-      !contains(keys(local.llm_container_env), "LLM_PROVIDER"),
-      !contains(keys(local.llm_container_env), "BEDROCK_MODEL"),
-      local.bedrock_runtime_endpoint == false,
-      strcontains(local.llm_container_env["MONGODB_URI"], "authMechanism=MONGODB-AWS"),
-      local.llm_container_env["MONGODB_DATABASE"] == "hybrid_search",
-      local.llm_container_env["AUTOEMBED_MODEL"] == "voyage-4-lite",
-      local.llm_container_env["TOP_K"] == "20",
-      local.llm_container_env["CHUNK_MAX_TOKENS"] == "512",
+      local.container_env["ENABLE_LLM"] == "false",
+      local.container_env["SKIP_INDEX_CREATION"] == "true",
+      !contains(keys(local.container_env), "LLM_PROVIDER"),
+      !contains(keys(local.container_env), "BEDROCK_MODEL"),
+      module.llm.bedrock.enabled == false,
+      strcontains(local.container_env["MONGODB_URI"], "authMechanism=MONGODB-AWS"),
+      local.container_env["MONGODB_DATABASE"] == "hybrid_search",
+      local.container_env["AUTOEMBED_MODEL"] == "voyage-4-lite",
+      local.container_env["TOP_K"] == "20",
+      local.container_env["CHUNK_MAX_TOKENS"] == "512",
       local.ui.name == "hybrid-search-ui",
       local.ui.routing.container_port == 8001,
       local.ui.routing.origin_header_name == "X-Origin-Verify",

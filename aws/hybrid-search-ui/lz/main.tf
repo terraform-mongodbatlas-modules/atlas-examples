@@ -1,79 +1,228 @@
+# Hybrid Search UI: stack one of two. This stack creates the Atlas project,
+# cluster, AWS app platform (VPC, endpoints, roles, ECR, HTTP edge), and the
+# Secrets Manager secret the app stack in `../app/` reads.
+
 locals {
-  aws_region      = replace(lower(var.regions[0].name), "_", "-")
-  ui              = module.lz.ecs_apps["ui"]
-  app_secret_name = local.ui.runtime_secret_name
-  llm_provider_from_env = {
-    ANTHROPIC_API_KEY = "anthropic"
-    OPENAI_API_KEY    = "openai"
-    GEMINI_API_KEY    = "gemini"
-    GROVE_API_KEY     = "grove"
-  }
-  # Secret-first: a secret name still selects the keyed provider from llm_env_name,
-  # so existing configs are unaffected. Otherwise the explicit provider (bedrock default) wins.
-  llm_provider_from_secret = var.llm_secret_name != null ? lookup(local.llm_provider_from_env, var.llm_env_name, null) : null
-  llm_provider             = coalesce(local.llm_provider_from_secret, var.llm_provider, "bedrock")
-  llm_enabled              = var.enable_llm
-  llm_key_enabled          = var.enable_llm && var.llm_secret_name != null
-  bedrock_enabled          = local.llm_enabled && local.llm_provider == "bedrock"
-  # Choosing bedrock gets the private endpoint out of the box; an explicit value still wins.
-  bedrock_runtime_endpoint = coalesce(var.vpc_config.bedrock_runtime_endpoint, local.bedrock_enabled)
-  llm_container_env = merge(
-    {
-      CHAINLIT_DEMO_USERNAME = "demo"
-      ENABLE_LLM             = local.llm_enabled ? "true" : "false"
-      MONGODB_DATABASE       = local.ui.mongo.database_name
-      MONGODB_URI            = local.ui.mongo.connection_string
-      SKIP_INDEX_CREATION    = "true"
-      TOP_K                  = "20"
-      CHUNK_MAX_TOKENS       = "512"
-      AUTOEMBED_MODEL        = var.autoembed_model
-    },
-    local.llm_enabled ? { LLM_PROVIDER = local.llm_provider } : {},
-    local.bedrock_enabled ? {
-      BEDROCK_MODEL = coalesce(try(var.llm_env["BEDROCK_MODEL"], null), "amazon.nova-lite-v1:0")
-      AWS_REGION    = local.aws_region
-    } : {}
-  )
-  llm_app_secrets = local.llm_key_enabled ? merge(
-    { (var.llm_env_name) = data.aws_secretsmanager_secret_version.llm[0].secret_string },
-    var.llm_env
-  ) : {}
-  container_secret_keys = concat(
-    ["CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
-    sort(keys(local.llm_app_secrets))
-  )
-  # CRS SizeRestrictions_BODY blocks bodies over 8 KB. Chainlit POST /project/file
-  # is a multipart upload (NIST PDFs, OWASP markdown) and also trips BODY XSS/RFI/LFI.
-  chainlit_waf_count_rules = [
-    "SizeRestrictions_BODY",
-    "CrossSiteScripting_BODY",
-    "GenericRFI_BODY",
-    "GenericLFI_BODY",
-    "EC2MetaDataSSRF_BODY",
+  # --- Regions ----------------------------------------------------------------
+  regions_resolved = [
+    for r in var.regions : {
+      aws_name   = replace(lower(r.name), "_", "-")
+      atlas_name = upper(replace(replace(lower(r.name), "_", "-"), "-", "_"))
+      node_count = r.node_count
+    }
   ]
+  aws_region  = local.regions_resolved[0].aws_name
+  aws_regions = [for r in local.regions_resolved : r.aws_name]
+
+  # --- ECS apps ---------------------------------------------------------------
+  ecs_apps = {
+    for k, v in var.ecs_apps : k => {
+      name                = coalesce(v.name, k)
+      aws_region          = coalesce(v.aws_region, local.aws_region)
+      runtime_secret_name = "${coalesce(v.name, k)}-app"
+      roles               = v.roles
+    }
+  }
+  app_aws_regions = toset([for app in local.ecs_apps : app.aws_region])
+  ui              = module.app_platform.ecs_apps["ui"]
+  app_secret_name = local.ui.runtime_secret_name
+
+  # --- Atlas AWS integrations -------------------------------------------------
+  kms_primary_region = lower(replace(coalesce(
+    var.atlas_integrations.encryption.create_kms_key.region,
+    local.aws_region
+  ), "_", "-"))
+  kms_replica_regions = (
+    var.atlas_integrations.encryption.create_kms_key.multi_region
+    ? (
+      var.atlas_integrations.encryption.create_kms_key.replica_regions != null
+      ? var.atlas_integrations.encryption.create_kms_key.replica_regions
+      : toset([for r in local.aws_regions : r if r != local.kms_primary_region])
+    )
+    : toset([])
+  )
+
+  atlas_aws_encryption = {
+    enabled = var.atlas_integrations.encryption.enabled
+    private_endpoint_regions = (
+      var.atlas_integrations.encryption.enabled && !var.atlas_integrations.encryption.skip_private_endpoints
+      ? local.aws_regions
+      : []
+    )
+    kms_key_arn = (
+      var.atlas_integrations.encryption.enabled
+      ? var.atlas_integrations.encryption.kms_key_arn
+      : null
+    )
+    region = (
+      var.atlas_integrations.encryption.enabled && var.atlas_integrations.encryption.kms_key_arn == null
+      ? local.kms_primary_region
+      : null
+    )
+    create_kms_key = (
+      var.atlas_integrations.encryption.enabled && var.atlas_integrations.encryption.kms_key_arn == null
+      ? {
+        enabled                 = true
+        deletion_window_in_days = var.atlas_integrations.encryption.create_kms_key.deletion_window_in_days
+        enable_key_rotation     = var.atlas_integrations.encryption.create_kms_key.enable_key_rotation
+        multi_region            = var.atlas_integrations.encryption.create_kms_key.multi_region
+        replica_regions         = local.kms_replica_regions
+      }
+      : null
+    )
+  }
+
+  atlas_aws_log_integration = {
+    enabled = var.atlas_integrations.log_integration.enabled
+    create_s3_bucket = (
+      var.atlas_integrations.log_integration.enabled
+      ? {
+        enabled         = true
+        force_destroy   = var.atlas_integrations.s3_force_destroy
+        name_prefix     = "${var.default_resource_name_prefix}-logs-"
+        expiration_days = var.atlas_integrations.log_integration.expiration_days
+      }
+      : null
+    )
+    integrations = (
+      var.atlas_integrations.log_integration.enabled
+      ? var.atlas_integrations.log_integration.integrations
+      : null
+    )
+  }
+
+  atlas_aws_backup_export = {
+    enabled = var.atlas_integrations.backup_export.enabled
+    create_s3_bucket = (
+      var.atlas_integrations.backup_export.enabled
+      ? {
+        enabled         = true
+        force_destroy   = var.atlas_integrations.s3_force_destroy
+        name_prefix     = "${var.default_resource_name_prefix}-backup-"
+        expiration_days = var.atlas_integrations.backup_export.expiration_days
+      }
+      : null
+    )
+  }
+
+  # --- Mongo connection strings ------------------------------------------------
+  # PrivateLink SRV per region when Atlas publishes it, else the standard SRV.
+  # Appends IAM auth query params; the app authenticates with MONGODB-AWS.
+  mongo_private_connection_string = try(coalesce(
+    try(module.atlas_cluster.connection_strings.private_endpoint[0].srv_connection_string, ""),
+    try(module.atlas_cluster.connection_strings.private_srv, ""),
+    module.atlas_cluster.connection_strings.standard_srv
+    ), "NO_CONNECTION_STRING_AVAILABLE"
+  )
+  mongo_private_connection_string_uses_standard_srv = (
+    local.mongo_private_connection_string == module.atlas_cluster.connection_strings.standard_srv
+  )
+  mongo_private_connection_string_unavailable = (
+    local.mongo_private_connection_string == "NO_CONNECTION_STRING_AVAILABLE"
+  )
+
+  aws_to_atlas_region = {
+    for r in local.regions_resolved : r.aws_name => r.atlas_name
+  }
+  mongo_private_srv_by_atlas_region = merge([
+    for pe in try(module.atlas_cluster.connection_strings.private_endpoint, []) : {
+      for ep in try(pe.endpoints, []) :
+      ep.region => pe.srv_connection_string
+      if try(pe.srv_connection_string, "") != ""
+    }
+  ]...)
+  mongo_private_connection_strings_by_region = {
+    for region in local.app_aws_regions : region => coalesce(
+      try(local.mongo_private_srv_by_atlas_region[local.aws_to_atlas_region[region]], ""),
+      local.mongo_private_connection_string
+    )
+  }
+
+  mongo_iam_auth_query = "authSource=%24external&authMechanism=MONGODB-AWS"
+
+  mongo_iam_connection_strings_by_region = {
+    for region, srv in local.mongo_private_connection_strings_by_region :
+    region => (
+      srv == "" || srv == "NO_CONNECTION_STRING_AVAILABLE"
+      ? srv
+      : strcontains(srv, "?")
+      ? "${srv}&${local.mongo_iam_auth_query}"
+      : "${srv}/?${local.mongo_iam_auth_query}"
+    )
+  }
+
+  public_debug_password = var.public_debug_access != null ? coalesce(
+    try(var.public_debug_access.password, null),
+    try(random_password.public_debug[0].result, null)
+  ) : null
+
+  public_debug_connection_string = var.public_debug_access != null ? format(
+    "mongodb+srv://%s:%s@%s/?authSource=admin",
+    urlencode(var.public_debug_access.username),
+    urlencode(local.public_debug_password),
+    trimprefix(module.atlas_cluster.connection_strings.standard_srv, "mongodb+srv://")
+  ) : null
 }
 
-module "lz" {
-  source = "../../modules/lz"
+check "mongo_private_connection_string_standard_srv_fallback" {
+  assert {
+    condition     = !local.mongo_private_connection_string_uses_standard_srv
+    error_message = <<-EOT
+      mongo_private_connection_string fell back to standard_srv (non-PrivateLink).
+      Atlas did not publish private_endpoint or private_srv SRV connection strings yet.
+      ECS apps will receive the public Atlas SRV; traffic may not route over PrivateLink.
+    EOT
+  }
+}
 
-  atlas_org_id                 = var.atlas_org_id
-  cluster_name                 = var.cluster_name
+check "mongo_private_connection_string_unavailable" {
+  assert {
+    condition     = !local.mongo_private_connection_string_unavailable
+    error_message = <<-EOT
+      mongo_private_connection_string is NO_CONNECTION_STRING_AVAILABLE.
+      Atlas did not publish private_endpoint, private_srv, or standard_srv connection strings.
+      This can happen when the cluster is paused; otherwise it should not occur (cluster state: ${module.atlas_cluster.state_name}).
+    EOT
+  }
+}
+
+# --- LLM ----------------------------------------------------------------------
+# module.llm resolves the provider, container env, secret keys, and the Bedrock
+# task-role policy. It creates no resources.
+
+module "llm" {
+  source = "../../modules/llm"
+
+  enable_llm   = var.enable_llm
+  llm_provider = var.llm_provider
+  secret_name  = var.llm_secret_name
+  secret_value = try(data.aws_secretsmanager_secret_version.llm[0].secret_string, null)
+  env_name     = var.llm_env_name
+  env          = var.llm_env
+  aws_region   = local.aws_region
+}
+
+data "aws_secretsmanager_secret_version" "llm" {
+  count     = var.enable_llm && var.llm_secret_name != null ? 1 : 0
+  secret_id = var.llm_secret_name
+}
+
+# --- Atlas and AWS app platform ----------------------------------------------
+
+module "app_platform" {
+  source = "../../modules/app-platform"
+
   default_resource_name_prefix = var.default_resource_name_prefix
   regions                      = var.regions
-  cluster_type                 = var.cluster_type
-  shard_count                  = var.shard_count
-  manual_scaling               = var.manual_scaling
+  tags                         = var.tags
+  ecr_repositories             = var.ecr_repositories
+  # bedrock_runtime_endpoint defaults to the provider inference: a Bedrock
+  # provider needs the private endpoint, a keyed provider does not.
   vpc_config = merge(var.vpc_config, {
-    bedrock_runtime_endpoint = local.bedrock_runtime_endpoint
+    bedrock_runtime_endpoint = module.llm.bedrock.enabled
   })
-  atlas_integrations = var.atlas_integrations
-  ecr_repositories   = var.ecr_repositories
   http_edges = {
     for k, v in var.http_edges : k => {
-      aws_region          = v.aws_region
-      aliases             = v.aliases
-      acm_certificate_arn = v.acm_certificate_arn
-      idle_timeout        = v.idle_timeout
       waf = {
         enabled                     = v.waf.enabled
         common_rule_set_count_rules = distinct(concat(v.waf.common_rule_set_count_rules, local.chainlit_waf_count_rules))
@@ -86,14 +235,46 @@ module "lz" {
       ecr_key          = app.ecr_key
       aws_region       = app.aws_region
       primary_database = app.primary_database
-      routing          = length(var.http_edges) == 0 ? null : app.routing
       internet_egress  = app.internet_egress
       roles            = app.roles
+      # app_platform validates the rest; only routing collapses when there is
+      # no HTTP edge.
+      routing             = length(var.http_edges) == 0 ? null : app.routing
+      extra_task_policies = module.llm.task_policy_jsons
     }
   }
-  tags                = var.tags
-  public_debug_access = var.public_debug_access
 }
+
+locals {
+  # CRS SizeRestrictions_BODY blocks bodies over 8 KB. Chainlit POST /project/file
+  # is a multipart upload (NIST PDFs, OWASP markdown) and also trips BODY XSS/RFI/LFI.
+  chainlit_waf_count_rules = [
+    "SizeRestrictions_BODY",
+    "CrossSiteScripting_BODY",
+    "GenericRFI_BODY",
+    "GenericLFI_BODY",
+    "EC2MetaDataSSRF_BODY",
+  ]
+
+  # App env is not LLM-provider logic, so it lives here next to MONGODB_*.
+  # TOP_K caps $rankFusion hits before the LLM answers; CHUNK_MAX_TOKENS caps the
+  # chunk size the app writes. Change them here and re-apply lz, then app.
+  app_env = {
+    CHAINLIT_DEMO_USERNAME = "demo"
+    MONGODB_DATABASE       = local.ui.mongo.database_name
+    MONGODB_URI            = local.mongo_iam_connection_strings_by_region[local.ui.aws_region]
+    SKIP_INDEX_CREATION    = "true"
+    TOP_K                  = "20"
+    CHUNK_MAX_TOKENS       = "512"
+    AUTOEMBED_MODEL        = var.autoembed_model
+  }
+  container_env         = merge(local.app_env, module.llm.env)
+  container_secret_keys = module.llm.secret_keys
+}
+
+# --- App secret ---------------------------------------------------------------
+# The app stack reads this secret. MONGODB_URI is the IAM PrivateLink URI for
+# the app's region; the container authenticates with MONGODB-AWS.
 
 resource "random_password" "chainlit_auth" {
   length  = 64
@@ -103,11 +284,6 @@ resource "random_password" "chainlit_auth" {
 resource "random_password" "chainlit_demo" {
   length  = 16
   special = false
-}
-
-data "aws_secretsmanager_secret_version" "llm" {
-  count     = local.llm_key_enabled ? 1 : 0
-  secret_id = var.llm_secret_name
 }
 
 resource "aws_secretsmanager_secret" "app" {
@@ -128,49 +304,13 @@ resource "aws_secretsmanager_secret_version" "app" {
     iam                = local.ui.iam
     routing = local.ui.routing == null ? null : merge(local.ui.routing, {
       health_check_path   = "/"
-      origin_header_value = module.lz.http_edge_origin_header_values[local.ui.routing.edge]
+      origin_header_value = module.app_platform.http_edge_origin_header_values[local.ui.routing.edge]
     })
     container = {
-      env         = local.llm_container_env
+      env         = local.container_env
       secret_keys = local.container_secret_keys
     }
     CHAINLIT_AUTH_SECRET   = random_password.chainlit_auth.result
     CHAINLIT_DEMO_PASSWORD = random_password.chainlit_demo.result
-  }, local.llm_app_secrets))
-}
-
-# The ECS task role calls Bedrock Converse directly; no API key and no secret.
-# Cross-region inference profiles route the second hop in another region, so the
-# policy covers every region's foundation-model ARNs via the wildcard.
-# GetInferenceProfile is required when BEDROCK_MODEL names an inference profile
-# (the `us.` ids in the README); without it those calls are an implicit deny.
-resource "aws_iam_role_policy" "ecs_task_bedrock" {
-  count = local.bedrock_enabled ? 1 : 0
-
-  name = "bedrock-converse"
-  role = module.lz.aws.ecs_task_role_names["ui"]
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "bedrock:InvokeModel",
-          "bedrock:InvokeModelWithResponseStream",
-          "bedrock:Converse",
-          "bedrock:ConverseStream",
-        ]
-        Resource = [
-          "arn:aws:bedrock:*::foundation-model/*",
-          "arn:aws:bedrock:*:*:inference-profile/*",
-        ]
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["bedrock:GetInferenceProfile"]
-        Resource = ["arn:aws:bedrock:*:*:inference-profile/*"]
-      },
-    ]
-  })
+  }, module.llm.secrets))
 }

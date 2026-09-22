@@ -4,6 +4,23 @@ You end with a CloudFront URL and a Chainlit chat that answers from files you up
 
 The `$rankFusion` pipeline in `src/hybrid_search/search.py` is adapted from [Hybrid-Search-RAG](https://github.com/romiluz13/Hybrid-Search-RAG) (`hybrid_search_with_rank_fusion`, Apache-2.0). The shipped app is the in-example `hybrid_search` package in this directory, not HybridRAG.
 
+Two stacks, applied in order. `lz` writes an app secret; `app` reads it and runs the Fargate service.
+
+```mermaid
+flowchart LR
+  LZ["lz/<br/>Atlas project, cluster, VPC, ECR, CloudFront, app secret"]
+  SM["Secrets Manager<br/>hybrid-search-ui-app"]
+  APP["app/<br/>ECS cluster + Fargate service"]
+  BROWSER["Browser<br/>CloudFront URL"]
+
+  LZ --> SM
+  LZ --> BROWSER
+  SM --> APP
+  APP --> BROWSER
+```
+
+The ECS cluster and service live in `app/`, not `lz/`.
+
 ## What this creates
 
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role.
@@ -22,7 +39,8 @@ aws/hybrid-search-ui/
 ├── docker/             # local compose stacks; chainlit/config.toml is the image UI title
 ├── lz/                 # Atlas + AWS infra, autoEmbed, Chainlit, app secret
 └── app/                # ECS cluster + service
-aws/modules/lz/
+aws/modules/app-platform/  # VPC, endpoints, IAM, ECR, HTTP edge
+aws/modules/llm/           # provider inference, container env, secrets, Bedrock policy
 aws/modules/ecs-service/
 ```
 
@@ -198,9 +216,9 @@ Cross-region caveat for both: the `bedrock-runtime` endpoint secures the source-
 
 ### How do I tune retrieval breadth?
 
-`TOP_K` caps how many chunks `$rankFusion` returns before the LLM answers. The default is **20** (set in lz `llm_container_env` and passed to the ECS task).
+`TOP_K` caps how many chunks `$rankFusion` returns before the LLM answers. The default is **20** (set in the `lz/main.tf` `app_env` map and passed to the ECS task).
 
-To change it on a deployed stack, edit `TOP_K` in `lz/main.tf` `llm_container_env` (or add a tfvars knob if you fork the example), re-apply lz, then re-apply app so the task picks up the new secret. For local Docker, set `TOP_K` in `secrets/.env.local` or compose env.
+To change it on a deployed stack, edit `TOP_K` in the `lz/main.tf` `app_env` map (or add a tfvars knob if you fork the example), re-apply lz, then re-apply app so the task picks up the new secret. For local Docker, set `TOP_K` in `secrets/.env.local` or compose env.
 
 ### How do I tune the chunk size?
 
@@ -208,7 +226,7 @@ To change it on a deployed stack, edit `TOP_K` in `lz/main.tf` `llm_container_en
 
 The app rejects a value outside 40-1500 tokens at startup. Text past the model context window (32,000 tokens) is truncated silently by Atlas Automated Embedding, with no error at index time, so the app refuses a `CHUNK_MAX_TOKENS` above that window as well.
 
-To change it on a deployed stack, edit `CHUNK_MAX_TOKENS` in `lz/main.tf` `llm_container_env` (or add a tfvars knob if you fork the example), re-apply lz, then re-apply app so the task picks up the new secret. For local Docker, set `CHUNK_MAX_TOKENS` in `secrets/.env.local` or compose env. Existing chunks keep their current boundaries until you re-ingest the file.
+To change it on a deployed stack, edit `CHUNK_MAX_TOKENS` in the `lz/main.tf` `app_env` map (or add a tfvars knob if you fork the example), re-apply lz, then re-apply app so the task picks up the new secret. For local Docker, set `CHUNK_MAX_TOKENS` in `secrets/.env.local` or compose env. Existing chunks keep their current boundaries until you re-ingest the file.
 
 ### Local Docker without ECS
 
@@ -240,7 +258,7 @@ Opt-in SCRAM plus one IPv4 for laptop `mongosh`, local hybrid-search Docker, or 
 
 ### How do I use a custom domain?
 
-Set `http_edges.main.aliases` and `acm_certificate_arn` (certificate in `us-east-1`). See [`aws/modules/lz`](../modules/lz/README.md). No new example variables.
+Set `http_edges.main.aliases` and `acm_certificate_arn` (certificate in `us-east-1`). See [`aws/modules/app-platform`](../modules/app-platform/README.md). No new example variables.
 
 ### What is `user_agent_extra.example`?
 
@@ -248,4 +266,4 @@ Set `http_edges.main.aliases` and `acm_certificate_arn` (certificate in `us-east
 
 ### Landing Zone module inputs
 
-Full schemas live in the published modules: [project](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/project/mongodbatlas/latest), [cluster](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest), [atlas-aws](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/atlas-aws/mongodbatlas/latest). Demo knobs are `atlas_org_id`, `cluster_name`, and the commented examples in `lz/terraform.tfvars.example`. Composition inputs for VPC and ECS apps are in [`aws/modules/lz`](../modules/lz/README.md).
+Full schemas live in the published modules: [project](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/project/mongodbatlas/latest), [cluster](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest), [atlas-aws](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/atlas-aws/mongodbatlas/latest). Demo knobs are `atlas_org_id`, `cluster_name`, and the commented examples in `lz/terraform.tfvars.example`. Composition inputs for VPC and ECS apps are in [`aws/modules/app-platform`](../modules/app-platform/README.md); LLM env and Bedrock policy live in [`aws/modules/llm`](../modules/llm/README.md).

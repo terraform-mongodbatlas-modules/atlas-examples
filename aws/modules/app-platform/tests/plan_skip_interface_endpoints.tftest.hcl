@@ -1,7 +1,3 @@
-mock_provider "mongodbatlas" {
-  override_during = plan
-}
-
 mock_provider "aws" {
   override_during = plan
 
@@ -32,28 +28,6 @@ mock_provider "random" {
   mock_resource "random_password" {
     defaults = { result = "test-origin-header-value-32chars" }
   }
-}
-
-override_module {
-  target          = module.atlas_cluster
-  override_during = plan
-  outputs = {
-    cluster_name = "hybridrag-ui"
-    state_name   = "IDLE"
-    connection_strings = {
-      standard_srv = "mongodb+srv://cluster.example.mongodb.net"
-      private_srv  = ""
-      private_endpoint = [{
-        srv_connection_string = "mongodb+srv://pl-0.example.mongodb.net"
-        endpoints             = []
-      }]
-    }
-  }
-}
-
-variables {
-  atlas_org_id = "org123"
-  cluster_name = "hybridrag-ui"
 }
 
 run "interface_endpoints_default" {

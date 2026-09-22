@@ -1,59 +1,17 @@
-variable "atlas_org_id" {
-  description = "MongoDB Atlas Organization ID."
-  type        = string
-}
-
-variable "cluster_name" {
-  description = "Atlas cluster name."
-  type        = string
-
-  validation {
-    condition     = can(regex("^[a-zA-Z][a-zA-Z0-9-]{0,62}[a-zA-Z0-9]$", var.cluster_name))
-    error_message = "cluster_name must be 2–64 characters, start with a letter, and contain only letters, digits, and hyphens."
-  }
-}
-
 variable "default_resource_name_prefix" {
-  description = "Prefix for Atlas project name and AWS resource names (VPC, security groups, module-managed S3 buckets)."
+  description = "Prefix for AWS resource names (VPC, security groups, app roles, HTTP edge)."
   type        = string
   default     = "lz"
 }
 
-variable "public_debug_access" {
-  description = <<-EOT
-    Opt-in public internet access for debugging (SCRAM + IP allowlist).
-    Default null disables this path. Use only for short-lived debugging; production apps should use PrivateLink + IAM auth.
-    Default grant is readWrite on database test. For read/write on all databases, set role_name = "readWriteAnyDatabase" and database_name = "admin".
-  EOT
-  type = object({
-    ip_address    = string
-    username      = optional(string, "debug")
-    password      = optional(string)
-    database_name = optional(string, "test")
-    role_name     = optional(string, "readWrite")
-    comment       = optional(string, "public debug")
-  })
-  default  = null
-  nullable = true
-
-  validation {
-    condition = var.public_debug_access == null || (
-      !strcontains(var.public_debug_access.ip_address, ":") &&
-      length(split(".", var.public_debug_access.ip_address)) == 4 &&
-      can(cidrhost("${var.public_debug_access.ip_address}/32", 0))
-    )
-    error_message = "public_debug_access.ip_address must be a single IPv4 address (e.g. 1.2.3.4)."
-  }
-}
-
 variable "tags" {
-  description = "Tags applied to Atlas and AWS resources."
+  description = "Tags applied to AWS resources."
   type        = map(string)
   default     = {}
 }
 
 variable "regions" {
-  description = "Cluster regions. Use AWS region names (e.g. us-east-1). Atlas format (US_EAST_1) is also accepted."
+  description = "Cluster regions. Use AWS region names (e.g. us-east-1). Atlas format (US_EAST_1) is also accepted. One VPC is created per region on the managed path."
   type = list(object({
     name       = string
     node_count = optional(number, 3)
@@ -78,60 +36,6 @@ variable "regions" {
       can(regex("^[a-z]{2,}-[a-z]+-[0-9]+$", replace(lower(r.name), "_", "-")))
     ])
     error_message = "regions[].name must be a valid region name (e.g. us-east-1)."
-  }
-}
-
-variable "cluster_type" {
-  description = "Atlas cluster type. Default SHARDED (production-shaped). Set REPLICASET for cheaper personal labs."
-  type        = string
-  default     = "SHARDED"
-
-  validation {
-    condition     = contains(["SHARDED", "REPLICASET"], var.cluster_type)
-    error_message = "cluster_type must be SHARDED or REPLICASET."
-  }
-}
-
-variable "shard_count" {
-  description = "Shard count when cluster_type = SHARDED. Ignored for REPLICASET."
-  type        = number
-  default     = 1
-
-  validation {
-    condition     = var.shard_count >= 1
-    error_message = "shard_count must be at least 1."
-  }
-}
-
-variable "version_release_system" {
-  description = "Atlas release channel. CONTINUOUS default keeps minor versions current."
-  type        = string
-  default     = "CONTINUOUS"
-
-  validation {
-    condition     = contains(["CONTINUOUS", "LTS"], var.version_release_system)
-    error_message = "version_release_system must be CONTINUOUS or LTS."
-  }
-}
-
-variable "manual_scaling" {
-  description = <<-EOT
-    Null-gated fixed compute size. Default null keeps Architecture Center compute auto-scaling (M10–M200).
-    Set to pin instance_size (disables compute auto-scaling). Disk GB auto-scaling stays enabled either way; this example does not expose disk_size_gb.
-  EOT
-  type = object({
-    instance_size = string
-  })
-  default  = null
-  nullable = true
-
-  validation {
-    condition = var.manual_scaling == null || (
-      var.manual_scaling.instance_size != "M0" &&
-      var.manual_scaling.instance_size != "M2" &&
-      var.manual_scaling.instance_size != "M5"
-    )
-    error_message = "manual_scaling.instance_size must be M10 or higher (M0, M2, and M5 are not allowed)."
   }
 }
 
@@ -246,53 +150,6 @@ variable "vpc_config" {
   }
 }
 
-variable "atlas_integrations" {
-  description = <<-EOT
-    Atlas AWS integrations (encryption, log export, backup export). Omit for production defaults (all enabled).
-    encryption.kms_key_arn: BYO KMS; when set, create_kms_key is ignored.
-    encryption.skip_private_endpoints: when true, omit Atlas KMS PrivateLink (private_endpoint_regions = []); default false enables KMS PE in every cluster AWS region.
-    encryption.create_kms_key.region: primary KMS AWS region; defaults to regions[0] when omitted.
-    encryption.create_kms_key.multi_region: defaults true (multi-Region primary CMK). Set false for a single-Region key; replica_regions must be empty.
-    encryption.create_kms_key.replica_regions: inferred from cluster AWS regions except the primary when omitted; set explicitly to override.
-    Log and backup export always use module-managed S3 buckets (name_prefix derived from default_resource_name_prefix).
-    expiration_days maps to create_s3_bucket.expiration_days in atlas-aws.
-    s3_force_destroy applies to both module-managed log and backup buckets (true for ephemeral demos; false for shared accounts that must retain objects).
-  EOT
-  type = object({
-    encryption = optional(object({
-      enabled                = optional(bool, true)
-      kms_key_arn            = optional(string)
-      skip_private_endpoints = optional(bool, false)
-      create_kms_key = optional(object({
-        deletion_window_in_days = optional(number, 7)
-        enable_key_rotation     = optional(bool, true)
-        multi_region            = optional(bool, true)
-        region                  = optional(string)
-        replica_regions         = optional(set(string))
-      }), {})
-    }), {})
-
-    log_integration = optional(object({
-      enabled = optional(bool, true)
-      integrations = optional(list(object({
-        log_types   = set(string)
-        prefix_path = string
-        })), [
-        { log_types = ["MONGOD", "MONGOD_AUDIT"], prefix_path = "logs" },
-      ])
-      expiration_days = optional(number, 90)
-    }), {})
-
-    backup_export = optional(object({
-      enabled         = optional(bool, true)
-      expiration_days = optional(number, 365)
-    }), {})
-
-    s3_force_destroy = optional(bool, true)
-  })
-  default = {}
-}
-
 variable "ecr_repositories" {
   description = <<-EOT
     Optional ECR repositories. Map keys are stable identities. Each entry creates a repository; lifecycle_keep_count > 0 adds a lifecycle policy (keep last N images).
@@ -340,7 +197,7 @@ variable "ecr_repositories" {
 
 variable "http_edges" {
   description = <<-EOT
-    Regional HTTP edges (ALB + CloudFront + WAF) owned by the landing zone. Map keys are stable identities (e.g. main).
+    Regional HTTP edges (ALB + CloudFront + WAF). Map keys are stable identities (e.g. main).
     Public subnets and IGW are created per edge region when this map is non-empty.
     CloudFront terminates HTTPS on the default *.cloudfront.net domain; ALB is HTTP-only origin, restricted to the CloudFront origin-facing prefix list.
     idle_timeout defaults 120 (ALB). Nested http_edge sets CloudFront origin_read_timeout to 120 to match.
@@ -400,10 +257,11 @@ variable "http_edges" {
 variable "ecs_apps" {
   description = <<-EOT
     Optional ECS deployment targets. Map keys are stable identities.
-    Each entry creates one ECS task role, one execution role, and one Atlas IAM database user (username = task role ARN).
+    Each entry creates one ECS task role and one execution role. The caller owns the Atlas IAM database user (username = task role ARN).
     ecr_key selects an entry in ecr_repositories. routing attaches the app to an http_edges ALB (ecs-service creates TG + listener rule).
     Omit routing for private/worker tasks. routing requires explicit edge, listener_priority, and path_pattern or host_header.
     internet_egress: when true, enables a NAT gateway in the app's AWS region (managed VPC) and allows HTTPS egress to the public internet from the shared app security group.
+    extra_task_policies: IAM task-role policies the caller authors, keyed by policy name. The caller passes JSON it owns (for example from a provider module); this module only attaches it.
   EOT
   type = map(object({
     name             = optional(string)
@@ -423,6 +281,7 @@ variable "ecs_apps" {
       database_name   = string
       collection_name = optional(string)
     }))
+    extra_task_policies = optional(map(string), {})
   }))
   default = {}
 

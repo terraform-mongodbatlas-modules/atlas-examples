@@ -65,7 +65,7 @@ variable "manual_scaling" {
 }
 
 variable "vpc_config" {
-  description = "App VPC for PrivateLink and ECS. Same type as modules/lz; that module validates the value. bedrock_runtime_endpoint overrides the inferred bedrock-runtime endpoint (null infers it from the LLM provider)."
+  description = "App VPC for PrivateLink and ECS. Composition input for modules/app-platform; that module validates the value. bedrock_runtime_endpoint overrides the inferred bedrock-runtime endpoint (null infers it from the LLM provider)."
   type = object({
     create                   = optional(bool, true)
     base_cidr                = optional(string, "10.0.0.0/8")
@@ -89,7 +89,7 @@ variable "vpc_config" {
 }
 
 variable "atlas_integrations" {
-  description = "Atlas AWS integrations (encryption, log export, backup export). Same type as modules/lz."
+  description = "Atlas AWS integrations (encryption, log export, backup export). Consumed here, not by modules/app-platform."
   type = object({
     encryption = optional(object({
       enabled                = optional(bool, true)
@@ -126,7 +126,7 @@ variable "atlas_integrations" {
 }
 
 variable "ecr_repositories" {
-  description = "ECR repositories. Same type as modules/lz."
+  description = "ECR repositories. Composition input for modules/app-platform."
   type = map(object({
     name                 = optional(string)
     region               = optional(string)
@@ -141,7 +141,7 @@ variable "ecr_repositories" {
 }
 
 variable "http_edges" {
-  description = "HTTP edges (ALB + CloudFront + WAF). Same type as modules/lz. Set http_edges = {} (see terraform.tfvars.example) to skip ALB, CloudFront, and WAF when you only run the UI locally."
+  description = "HTTP edges (ALB + CloudFront + WAF). Composition input for modules/app-platform. Set http_edges = {} (see terraform.tfvars.example) to skip ALB, CloudFront, and WAF when you only run the UI locally."
   type = map(object({
     aws_region          = optional(string)
     aliases             = optional(list(string), [])
@@ -158,7 +158,7 @@ variable "http_edges" {
 }
 
 variable "ecs_apps" {
-  description = "ECS apps. Same type as modules/lz. Default UI on port 8001."
+  description = "ECS apps. Composition input for modules/app-platform. Default UI on port 8001."
   type = map(object({
     name             = optional(string)
     ecr_key          = string
@@ -195,28 +195,10 @@ variable "ecs_apps" {
 }
 
 variable "llm_secret_name" {
-  description = "Optional Secrets Manager secret name holding a raw LLM API key (just create-llm-secret). When set, the value is inlined into the app secret JSON and the provider is inferred from llm_env_name. Leave null to use the default bedrock provider, which needs no key."
+  description = "Optional Secrets Manager secret name holding a raw LLM API key (just create-llm-secret). When set, the value is inlined into the app secret JSON and the provider is inferred from llm_env_name. Leave null to use the default bedrock provider, which needs no key. Validation lives in modules/llm."
   type        = string
   default     = null
   nullable    = true
-
-  validation {
-    condition = (
-      var.llm_secret_name == null ||
-      var.llm_provider == null ||
-      lookup(local.llm_provider_from_env, var.llm_env_name, null) == var.llm_provider
-    )
-    error_message = "When llm_secret_name is set and llm_provider is set, llm_provider must match the provider inferred from llm_env_name."
-  }
-
-  validation {
-    condition = (
-      var.llm_secret_name == null ||
-      var.llm_env_name != "GROVE_API_KEY" ||
-      try(var.llm_env["GROVE_BASE_URL"], "") != ""
-    )
-    error_message = "Grove requires llm_env.GROVE_BASE_URL."
-  }
 }
 
 variable "llm_provider" {
@@ -224,11 +206,6 @@ variable "llm_provider" {
   type        = string
   default     = null
   nullable    = true
-
-  validation {
-    condition     = var.llm_provider == null || contains(["anthropic", "bedrock", "openai", "gemini", "grove"], var.llm_provider)
-    error_message = "llm_provider must be anthropic, bedrock, openai, gemini, or grove."
-  }
 }
 
 variable "enable_llm" {
@@ -247,11 +224,6 @@ variable "llm_env" {
   description = "Extra LLM values inlined into the app secret JSON (ANTHROPIC_MODEL, BEDROCK_MODEL, GEMINI_MODEL, OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_EXTRA_HEADERS, GROVE_BASE_URL, GROVE_MODEL). Do not put the API key here; use llm_secret_name. AWS_REGION is set from regions[0] for the bedrock provider; set llm_env.BEDROCK_MODEL to override the model."
   type        = map(string)
   default     = {}
-
-  validation {
-    condition     = !contains(keys(var.llm_env), var.llm_env_name)
-    error_message = "llm_env must not include llm_env_name; that key comes from llm_secret_name."
-  }
 }
 
 variable "autoembed_model" {

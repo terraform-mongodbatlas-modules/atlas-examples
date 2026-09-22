@@ -4,7 +4,7 @@ ECS cluster, task definition, service, target group, and listener rule. Apply af
 
 ## Inputs
 
-Groups match `modules/lz` `ecs_apps` output. Extra JSON keys never enter this module.
+Groups match `modules/app-platform` `ecs_apps` output. Extra JSON keys never enter this module.
 
 - **`name` / `aws_region` / `ecr_repository_url`:** Cluster and image.
 - **`network`:** `private_subnet_ids`, `ecs_security_group_id`.
