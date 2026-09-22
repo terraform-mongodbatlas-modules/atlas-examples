@@ -302,8 +302,15 @@ resource "aws_vpc_endpoint" "interface" {
   policy = each.value.service == "bedrock-runtime" ? jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream", "bedrock:Converse", "bedrock:ConverseStream"]
+      Effect    = "Allow"
+      Principal = "*"
+      Action = [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream",
+        "bedrock:Converse",
+        "bedrock:ConverseStream",
+        "bedrock:CountTokens",
+      ]
       Resource = "*"
     }]
   }) : null

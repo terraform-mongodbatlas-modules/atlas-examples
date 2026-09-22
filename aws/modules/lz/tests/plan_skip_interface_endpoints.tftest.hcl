@@ -174,6 +174,18 @@ run "bedrock_runtime_endpoint_adds_one_interface_endpoint" {
     ])
     error_message = "bedrock_runtime_endpoint should add one interface endpoint on top of the five defaults"
   }
+
+  # Assert the planned policy, not just the endpoint count. A missing Principal
+  # makes the EC2 API reject the document at create time, after a green plan.
+  assert {
+    condition = alltrue([
+      length(aws_vpc_endpoint.interface) == 6,
+      strcontains(aws_vpc_endpoint.interface["us-east-1-bedrock-runtime"].policy, "\"Principal\""),
+      strcontains(aws_vpc_endpoint.interface["us-east-1-bedrock-runtime"].policy, "bedrock:Converse"),
+      strcontains(aws_vpc_endpoint.interface["us-east-1-bedrock-runtime"].policy, "bedrock:CountTokens"),
+    ])
+    error_message = "bedrock-runtime endpoint policy must allow the Converse actions with a Principal statement"
+  }
 }
 
 run "bedrock_runtime_endpoint_skipped_with_skip_interface_endpoints" {

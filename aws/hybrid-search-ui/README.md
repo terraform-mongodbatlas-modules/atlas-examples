@@ -179,6 +179,8 @@ Do not set `waf.enabled = false` to fix uploads.
 
 The default provider is Amazon Bedrock with Amazon Nova Lite (`amazon.nova-lite-v1:0`). The ECS task role calls `bedrock-runtime` over a private interface endpoint, so there is no API key, no secret, and no manual approval step. `LLM_PROVIDER=bedrock`, `BEDROCK_MODEL`, and `AWS_REGION` are plain container env values in the app secret.
 
+The `bedrock-runtime` endpoint carries a policy that allows only the Converse actions (`InvokeModel`, `InvokeModelWithResponseStream`, `Converse`, `ConverseStream`, `CountTokens`). Traffic to any other Bedrock action is rejected at the endpoint, before IAM is evaluated. The other interface endpoints keep the default full-access policy.
+
 `ENABLE_LLM=false` (or `enable_llm = false` in tfvars) disables the LLM for every session, skips the task-role policy, and omits the `bedrock-runtime` endpoint. The **LLM answer** toggle is a per-session override when the env allows LLM.
 
 For a keyed provider, run `just create-llm-secret` before lz apply. It writes a Secrets Manager secret and prints the name; set `llm_secret_name` in lz tfvars. The key is inlined as `llm_env_name` (default `ANTHROPIC_API_KEY`). The provider is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`), and `llm_secret_name` wins over `llm_provider`. Pin the model in `llm_env` (`ANTHROPIC_MODEL`, `BEDROCK_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `GROVE_MODEL`). Grove also needs `GROVE_BASE_URL`. OpenAI extras (`OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) go in `llm_env` too. Commented examples are in `lz/terraform.tfvars.example`.
