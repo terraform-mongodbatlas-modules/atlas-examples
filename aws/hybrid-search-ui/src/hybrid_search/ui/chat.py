@@ -55,7 +55,7 @@ from hybrid_search.ui.search_settings import (
 logger = logging.getLogger(__name__)
 ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
 _ASK_ACCEPT = ["application/pdf", "text/plain", "text/markdown", "text/x-markdown"]
-INGEST_MAX_FILES = 10
+INGEST_MAX_FILES = 20
 INGEST_MAX_SIZE_MB = 100
 INGEST_ASK_PROMPT = (
     f"Choose pdf, txt, or md to ingest (up to {INGEST_MAX_FILES} files, "
