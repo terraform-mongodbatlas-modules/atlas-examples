@@ -19,6 +19,7 @@ locals {
       SKIP_INDEX_CREATION    = "true"
       TOP_K                  = "20"
       VOYAGE_BASE_URL        = module.voyage_api_key.voyage_base_url
+      VOYAGE_MODEL           = var.voyage_model
     },
     local.llm_enabled && local.llm_provider != null ? { LLM_PROVIDER = local.llm_provider } : {}
   )

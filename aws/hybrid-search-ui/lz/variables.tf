@@ -239,3 +239,9 @@ variable "voyage_key_name" {
   type        = string
   default     = "hybrid-search-ui-voyage"
 }
+
+variable "voyage_model" {
+  description = "Atlas AI Model name."
+  type        = string
+  default     = "voyage-context-4"
+}
