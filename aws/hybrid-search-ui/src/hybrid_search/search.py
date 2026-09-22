@@ -23,7 +23,11 @@ class SearchResult:
 
 
 # $rankFusion pipeline adapted from Hybrid-Search-RAG (Apache-2.0).
+# numCandidates: Atlas recommends at least 20x limit for ANN recall.
+# https://www.mongodb.com/docs/vector-search/query/aggregation-stages/vector-search-stage/
 NUM_CANDIDATES_MULTIPLIER = 20
+# maxEdits accepts 1 or 2; prefixLength defaults to 0.
+# https://www.mongodb.com/docs/search/query/operators-collectors/text
 FUZZY_MAX_EDITS = 2
 FUZZY_PREFIX_LENGTH = 3
 VECTOR_PATH = "content"

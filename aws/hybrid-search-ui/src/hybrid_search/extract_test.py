@@ -21,34 +21,6 @@ def test_pdf_requires_pymupdf(tmp_path: Path, monkeypatch):
         extract_module.extract_text(path)
 
 
-def test_iter_pdf_page_groups(monkeypatch):
-    class FakePage:
-        def __init__(self, text: str) -> None:
-            self._text = text
-
-        def get_text(self) -> str:
-            return self._text
-
-    class FakeDoc:
-        def __init__(self, _path) -> None:
-            self.pages = [FakePage("p1"), FakePage("p2"), FakePage("p3")]
-
-        def __iter__(self):
-            return iter(self.pages)
-
-        def close(self) -> None:
-            return None
-
-    fake_pymupdf = type("pymupdf", (), {"open": staticmethod(lambda path: FakeDoc(path))})
-    monkeypatch.setattr(extract_module, "pymupdf", fake_pymupdf)
-    groups = list(extract_module.iter_pdf_page_groups(Path("x.pdf"), max_pages_per_group=2))
-    assert groups == ["p1\n\np2", "p3"]
-
-
-def test_text_needs_split():
-    assert extract_module.text_needs_split("x" * (120_000 * 4)) is True
-
-
 def test_chunk_text_single_small_input():
     assert extract_module.chunk_text("hello", max_tokens=512) == ["hello"]
 

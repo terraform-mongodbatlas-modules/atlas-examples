@@ -19,6 +19,8 @@ class HybridSearchSettings(BaseSettings):
     mongodb_uri: SecretStr
     mongodb_database: str = "hybrid_search"
     autoembed_model: str = "voyage-4-lite"
+    # 512 tokens matches the Voyage auto-chunking default.
+    # https://www.mongodb.com/docs/api/doc/atlas-embedding-and-reranking-api/voyage-context-4/operation/operation-createcontextualizedembedding
     chunk_max_tokens: int = 512
     top_k: int = 20
     vector_index_name: str = "autoembed_idx"
