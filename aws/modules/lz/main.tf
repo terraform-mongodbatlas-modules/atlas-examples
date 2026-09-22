@@ -220,7 +220,7 @@ module "atlas_cluster" {
   encryption_at_rest_provider = module.atlas_aws.encryption_at_rest_provider
   tags                        = var.tags
 
-  depends_on = [module.atlas_aws]
+  depends_on = [module.atlas_aws] # force wait on the privatelink
 }
 
 resource "mongodbatlas_database_user" "ecs" {
