@@ -150,6 +150,8 @@ resource "aws_secretsmanager_secret_version" "app" {
 # The ECS task role calls Bedrock Converse directly; no API key and no secret.
 # Cross-region inference profiles route the second hop in another region, so the
 # policy covers every region's foundation-model ARNs via the wildcard.
+# GetInferenceProfile is required when BEDROCK_MODEL names an inference profile
+# (the `us.` ids in the README); without it those calls are an implicit deny.
 resource "aws_iam_role_policy" "ecs_task_bedrock" {
   count = local.bedrock_enabled ? 1 : 0
 
@@ -158,18 +160,25 @@ resource "aws_iam_role_policy" "ecs_task_bedrock" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "bedrock:InvokeModel",
-        "bedrock:InvokeModelWithResponseStream",
-        "bedrock:Converse",
-        "bedrock:ConverseStream",
-      ]
-      Resource = [
-        "arn:aws:bedrock:*::foundation-model/*",
-        "arn:aws:bedrock:*:*:inference-profile/*",
-      ]
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:Converse",
+          "bedrock:ConverseStream",
+        ]
+        Resource = [
+          "arn:aws:bedrock:*::foundation-model/*",
+          "arn:aws:bedrock:*:*:inference-profile/*",
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["bedrock:GetInferenceProfile"]
+        Resource = ["arn:aws:bedrock:*:*:inference-profile/*"]
+      },
+    ]
   })
 }

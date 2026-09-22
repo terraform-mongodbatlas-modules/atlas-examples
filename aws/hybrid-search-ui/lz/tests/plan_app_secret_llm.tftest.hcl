@@ -117,6 +117,8 @@ run "bedrock_is_default_with_no_key" {
     llm_env         = {}
   }
 
+  # Guard the inference-profile upgrade path documented in the README: a model id
+  # with the `us.` prefix needs bedrock:GetInferenceProfile on the task role.
   assert {
     condition = alltrue([
       sort(local.container_secret_keys) == sort([
@@ -130,8 +132,12 @@ run "bedrock_is_default_with_no_key" {
       local.llm_container_env["AWS_REGION"] == "us-east-1",
       local.bedrock_enabled == true,
       local.bedrock_runtime_endpoint == true,
+      length(aws_iam_role_policy.ecs_task_bedrock) == 1,
+      strcontains(aws_iam_role_policy.ecs_task_bedrock[0].policy, "bedrock:Converse"),
+      strcontains(aws_iam_role_policy.ecs_task_bedrock[0].policy, "arn:aws:bedrock:*:*:inference-profile/*"),
+      strcontains(aws_iam_role_policy.ecs_task_bedrock[0].policy, "bedrock:GetInferenceProfile"),
     ])
-    error_message = "Default should select bedrock, set BEDROCK_MODEL and AWS_REGION, and infer the bedrock-runtime endpoint"
+    error_message = "Default should select bedrock, set BEDROCK_MODEL and AWS_REGION, infer the bedrock-runtime endpoint, and grant GetInferenceProfile on the task role"
   }
 }
 

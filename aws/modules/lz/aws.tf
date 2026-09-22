@@ -299,6 +299,10 @@ resource "aws_vpc_endpoint" "interface" {
   security_group_ids  = [aws_security_group.vpc_endpoints[each.value.region].id]
   private_dns_enabled = true
 
+  # VPC endpoint policies are resource-based: Principal is required or the EC2
+  # API rejects the document at create time (InvalidPolicyDocument). CountTokens
+  # is here because pydantic-ai counts tokens before a request, and
+  # GetInferenceProfile because the `us.` inference-profile model ids need it.
   policy = each.value.service == "bedrock-runtime" ? jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -310,6 +314,7 @@ resource "aws_vpc_endpoint" "interface" {
         "bedrock:Converse",
         "bedrock:ConverseStream",
         "bedrock:CountTokens",
+        "bedrock:GetInferenceProfile",
       ]
       Resource = "*"
     }]
