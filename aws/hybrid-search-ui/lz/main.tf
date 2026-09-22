@@ -2,14 +2,21 @@ locals {
   aws_region      = replace(lower(var.regions[0].name), "_", "-")
   ui              = module.lz.ecs_apps["ui"]
   app_secret_name = local.ui.runtime_secret_name
-  llm_enabled     = var.llm_secret_name != null
   llm_provider_from_env = {
     ANTHROPIC_API_KEY = "anthropic"
     OPENAI_API_KEY    = "openai"
     GEMINI_API_KEY    = "gemini"
     GROVE_API_KEY     = "grove"
   }
-  llm_provider = local.llm_enabled ? lookup(local.llm_provider_from_env, var.llm_env_name, null) : null
+  # Secret-first: a secret name still selects the keyed provider from llm_env_name,
+  # so existing configs are unaffected. Otherwise the explicit provider (bedrock default) wins.
+  llm_provider_from_secret = var.llm_secret_name != null ? lookup(local.llm_provider_from_env, var.llm_env_name, null) : null
+  llm_provider             = coalesce(local.llm_provider_from_secret, var.llm_provider, "bedrock")
+  llm_enabled              = var.enable_llm
+  llm_key_enabled          = var.enable_llm && var.llm_secret_name != null
+  bedrock_enabled          = local.llm_enabled && local.llm_provider == "bedrock"
+  # Choosing bedrock gets the private endpoint out of the box; an explicit value still wins.
+  bedrock_runtime_endpoint = coalesce(var.vpc_config.bedrock_runtime_endpoint, local.bedrock_enabled)
   llm_container_env = merge(
     {
       CHAINLIT_DEMO_USERNAME = "demo"
@@ -21,9 +28,13 @@ locals {
       VOYAGE_BASE_URL        = module.voyage_api_key.voyage_base_url
       VOYAGE_MODEL           = var.voyage_model
     },
-    local.llm_enabled && local.llm_provider != null ? { LLM_PROVIDER = local.llm_provider } : {}
+    local.llm_enabled ? { LLM_PROVIDER = local.llm_provider } : {},
+    local.bedrock_enabled ? {
+      BEDROCK_MODEL = coalesce(try(var.llm_env["BEDROCK_MODEL"], null), "amazon.nova-lite-v1:0")
+      AWS_REGION    = local.aws_region
+    } : {}
   )
-  llm_app_secrets = local.llm_enabled ? merge(
+  llm_app_secrets = local.llm_key_enabled ? merge(
     { (var.llm_env_name) = data.aws_secretsmanager_secret_version.llm[0].secret_string },
     var.llm_env
   ) : {}
@@ -52,9 +63,11 @@ module "lz" {
   cluster_type                 = var.cluster_type
   shard_count                  = var.shard_count
   manual_scaling               = var.manual_scaling
-  vpc_config                   = var.vpc_config
-  atlas_integrations           = var.atlas_integrations
-  ecr_repositories             = var.ecr_repositories
+  vpc_config = merge(var.vpc_config, {
+    bedrock_runtime_endpoint = local.bedrock_runtime_endpoint
+  })
+  atlas_integrations = var.atlas_integrations
+  ecr_repositories   = var.ecr_repositories
   http_edges = {
     for k, v in var.http_edges : k => {
       aws_region          = v.aws_region
@@ -100,7 +113,7 @@ resource "random_password" "chainlit_demo" {
 }
 
 data "aws_secretsmanager_secret_version" "llm" {
-  count     = local.llm_enabled ? 1 : 0
+  count     = local.llm_key_enabled ? 1 : 0
   secret_id = var.llm_secret_name
 }
 
@@ -132,4 +145,31 @@ resource "aws_secretsmanager_secret_version" "app" {
     CHAINLIT_AUTH_SECRET   = random_password.chainlit_auth.result
     CHAINLIT_DEMO_PASSWORD = random_password.chainlit_demo.result
   }, local.llm_app_secrets))
+}
+
+# The ECS task role calls Bedrock Converse directly; no API key and no secret.
+# Cross-region inference profiles route the second hop in another region, so the
+# policy covers every region's foundation-model ARNs via the wildcard.
+resource "aws_iam_role_policy" "ecs_task_bedrock" {
+  count = local.bedrock_enabled ? 1 : 0
+
+  name = "bedrock-converse"
+  role = module.lz.aws.ecs_task_role_names["ui"]
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream",
+        "bedrock:Converse",
+        "bedrock:ConverseStream",
+      ]
+      Resource = [
+        "arn:aws:bedrock:*::foundation-model/*",
+        "arn:aws:bedrock:*:*:inference-profile/*",
+      ]
+    }]
+  })
 }

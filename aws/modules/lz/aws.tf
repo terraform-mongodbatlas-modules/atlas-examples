@@ -281,7 +281,10 @@ resource "aws_security_group" "vpc_endpoints" {
 
 resource "aws_vpc_endpoint" "interface" {
   for_each = var.vpc_config.skip_interface_endpoints ? {} : {
-    for pair in setproduct(tolist(local.app_aws_regions), ["ecr.api", "ecr.dkr", "logs", "secretsmanager", "sts"]) :
+    for pair in concat(
+      setproduct(tolist(local.app_aws_regions), ["ecr.api", "ecr.dkr", "logs", "secretsmanager", "sts"]),
+      var.vpc_config.bedrock_runtime_endpoint ? setproduct(tolist(local.app_aws_regions), ["bedrock-runtime"]) : []
+    ) :
     "${pair[0]}-${pair[1]}" => {
       region  = pair[0]
       service = pair[1]
@@ -295,6 +298,15 @@ resource "aws_vpc_endpoint" "interface" {
   subnet_ids          = local.app_network[each.value.region].private_subnet_ids
   security_group_ids  = [aws_security_group.vpc_endpoints[each.value.region].id]
   private_dns_enabled = true
+
+  policy = each.value.service == "bedrock-runtime" ? jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream", "bedrock:Converse", "bedrock:ConverseStream"]
+      Resource = "*"
+    }]
+  }) : null
 
   tags = merge(var.tags, { Name = "${var.default_resource_name_prefix}-${each.value.region}-${each.value.service}" })
 }

@@ -60,3 +60,32 @@ def test_render_env_file_quotes_values() -> None:
     rendered = render_env_file(env, secret_name="hybrid-search-ui-app")
     assert 'MONGODB_URI="mongodb+srv://user:pass@\\"host\\"/db"' in rendered
     assert "# Source secret: hybrid-search-ui-app" in rendered
+
+
+def test_bedrock_env_keys_flow_through() -> None:
+    secret = {
+        "aws_region": "us-east-1",
+        "container": {
+            "env": {
+                "MONGODB_DATABASE": "hybrid_search",
+                "VOYAGE_BASE_URL": "https://ai.mongodb.com/v1",
+                "ENABLE_LLM": "true",
+                "LLM_PROVIDER": "bedrock",
+                "BEDROCK_MODEL": "amazon.nova-lite-v1:0",
+                "AWS_REGION": "us-east-1",
+                "TOP_K": "20",
+            },
+            "secret_keys": [
+                "VOYAGE_API_KEY",
+                "CHAINLIT_AUTH_SECRET",
+                "CHAINLIT_DEMO_PASSWORD",
+            ],
+        },
+        "VOYAGE_API_KEY": "voyage-key",
+    }
+    env, _ = local_env_from_secret(secret, mongodb_uri="mongodb+srv://debug:pass@cluster/db")
+    assert env["LLM_PROVIDER"] == "bedrock"
+    assert env["BEDROCK_MODEL"] == "amazon.nova-lite-v1:0"
+    assert env["AWS_REGION"] == "us-east-1"
+    rendered = render_env_file(env, secret_name="hybrid-search-ui-app")
+    assert rendered.index("LLM_PROVIDER=") < rendered.index("BEDROCK_MODEL=") < rendered.index("AWS_REGION=")

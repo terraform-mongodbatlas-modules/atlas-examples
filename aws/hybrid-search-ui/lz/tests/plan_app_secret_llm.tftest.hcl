@@ -102,7 +102,93 @@ run "llm_grove_sets_provider_and_base_url" {
       local.llm_container_env["VOYAGE_BASE_URL"] == "https://ai.mongodb.com/v1",
       local.llm_container_env["TOP_K"] == "20",
       !contains(keys(local.llm_container_env), "GROVE_BASE_URL"),
+      local.bedrock_runtime_endpoint == false,
     ])
-    error_message = "Grove LLM should set LLM_PROVIDER and inline GROVE_* extras as app secret keys"
+    error_message = "Grove LLM should set LLM_PROVIDER and inline GROVE_* extras as app secret keys, without a bedrock endpoint"
   }
+}
+
+run "bedrock_is_default_with_no_key" {
+  command = plan
+
+  variables {
+    llm_secret_name = null
+    llm_env_name    = "ANTHROPIC_API_KEY"
+    llm_env         = {}
+  }
+
+  assert {
+    condition = alltrue([
+      sort(local.container_secret_keys) == sort([
+        "VOYAGE_API_KEY",
+        "CHAINLIT_AUTH_SECRET",
+        "CHAINLIT_DEMO_PASSWORD",
+      ]),
+      local.llm_container_env["ENABLE_LLM"] == "true",
+      local.llm_container_env["LLM_PROVIDER"] == "bedrock",
+      local.llm_container_env["BEDROCK_MODEL"] == "amazon.nova-lite-v1:0",
+      local.llm_container_env["AWS_REGION"] == "us-east-1",
+      local.bedrock_enabled == true,
+      local.bedrock_runtime_endpoint == true,
+    ])
+    error_message = "Default should select bedrock, set BEDROCK_MODEL and AWS_REGION, and infer the bedrock-runtime endpoint"
+  }
+}
+
+run "enable_llm_false_is_search_only" {
+  command = plan
+
+  variables {
+    enable_llm      = false
+    llm_secret_name = null
+    llm_env         = {}
+  }
+
+  assert {
+    condition = alltrue([
+      local.llm_container_env["ENABLE_LLM"] == "false",
+      !contains(keys(local.llm_container_env), "LLM_PROVIDER"),
+      !contains(keys(local.llm_container_env), "BEDROCK_MODEL"),
+      length(local.container_secret_keys) == 3,
+      local.bedrock_enabled == false,
+      local.bedrock_runtime_endpoint == false,
+    ])
+    error_message = "enable_llm = false should disable the LLM and omit the bedrock endpoint"
+  }
+}
+
+run "bedrock_runtime_endpoint_can_be_disabled_explicitly" {
+  command = plan
+
+  variables {
+    llm_secret_name = null
+    llm_env         = {}
+    vpc_config      = { bedrock_runtime_endpoint = false }
+  }
+
+  assert {
+    condition = alltrue([
+      local.llm_container_env["LLM_PROVIDER"] == "bedrock",
+      local.bedrock_enabled == true,
+      local.bedrock_runtime_endpoint == false,
+    ])
+    error_message = "An explicit bedrock_runtime_endpoint = false should override the bedrock inference"
+  }
+}
+
+run "llm_provider_must_match_secret_key_name" {
+  command = plan
+
+  variables {
+    llm_secret_name = "hybrid-search-ui-llm"
+    llm_env_name    = "GROVE_API_KEY"
+    llm_provider    = "anthropic"
+    llm_env = {
+      GROVE_BASE_URL = "https://grove.example.mongodb.com/v1"
+    }
+  }
+
+  expect_failures = [
+    var.llm_secret_name,
+  ]
 }

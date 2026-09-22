@@ -6,7 +6,7 @@ requires-python = ">=3.13"
 dependencies = [
     "certifi",
     "motor",
-    "pydantic-ai-slim[anthropic,google,openai,retries]",
+    "pydantic-ai-slim[anthropic,bedrock,google,openai,retries]",
     "pydantic-settings",
     "pymongo",
     "typer",

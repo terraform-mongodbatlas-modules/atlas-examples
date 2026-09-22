@@ -65,7 +65,7 @@ variable "manual_scaling" {
 }
 
 variable "vpc_config" {
-  description = "App VPC for PrivateLink and ECS. Same type as modules/lz; that module validates the value."
+  description = "App VPC for PrivateLink and ECS. Same type as modules/lz; that module validates the value. bedrock_runtime_endpoint overrides the inferred bedrock-runtime endpoint (null infers it from the LLM provider)."
   type = object({
     create                   = optional(bool, true)
     base_cidr                = optional(string, "10.0.0.0/8")
@@ -74,6 +74,7 @@ variable "vpc_config" {
     single_nat_gateway       = optional(bool, true)
     create_igw               = optional(bool, false)
     skip_interface_endpoints = optional(bool, false)
+    bedrock_runtime_endpoint = optional(bool)
     by_region = optional(map(object({
       cidr                    = optional(string)
       az_count                = optional(number)
@@ -195,17 +196,18 @@ variable "ecs_apps" {
 }
 
 variable "llm_secret_name" {
-  description = "Optional Secrets Manager secret name holding a raw LLM API key (just create-llm-secret). When set, the value is inlined into the app secret JSON."
+  description = "Optional Secrets Manager secret name holding a raw LLM API key (just create-llm-secret). When set, the value is inlined into the app secret JSON and the provider is inferred from llm_env_name. Leave null to use the default bedrock provider, which needs no key."
   type        = string
   default     = null
   nullable    = true
 
   validation {
-    condition = var.llm_secret_name == null || contains(
-      ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GROVE_API_KEY"],
-      var.llm_env_name
+    condition = (
+      var.llm_secret_name == null ||
+      var.llm_provider == null ||
+      lookup(local.llm_provider_from_env, var.llm_env_name, null) == var.llm_provider
     )
-    error_message = "When llm_secret_name is set, llm_env_name must be ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, or GROVE_API_KEY."
+    error_message = "When llm_secret_name is set and llm_provider is set, llm_provider must match the provider inferred from llm_env_name."
   }
 
   validation {
@@ -218,14 +220,32 @@ variable "llm_secret_name" {
   }
 }
 
+variable "llm_provider" {
+  description = "LLM provider when llm_secret_name is null. Null defaults to bedrock, which uses the ECS task role and needs no API key. When llm_secret_name is set and this is set, it must match the provider that llm_env_name infers."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.llm_provider == null || contains(["anthropic", "bedrock", "openai", "gemini", "grove"], var.llm_provider)
+    error_message = "llm_provider must be anthropic, bedrock, openai, gemini, or grove."
+  }
+}
+
+variable "enable_llm" {
+  description = "Set false for search-only: no LLM answer, no provider inputs consumed, and no bedrock-runtime interface endpoint."
+  type        = bool
+  default     = true
+}
+
 variable "llm_env_name" {
-  description = "Container env name for the optional LLM key. Infers LLM_PROVIDER: ANTHROPIC_API_KEY=anthropic, OPENAI_API_KEY=openai, GEMINI_API_KEY=gemini, GROVE_API_KEY=grove."
+  description = "Container env name for the optional LLM key. Infers the provider when llm_secret_name is set: ANTHROPIC_API_KEY=anthropic, OPENAI_API_KEY=openai, GEMINI_API_KEY=gemini, GROVE_API_KEY=grove. Ignored when llm_secret_name is null."
   type        = string
   default     = "ANTHROPIC_API_KEY"
 }
 
 variable "llm_env" {
-  description = "Extra LLM values inlined into the app secret JSON (ANTHROPIC_MODEL, GEMINI_MODEL, OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_EXTRA_HEADERS, GROVE_BASE_URL, GROVE_MODEL). Do not put the API key here; use llm_secret_name."
+  description = "Extra LLM values inlined into the app secret JSON (ANTHROPIC_MODEL, BEDROCK_MODEL, GEMINI_MODEL, OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_EXTRA_HEADERS, GROVE_BASE_URL, GROVE_MODEL). Do not put the API key here; use llm_secret_name. AWS_REGION is set from regions[0] for the bedrock provider; set llm_env.BEDROCK_MODEL to override the model."
   type        = map(string)
   default     = {}
 

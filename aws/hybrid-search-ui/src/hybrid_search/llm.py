@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import os
+
 from openai import AsyncOpenAI
 from pydantic_ai import Agent
 from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.bedrock import BedrockConverseModel
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
+from pydantic_ai.providers.bedrock import BedrockProvider
 from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
@@ -30,6 +34,8 @@ def _build_model(settings: HybridSearchSettings):
     match settings.llm_provider:
         case "anthropic":
             return _anthropic_model(settings)
+        case "bedrock":
+            return _bedrock_model(settings)
         case "openai":
             return _openai_model(settings)
         case "grove":
@@ -38,6 +44,15 @@ def _build_model(settings: HybridSearchSettings):
             return _gemini_model(settings)
     msg = f"unsupported llm_provider: {settings.llm_provider}"
     raise ValueError(msg)
+
+
+def _bedrock_model(settings: HybridSearchSettings) -> BedrockConverseModel:
+    region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+    if not region:
+        msg = "AWS_REGION (or AWS_DEFAULT_REGION) is required when llm_provider=bedrock"
+        raise ValueError(msg)
+    provider = BedrockProvider(region_name=region)
+    return BedrockConverseModel(settings.bedrock_model, provider=provider)
 
 
 def _anthropic_model(settings: HybridSearchSettings) -> AnthropicModel:

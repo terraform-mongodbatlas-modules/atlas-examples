@@ -88,6 +88,10 @@ output "aws" {
       for k in keys(local.ecs_apps) : k => aws_iam_role.ecs_task[k].arn
     }
 
+    ecs_task_role_names = {
+      for k in keys(local.ecs_apps) : k => aws_iam_role.ecs_task[k].name
+    }
+
     ecs_task_execution_roles = {
       for k in keys(local.ecs_apps) : k => aws_iam_role.ecs_task_execution[k].arn
     }

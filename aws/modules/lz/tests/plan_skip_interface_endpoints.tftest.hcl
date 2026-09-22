@@ -144,3 +144,68 @@ run "skip_interface_endpoints_requires_nat" {
     aws_vpc_endpoint.s3,
   ]
 }
+
+run "bedrock_runtime_endpoint_adds_one_interface_endpoint" {
+  command = plan
+
+  variables {
+    ecr_repositories = { ui = {} }
+    http_edges       = { main = {} }
+    vpc_config       = { bedrock_runtime_endpoint = true }
+    ecs_apps = {
+      ui = {
+        name            = "hybridrag-ui"
+        ecr_key         = "ui"
+        internet_egress = true
+        routing = {
+          edge              = "main"
+          path_pattern      = ["/*"]
+          listener_priority = 100
+        }
+        roles = [{ database_name = "hybridrag" }]
+      }
+    }
+  }
+
+  assert {
+    condition = alltrue([
+      length(aws_vpc_endpoint.interface) == 6,
+      length(aws_security_group.vpc_endpoints) == 1,
+    ])
+    error_message = "bedrock_runtime_endpoint should add one interface endpoint on top of the five defaults"
+  }
+}
+
+run "bedrock_runtime_endpoint_skipped_with_skip_interface_endpoints" {
+  command = plan
+
+  variables {
+    ecr_repositories = { ui = {} }
+    http_edges       = { main = {} }
+    vpc_config = {
+      bedrock_runtime_endpoint = true
+      skip_interface_endpoints = true
+    }
+    ecs_apps = {
+      ui = {
+        name            = "hybridrag-ui"
+        ecr_key         = "ui"
+        internet_egress = true
+        routing = {
+          edge              = "main"
+          path_pattern      = ["/*"]
+          listener_priority = 100
+        }
+        roles = [{ database_name = "hybridrag" }]
+      }
+    }
+  }
+
+  assert {
+    condition = alltrue([
+      length(aws_vpc_endpoint.interface) == 0,
+      length(aws_security_group.vpc_endpoints) == 0,
+    ])
+    error_message = "skip_interface_endpoints should omit the bedrock-runtime endpoint too"
+  }
+}

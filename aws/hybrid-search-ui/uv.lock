@@ -1018,7 +1018,7 @@ source = { editable = "." }
 dependencies = [
     { name = "certifi" },
     { name = "motor" },
-    { name = "pydantic-ai-slim", extra = ["anthropic", "google", "openai", "retries"] },
+    { name = "pydantic-ai-slim", extra = ["anthropic", "bedrock", "google", "openai", "retries"] },
     { name = "pydantic-settings" },
     { name = "pymongo" },
     { name = "typer" },
@@ -1047,7 +1047,7 @@ requires-dist = [
     { name = "certifi" },
     { name = "chainlit", marker = "extra == 'ui'" },
     { name = "motor" },
-    { name = "pydantic-ai-slim", extras = ["anthropic", "google", "openai", "retries"] },
+    { name = "pydantic-ai-slim", extras = ["anthropic", "bedrock", "google", "openai", "retries"] },
     { name = "pydantic-settings" },
     { name = "pymongo" },
     { name = "pymongo", extras = ["aws"], marker = "extra == 'aws'" },
@@ -2601,6 +2601,9 @@ wheels = [
 [package.optional-dependencies]
 anthropic = [
     { name = "anthropic" },
+]
+bedrock = [
+    { name = "boto3" },
 ]
 google = [
     { name = "google-genai" },

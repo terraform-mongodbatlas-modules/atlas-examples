@@ -8,6 +8,7 @@ The `$rankFusion` pipeline in `src/hybrid_search/search.py` is adapted from [Hyb
 
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role, Voyage AI model API key.
 - **AWS:** VPC (private subnets plus NAT and public subnets for the ALB), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
+- **LLM:** Amazon Bedrock by default. The ECS task role calls `bedrock-runtime` (Amazon Nova Lite) over a private interface endpoint, so there is no API key, no secret, and no manual approval step. A keyed provider still works when you set `llm_secret_name`.
 - **App:** ECS cluster, Fargate service running the in-example Chainlit image (port 8001), built from this directory's `Dockerfile`. Indexes are a one-shot `ecs run-task` of that same image with `hybrid-search index create`, not a second service.
 
 ```sh
@@ -52,10 +53,8 @@ This stack costs money while it is up (NAT, auto-scaling cluster, WAF). See [How
 ## Deploy Atlas and AWS infra
 
 ```sh
-# Recommended if you will show the UI to someone. Prints a secret name; paste it into lz/terraform.tfvars as llm_secret_name.
-just create-llm-secret
-
 # Creates the project, cluster, VPC, CloudFront, IAM, ECR, Voyage key, and nested app secret JSON.
+# The default LLM is Bedrock, so there is no key step.
 terraform -chdir=lz init
 terraform -chdir=lz apply
 
@@ -65,6 +64,8 @@ just dump-local-env
 docker compose -f docker/docker-compose.local-ui.yml --env-file secrets/.env.local up --build
 # Open http://localhost:8001
 ```
+
+To use a keyed provider instead, run `just create-llm-secret`, paste the printed name into `lz/terraform.tfvars` as `llm_secret_name`, and re-apply lz. See [How does the LLM answer work?](#how-does-the-llm-answer-work).
 
 ## Build the image and deploy the UI
 
@@ -114,7 +115,7 @@ Open **Chat Settings** (gear icon) to toggle retrieval and answer stages per cha
 - **Vector search:** Voyage query embed plus Atlas Vector Search.
 - **LLM answer:** pydantic-ai answer over retrieved chunks. Off skips the LLM and shows ranked hits (score, filename, snippet) instead.
 
-Common no-LLM demos: keyword only, vector only, or keyword + vector with **LLM answer** off (`$rankFusion` hits without a provider key).
+Common no-LLM demos: keyword only, vector only, or keyword + vector with **LLM answer** off (`$rankFusion` hits without an LLM call).
 
 `ENABLE_LLM=false` in deploy env disables LLM for every session. The **LLM answer** toggle is a per-session override when the env allows LLM.
 
@@ -133,8 +134,8 @@ terraform -chdir=lz destroy
 
 The following stay billed while the stack is up:
 
-- **NAT Gateway:** Hourly plus data. This example sets `internet_egress = true` so Voyage (and an optional LLM) can reach the internet. Leave NAT on for the walkthrough.
-- **VPC interface endpoints:** Five AWS interface endpoints (ECR API, ECR DKR, CloudWatch Logs, Secrets Manager, STS) bill per AZ-hour in private subnets. About $2.40/day in `us-east-1` with two AZs. Atlas PrivateLink is separate and is not controlled by this knob.
+- **NAT Gateway:** Hourly plus data. This example sets `internet_egress = true` so Voyage can reach the internet. Leave NAT on for the walkthrough.
+- **VPC interface endpoints:** Five AWS interface endpoints (ECR API, ECR DKR, CloudWatch Logs, Secrets Manager, STS) bill per AZ-hour in private subnets. When Bedrock is the LLM provider (the default) a sixth endpoint, `bedrock-runtime`, is added. About $2.40/day for the five in `us-east-1` with two AZs, about $3.60/day with the bedrock endpoint. Set `llm_provider` to a keyed provider or `enable_llm = false` to keep five; set `vpc_config.bedrock_runtime_endpoint = false` to keep five while still using Bedrock over NAT. Atlas PrivateLink is separate and is not controlled by this knob.
 - **Atlas cluster:** Default is a sharded cluster (one shard) with compute auto-scaling from M10 to M200. Disk GB auto-scales either way.
 - **KMS, log export, backup export:** On by default via `atlas_integrations`. A customer-managed key has a monthly charge and a pending-delete window after destroy. Log and backup export create S3 buckets.
 - **CloudFront WAF:** AWS Managed Rules Common Rule Set, about $6/month if you leave the stack up.
@@ -158,7 +159,7 @@ atlas_integrations = {
 
 - **Skip WAF:** `http_edges = { main = { waf = { enabled = false } } }`. Do not use this to unblock Chainlit uploads or WebSockets; see [How do I turn WAF off?](#how-do-i-turn-waf-off) and [What is the file upload size limit?](#what-is-the-file-upload-size-limit).
 - **Skip ALB, CloudFront, and WAF:** `http_edges = {}` when you only run locally. Skip the app stack. NAT and the Atlas cluster still bill.
-- **Skip AWS interface VPC endpoints:** `vpc_config = { skip_interface_endpoints = true }`. Requires NAT (`internet_egress` is already true for this example). AWS API traffic uses public endpoints over NAT; Atlas PrivateLink and the S3 gateway stay.
+- **Skip AWS interface VPC endpoints:** `vpc_config = { skip_interface_endpoints = true }`. Requires NAT (`internet_egress` is already true for this example). AWS API traffic uses public endpoints over NAT; Atlas PrivateLink and the S3 gateway stay. This also omits the `bedrock-runtime` endpoint, so Bedrock calls go over NAT when this is set.
 
 ### How do I turn WAF off?
 
@@ -174,11 +175,24 @@ WAF inspects at most 16 KB of the body on CloudFront (64 KB if you raise the ins
 
 Do not set `waf.enabled = false` to fix uploads.
 
-### How do I add an LLM key?
+### How does the LLM answer work?
 
-The deploy step runs `just create-llm-secret` before `lz apply`. It writes a Secrets Manager secret and prints the name. Set `llm_secret_name` in lz tfvars. Skip the recipe for search-only (`ENABLE_LLM=false`). If you add a key after the first apply, re-apply lz before `just build-push`.
+The default provider is Amazon Bedrock with Amazon Nova Lite (`amazon.nova-lite-v1:0`). The ECS task role calls `bedrock-runtime` over a private interface endpoint, so there is no API key, no secret, and no manual approval step. `LLM_PROVIDER=bedrock`, `BEDROCK_MODEL`, and `AWS_REGION` are plain container env values in the app secret.
 
-The key is inlined as `llm_env_name` (default `ANTHROPIC_API_KEY`). `LLM_PROVIDER` is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`). Pin the model in `llm_env` (`ANTHROPIC_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `GROVE_MODEL`). Grove also needs `GROVE_BASE_URL`. OpenAI extras (`OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) go in `llm_env` too. Commented examples are in `lz/terraform.tfvars.example`.
+`ENABLE_LLM=false` (or `enable_llm = false` in tfvars) disables the LLM for every session, skips the task-role policy, and omits the `bedrock-runtime` endpoint. The **LLM answer** toggle is a per-session override when the env allows LLM.
+
+For a keyed provider, run `just create-llm-secret` before lz apply. It writes a Secrets Manager secret and prints the name; set `llm_secret_name` in lz tfvars. The key is inlined as `llm_env_name` (default `ANTHROPIC_API_KEY`). The provider is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`), and `llm_secret_name` wins over `llm_provider`. Pin the model in `llm_env` (`ANTHROPIC_MODEL`, `BEDROCK_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `GROVE_MODEL`). Grove also needs `GROVE_BASE_URL`. OpenAI extras (`OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) go in `llm_env` too. Commented examples are in `lz/terraform.tfvars.example`.
+
+The task role carries the Bedrock Converse policy. Prefer that over `AWS_ACCESS_KEY_ID` in the container; the static-key path is for local Docker only.
+
+### How do I use a more advanced Bedrock model?
+
+Both options need account-level setup and neither is automatic.
+
+- **Newer Amazon model (no form, no account change):** set `BEDROCK_MODEL = "us.amazon.nova-2-lite-v1:0"` in `llm_env` and re-apply lz. The `us.` prefix is required: Nova 2 Lite is inference-profile only, and the bare id fails with `... with on-demand throughput isn't supported`. Output is about 10x the price of Nova Lite.
+- **Anthropic Claude model (needs a one-time account step):** submit the Anthropic use-case details form in the Bedrock console for this account, then set the inference-profile id in `llm_env.BEDROCK_MODEL` (for example `us.anthropic.claude-haiku-4-5-20251001-v1:0`, with the `us.` prefix). The first call before the form is approved fails with `ResourceNotFoundException: Model use case details have not been submitted for this account`. Approval can take a short while, and it is per account and per region family. The task-role policy already covers these ids through `foundation-model/*` plus the inference-profile ARNs, so no IAM edit is needed.
+
+Cross-region caveat for both: the `bedrock-runtime` endpoint secures the source-region request only. When an inference profile routes inference to another region, that hop uses the AWS backbone, outside the VPC. The geographic profile choice, not the endpoint, is what keeps the hop in a region set. Endpoint-per-region is the strict-posture option.
 
 ### How do I tune retrieval breadth?
 
@@ -188,7 +202,7 @@ To change it on a deployed stack, edit `TOP_K` in `lz/main.tf` `llm_container_en
 
 ### Local Docker without ECS
 
-The optional `just dump-local-env` step after lz apply writes `secrets/.env.local` with `SKIP_INDEX_CREATION=false` and prints the compose command. For a local MongoDB instead of Atlas, use `docker/docker-compose.local-ui-atlas.yml`.
+The optional `just dump-local-env` step after lz apply writes `secrets/.env.local` with `SKIP_INDEX_CREATION=false` and prints the compose command. The default provider is Bedrock, so local Docker also needs AWS credentials: export short-lived SSO credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) in your shell, and the compose file passes them through along with `AWS_REGION`. For a local MongoDB instead of Atlas, use `docker/docker-compose.local-ui-atlas.yml`.
 
 ### Why does search fail with `localhost:28000`?
 

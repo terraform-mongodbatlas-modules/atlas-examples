@@ -9,7 +9,7 @@ from typing import Literal
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-LlmProvider = Literal["anthropic", "openai", "gemini", "grove"]
+LlmProvider = Literal["anthropic", "bedrock", "openai", "gemini", "grove"]
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
@@ -33,6 +33,7 @@ class HybridSearchSettings(BaseSettings):
     llm_provider: LlmProvider = "anthropic"
     anthropic_api_key: SecretStr | None = None
     anthropic_model: str = "claude-sonnet-4-20250514"
+    bedrock_model: str = "amazon.nova-lite-v1:0"
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4o"
     openai_base_url: str = "https://api.openai.com/v1"

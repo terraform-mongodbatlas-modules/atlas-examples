@@ -73,6 +73,7 @@ override_module {
 variables {
   atlas_org_id    = "org123"
   cluster_name    = "hybrid-search-ui"
+  enable_llm      = false
   llm_secret_name = null
   llm_env         = {}
 }
@@ -88,6 +89,8 @@ run "app_secret_nests_groups_and_voyage" {
       local.llm_container_env["ENABLE_LLM"] == "false",
       local.llm_container_env["SKIP_INDEX_CREATION"] == "true",
       !contains(keys(local.llm_container_env), "LLM_PROVIDER"),
+      !contains(keys(local.llm_container_env), "BEDROCK_MODEL"),
+      local.bedrock_runtime_endpoint == false,
       strcontains(local.llm_container_env["MONGODB_URI"], "authMechanism=MONGODB-AWS"),
       local.llm_container_env["MONGODB_DATABASE"] == "hybrid_search",
       local.llm_container_env["VOYAGE_BASE_URL"] == "https://ai.mongodb.com/v1",

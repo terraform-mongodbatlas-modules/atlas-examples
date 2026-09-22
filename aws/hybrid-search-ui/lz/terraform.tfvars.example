@@ -24,10 +24,34 @@ cluster_name = "hybrid-search-ui"
 # Find the IPv4 with: curl -fsS https://ifconfig.me
 # public_debug_access = { ip_address = "1.2.3.4" }
 
-# Optional LLM (just create-llm-secret, then paste the name).
+# LLM. Default is bedrock: no key, no secret, no manual step (uses the ECS
+# task role). Set llm_secret_name to switch to a keyed provider instead.
+#
+# Bedrock (default, no key needed):
+# llm_provider = "bedrock"
+# llm_env = {
+#   BEDROCK_MODEL = "amazon.nova-lite-v1:0"
+# }
+#
+# Newer Amazon model (inference-profile only; the us. prefix is required):
+# llm_env = {
+#   BEDROCK_MODEL = "us.amazon.nova-2-lite-v1:0"
+# }
+#
+# Anthropic Claude on Bedrock needs a one-time use-case form in the Bedrock
+# console for this account. Until it is approved the first call fails with
+# ResourceNotFoundException. Then set the inference-profile id:
+# llm_env = {
+#   BEDROCK_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+# }
+#
+# Search-only (no LLM, no bedrock-runtime endpoint):
+# enable_llm = false
+#
+# Keyed providers (just create-llm-secret, then paste the name).
 # LLM_PROVIDER is inferred from llm_env_name.
 #
-# Anthropic (default):
+# Anthropic:
 # llm_secret_name = "hybrid-search-ui-llm"
 # llm_env_name    = "ANTHROPIC_API_KEY"
 # llm_env = {
