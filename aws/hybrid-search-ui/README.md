@@ -85,7 +85,7 @@ docker compose -f docker/docker-compose.local-ui.yml --env-file secrets/.env.loc
 
 To use a keyed provider instead, run `just create-llm-secret`, paste the printed name into `lz/terraform.tfvars` as `llm.secret_name`, and re-apply lz. See [How does the LLM answer work?](#how-does-the-llm-answer-work).
 
-## Build the image and deploy the UI
+## Customize and Build the image
 
 Edit the following before `just build-push` if this hallway demo should not use the NIST/OWASP defaults. `demo_queries.yaml` and `docker/chainlit/config.toml` are copied into the image.
 
@@ -95,9 +95,9 @@ Edit the following before `just build-push` if this hallway demo should not use 
 ```sh
 # ECR is IMMUTABLE: bump image_tag in app/terraform.tfvars and the tag argument on every push.
 # just build-push builds the example-root Dockerfile (linux/arm64).
-just build-push "$(terraform -chdir=lz output -raw ecr_repository_url)" 0.0.1
+just build-push "$(terraform -chdir=lz output -raw ecr_repository_url)" 0.0.1 # 0.0.1 is the image_tag
 
-cp app/terraform.tfvars.example app/terraform.tfvars
+cp app/terraform.tfvars.example app/terraform.tfvars # uses 0.0.1 as the image_tag
 # app_secret_name default is hybrid-search-ui-app (matches lz). task_cpu / task_memory default 1024 / 2048.
 terraform -chdir=app init
 terraform -chdir=app apply
@@ -131,9 +131,7 @@ Open **Chat Settings** (gear icon) to toggle retrieval and answer stages per cha
 
 - **Keyword search:** Atlas Search text index on chunk content.
 - **Vector search:** Atlas Vector Search with Automated Embedding. The query is sent as text and Atlas embeds it.
-- **LLM answer:** pydantic-ai answer over retrieved chunks. Off skips the LLM and shows ranked hits (score, filename, snippet) instead.
-
-Common no-LLM demos: keyword only, vector only, or keyword + vector with **LLM answer** off (`$rankFusion` hits without an LLM call).
+- **LLM answer:** pydantic-ai answer over retrieved chunks. Off skips the LLM and shows ranked hits (using `$rankFusion`) combining Keyword search and Vector search (score, filename, snippet) instead.
 
 `ENABLE_LLM=false` in deploy env disables LLM for every session. The **LLM answer** toggle is a per-session override when the env allows LLM.
 
