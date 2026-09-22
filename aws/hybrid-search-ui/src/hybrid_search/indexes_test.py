@@ -9,6 +9,7 @@ from pymongo.errors import OperationFailure
 from pymongo.operations import SearchIndexModel
 
 from hybrid_search.indexes import (
+    autoembed_index_definition,
     create_chunks_indexes_if_missing,
     format_index_ready_line,
     wait_chunks_indexes_ready,
@@ -20,7 +21,6 @@ from hybrid_search.settings import HybridSearchSettings
 def settings() -> HybridSearchSettings:
     return HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),
-        voyage_api_key=SecretStr("key"),
     )
 
 
@@ -33,7 +33,7 @@ async def test_create_indexes_when_missing(settings):
     assert collection.create_search_index.await_count == 2
     models = [call.args[0] for call in collection.create_search_index.await_args_list]
     assert all(isinstance(model, SearchIndexModel) for model in models)
-    assert models[0].document["name"] == "vector_idx"
+    assert models[0].document["name"] == "autoembed_idx"
     assert models[1].document["name"] == "text_idx"
 
 
@@ -101,8 +101,11 @@ async def test_reraises_list_indexes_other_operation_failure(settings):
 async def test_wait_until_ready(settings):
     statuses = iter(
         [
-            [{"name": "vector_idx", "status": "BUILDING"}, {"name": "text_idx", "status": "READY"}],
-            [{"name": "vector_idx", "status": "READY"}, {"name": "text_idx", "status": "READY"}],
+            [
+                {"name": "autoembed_idx", "status": "BUILDING"},
+                {"name": "text_idx", "status": "READY"},
+            ],
+            [{"name": "autoembed_idx", "status": "READY"}, {"name": "text_idx", "status": "READY"}],
         ]
     )
     collection = MagicMock()
@@ -112,7 +115,7 @@ async def test_wait_until_ready(settings):
 
     ready = await wait_chunks_indexes_ready(collection, settings, timeout_s=5, interval_s=0)
     assert ("chunks", "text_idx", "READY") in ready
-    assert ("chunks", "vector_idx", "READY") in ready
+    assert ("chunks", "autoembed_idx", "READY") in ready
 
 
 @pytest.mark.asyncio
@@ -126,7 +129,7 @@ async def test_wait_materializes_namespace_when_list_missing(settings, caplog):
         side_effect=[
             OperationFailure("database hybrid_search not found", 26),
             [
-                {"name": "vector_idx", "status": "READY"},
+                {"name": "autoembed_idx", "status": "READY"},
                 {"name": "text_idx", "status": "READY"},
             ],
         ]
@@ -136,10 +139,27 @@ async def test_wait_materializes_namespace_when_list_missing(settings, caplog):
     ready = await wait_chunks_indexes_ready(collection, settings, timeout_s=5, interval_s=0)
 
     collection.insert_one.assert_awaited()
-    assert ("chunks", "vector_idx", "READY") in ready
+    assert ("chunks", "autoembed_idx", "READY") in ready
     assert "hybrid_search.chunks" in caplog.text
 
 
+def test_autoembed_index_definition():
+    definition = autoembed_index_definition(model="voyage-4-lite")
+    assert definition["fields"][0] == {
+        "type": "autoEmbed",
+        "modality": "text",
+        "path": "content",
+        "model": "voyage-4-lite",
+    }
+    assert definition["fields"][1] == {"type": "filter", "path": "file_path"}
+
+
+def test_autoembed_index_definition_has_no_dimensions():
+    definition = autoembed_index_definition(model="voyage-4-lite")
+    assert "numDimensions" not in str(definition)
+    assert all(field.get("type") != "vector" for field in definition["fields"])
+
+
 def test_format_index_ready_line():
-    line = format_index_ready_line("chunks", "vector_idx")
-    assert line.endswith(" chunks.vector_idx READY")
+    line = format_index_ready_line("chunks", "autoembed_idx")
+    assert line.endswith(" chunks.autoembed_idx READY")

@@ -44,10 +44,10 @@ mock_provider "aws" {
             CHAINLIT_DEMO_USERNAME = "demo"
             MONGODB_URI            = "mongodb+srv://pl-0.example.mongodb.net/?authSource=%24external&authMechanism=MONGODB-AWS"
             MONGODB_DATABASE       = "hybrid_search"
-            VOYAGE_BASE_URL        = "https://ai.mongodb.com/v1"
+            AUTOEMBED_MODEL        = "voyage-4-lite"
             TOP_K                  = "20"
           }
-          secret_keys = ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"]
+          secret_keys = ["CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"]
         }
       })
     }

@@ -24,7 +24,6 @@ def _clear_settings_cache():
 def _settings(**overrides: object) -> HybridSearchSettings:
     base = {
         "mongodb_uri": SecretStr("mongodb+srv://user:pass@cluster"),
-        "voyage_api_key": SecretStr("voyage-key"),
     }
     base.update(overrides)
     return HybridSearchSettings(**base)
@@ -34,18 +33,27 @@ def test_defaults():
     settings = _settings()
     assert settings.top_k == 20
     assert settings.mongodb_database == "hybrid_search"
-    assert settings.vector_index_name == "vector_idx"
+    assert settings.autoembed_model == "voyage-4-lite"
+    assert settings.chunk_max_tokens == 512
+    assert settings.vector_index_name == "autoembed_idx"
     assert settings.text_index_name == "text_idx"
     assert settings.demo_queries_path == Path("demo_queries.yaml")
+
+
+def test_voyage_fields_are_not_settings():
+    settings = _settings()
+    assert not hasattr(settings, "voyage_api_key")
+    assert not hasattr(settings, "voyage_model")
 
 
 def test_env_override(monkeypatch):
     monkeypatch.setenv("TOP_K", "15")
     monkeypatch.setenv("DEMO_QUERIES_PATH", "/tmp/custom.yaml")
     monkeypatch.setenv("MONGODB_URI", "mongodb://localhost:27017")
-    monkeypatch.setenv("VOYAGE_API_KEY", "key")
+    monkeypatch.setenv("AUTOEMBED_MODEL", "voyage-4")
     settings = HybridSearchSettings()
     assert settings.top_k == 15
+    assert settings.autoembed_model == "voyage-4"
     assert settings.demo_queries_path == Path("/tmp/custom.yaml")
 
 
@@ -61,7 +69,6 @@ def test_skip_index_creation_default():
 def test_skip_index_creation_env(monkeypatch):
     monkeypatch.setenv("SKIP_INDEX_CREATION", "true")
     monkeypatch.setenv("MONGODB_URI", "mongodb://localhost")
-    monkeypatch.setenv("VOYAGE_API_KEY", "key")
     clear_settings_cache()
     assert get_settings().skip_index_creation is True
 
@@ -73,7 +80,6 @@ def test_log_level_default():
 def test_log_level_env_uppercases(monkeypatch):
     monkeypatch.setenv("LOG_LEVEL", "debug")
     monkeypatch.setenv("MONGODB_URI", "mongodb://localhost")
-    monkeypatch.setenv("VOYAGE_API_KEY", "key")
     clear_settings_cache()
     assert get_settings().log_level == "DEBUG"
 

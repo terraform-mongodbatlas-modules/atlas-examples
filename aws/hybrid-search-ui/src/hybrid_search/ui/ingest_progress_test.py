@@ -53,8 +53,8 @@ def test_skipped_and_error_include_detail():
     text = render_ingest_batch(
         [
             FileProgress(name="notes.exe", status="skipped", detail="unsupported type"),
-            FileProgress(name="bad.pdf", status="error", detail="voyage timeout"),
+            FileProgress(name="bad.pdf", status="error", detail="embed timeout"),
         ]
     )
     assert "- notes.exe: unsupported type" in text
-    assert "- bad.pdf: voyage timeout" in text
+    assert "- bad.pdf: embed timeout" in text

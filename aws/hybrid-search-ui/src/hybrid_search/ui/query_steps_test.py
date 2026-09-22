@@ -17,10 +17,7 @@ _SEARCH_RESULT = SearchResult(
     references=_REFERENCES,
     pipeline=RetrievalPipeline.RANK_FUSION,
 )
-_SETTINGS = HybridSearchSettings(
-    mongodb_uri=SecretStr("mongodb://localhost"),
-    voyage_api_key=SecretStr("key"),
-)
+_SETTINGS = HybridSearchSettings(mongodb_uri=SecretStr("mongodb://localhost"))
 _MODULE = query_steps.__name__
 
 
@@ -66,7 +63,6 @@ async def test_run_query_with_steps_calls_retrieve_then_answer():
             "risk",
             settings=_SETTINGS,
             collection=MagicMock(),
-            voyage=MagicMock(),
             modes=SearchModes(),
         )
 
@@ -97,7 +93,6 @@ async def test_run_query_with_steps_retrieval_only_formats_in_answer_step():
             "risk",
             settings=_SETTINGS,
             collection=MagicMock(),
-            voyage=MagicMock(),
             modes=SearchModes(keyword=True, vector=True, llm=False),
         )
 

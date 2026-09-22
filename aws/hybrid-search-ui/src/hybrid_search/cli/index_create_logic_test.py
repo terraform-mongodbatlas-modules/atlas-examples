@@ -21,7 +21,6 @@ def _clear_settings():
 def test_index_create_logs_ready_lines(monkeypatch, caplog):
     settings = HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),
-        voyage_api_key=SecretStr("key"),
     )
     client = MagicMock()
     client.close = MagicMock()
@@ -58,7 +57,6 @@ def test_index_create_logs_ready_lines(monkeypatch, caplog):
 def test_index_create_ignores_skip_flag(monkeypatch):
     monkeypatch.setenv("SKIP_INDEX_CREATION", "true")
     monkeypatch.setenv("MONGODB_URI", "mongodb://localhost")
-    monkeypatch.setenv("VOYAGE_API_KEY", "key")
     clear_settings_cache()
     settings = get_settings().model_copy(update={"skip_index_creation": False})
     assert settings.skip_index_creation is False

@@ -25,7 +25,6 @@ def test_unique_source_files_basenames_dedupe_skip_unknown():
 async def test_generate_answer_retrieval_only():
     settings = HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),
-        voyage_api_key=SecretStr("key"),
         enable_llm=False,
     )
     result = await generate_module.generate_answer(
@@ -41,7 +40,6 @@ async def test_generate_answer_retrieval_only():
 async def test_generate_answer_calls_llm(monkeypatch):
     settings = HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),
-        voyage_api_key=SecretStr("key"),
         anthropic_api_key=SecretStr("anthropic-key"),
     )
     mock_run = AsyncMock(return_value="answer text")

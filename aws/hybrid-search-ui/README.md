@@ -1,12 +1,12 @@
 # Hybrid Search UI on AWS
 
-You end with a CloudFront URL and a Chainlit chat that answers from files you uploaded in the browser. Upload runs extract → Voyage `voyage-context-4` auto-chunk/embed → upsert into `chunks`. Each question embeds the query, runs Atlas `$rankFusion` (vector + text pipelines on those chunks), then optionally calls an LLM. Answers list source filenames. The app never sees a public Mongo endpoint. Terraform is two stacks: Landing Zone, then ECS.
+You end with a CloudFront URL and a Chainlit chat that answers from files you uploaded in the browser. Upload runs extract → chunk → upsert into `chunks`; Atlas Automated Embedding (`autoEmbed`) embeds each chunk inside the cluster from the `content` field. Each question runs Atlas `$rankFusion` (vector + text pipelines on those chunks) with the query as text, then optionally calls an LLM. Answers list source filenames. The app never sees a public Mongo endpoint. Terraform is two stacks: Landing Zone, then ECS.
 
 The `$rankFusion` pipeline in `src/hybrid_search/search.py` is adapted from [Hybrid-Search-RAG](https://github.com/romiluz13/Hybrid-Search-RAG) (`hybrid_search_with_rank_fusion`, Apache-2.0). The shipped app is the in-example `hybrid_search` package in this directory, not HybridRAG.
 
 ## What this creates
 
-- **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role, Voyage AI model API key.
+- **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role.
 - **AWS:** VPC (private subnets plus NAT and public subnets for the ALB), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
 - **LLM:** Amazon Bedrock by default. The ECS task role calls `bedrock-runtime` (Amazon Nova Lite) over a private interface endpoint, so there is no API key, no secret, and no manual approval step. A keyed provider still works when you set `llm_secret_name`.
 - **App:** ECS cluster, Fargate service running the in-example Chainlit image (port 8001), built from this directory's `Dockerfile`. Indexes are a one-shot `ecs run-task` of that same image with `hybrid-search index create`, not a second service.
@@ -20,7 +20,7 @@ aws/hybrid-search-ui/
 ├── src/hybrid_search/  # in-example Python app
 ├── scripts/            # seed download (cache/ is gitignored)
 ├── docker/             # local compose stacks; chainlit/config.toml is the image UI title
-├── lz/                 # Atlas + AWS infra, Voyage, Chainlit, app secret
+├── lz/                 # Atlas + AWS infra, autoEmbed, Chainlit, app secret
 └── app/                # ECS cluster + service
 aws/modules/lz/
 aws/modules/ecs-service/
@@ -53,7 +53,7 @@ This stack costs money while it is up (NAT, auto-scaling cluster, WAF). See [How
 ## Deploy Atlas and AWS infra
 
 ```sh
-# Creates the project, cluster, VPC, CloudFront, IAM, ECR, Voyage key, and nested app secret JSON.
+# Creates the project, cluster, VPC, CloudFront, IAM, ECR, and nested app secret JSON.
 # The default LLM is Bedrock, so there is no key step.
 terraform -chdir=lz init
 terraform -chdir=lz apply
@@ -105,14 +105,14 @@ Log in as `demo` with the password from `terraform -chdir=lz output -raw chainli
 
 The browser tab is **MongoDB AI risk** (`[UI] name` in the Chainlit config). Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`).
 
-NIST PDFs can take several minutes because Voyage embeds every chunk. Progress updates an **Ingest** step in the thread with chunk counts and elapsed time.
+NIST PDFs can take a few minutes. The app chunks the text in-process, then Atlas embeds each chunk inside the cluster. Progress updates an **Ingest** step in the thread with chunk counts and elapsed time.
 
 ### Search modes
 
 Open **Chat Settings** (gear icon) to toggle retrieval and answer stages per chat session. All three default to on.
 
 - **Keyword search:** Atlas Search text index on chunk content.
-- **Vector search:** Voyage query embed plus Atlas Vector Search.
+- **Vector search:** Atlas Vector Search with Automated Embedding. The query is sent as text and Atlas embeds it.
 - **LLM answer:** pydantic-ai answer over retrieved chunks. Off skips the LLM and shows ranked hits (score, filename, snippet) instead.
 
 Common no-LLM demos: keyword only, vector only, or keyword + vector with **LLM answer** off (`$rankFusion` hits without an LLM call).
@@ -134,7 +134,7 @@ terraform -chdir=lz destroy
 
 The following stay billed while the stack is up:
 
-- **NAT Gateway:** Hourly plus data. This example sets `internet_egress = true` so Voyage can reach the internet. Leave NAT on for the walkthrough.
+- **NAT Gateway:** Hourly plus data. The default Bedrock configuration runs with `internet_egress = false`. Set `internet_egress = true` only when a keyed LLM provider (`grove`, `openai`, `anthropic`, `gemini`) must reach the internet.
 - **VPC interface endpoints:** Five AWS interface endpoints (ECR API, ECR DKR, CloudWatch Logs, Secrets Manager, STS) bill per AZ-hour in private subnets. When Bedrock is the LLM provider (the default) a sixth endpoint, `bedrock-runtime`, is added. About $2.40/day for the five in `us-east-1` with two AZs, about $3.60/day with the bedrock endpoint. Set `llm_provider` to a keyed provider or `enable_llm = false` to keep five; set `vpc_config.bedrock_runtime_endpoint = false` to keep five while still using Bedrock over NAT. Atlas PrivateLink is separate and is not controlled by this knob.
 - **Atlas cluster:** Default is a sharded cluster (one shard) with compute auto-scaling from M10 to M200. Disk GB auto-scales either way.
 - **KMS, log export, backup export:** On by default via `atlas_integrations`. A customer-managed key has a monthly charge and a pending-delete window after destroy. Log and backup export create S3 buckets.
@@ -159,7 +159,7 @@ atlas_integrations = {
 
 - **Skip WAF:** `http_edges = { main = { waf = { enabled = false } } }`. Do not use this to unblock Chainlit uploads or WebSockets; see [How do I turn WAF off?](#how-do-i-turn-waf-off) and [What is the file upload size limit?](#what-is-the-file-upload-size-limit).
 - **Skip ALB, CloudFront, and WAF:** `http_edges = {}` when you only run locally. Skip the app stack. NAT and the Atlas cluster still bill.
-- **Skip AWS interface VPC endpoints:** `vpc_config = { skip_interface_endpoints = true }`. Requires NAT (`internet_egress` is already true for this example). AWS API traffic uses public endpoints over NAT; Atlas PrivateLink and the S3 gateway stay. This also omits the `bedrock-runtime` endpoint, so Bedrock calls go over NAT when this is set.
+- **Skip AWS interface VPC endpoints:** `vpc_config = { skip_interface_endpoints = true }`. AWS API traffic uses public endpoints over NAT; Atlas PrivateLink and the S3 gateway stay. This also omits the `bedrock-runtime` endpoint, so Bedrock calls go over NAT when this is set and `internet_egress = true`.
 
 ### How do I turn WAF off?
 
@@ -208,11 +208,11 @@ The optional `just dump-local-env` step after lz apply writes `secrets/.env.loca
 
 ### Why does search fail with `localhost:28000`?
 
-`$rankFusion` runs `$search` on the Atlas cluster. `mongod` then connects to Atlas Search (`mongot`) at `127.0.0.1:28000` on that same node. `HostUnreachable` / connection refused means `mongot` is not listening. The UI is not talking to MongoDB on your laptop, so this is not a failed `MONGODB_URI` load. If Voyage embeddings succeed and this error follows, the URI loaded.
+`$rankFusion` runs `$search` on the Atlas cluster. `mongod` then connects to Atlas Search (`mongot`) at `127.0.0.1:28000` on that same node. `HostUnreachable` / connection refused means `mongot` is not listening. The UI is not talking to MongoDB on your laptop, so this is not a failed `MONGODB_URI` load. If ingest chunks succeeded and this error follows, the URI loaded.
 
 This example does not create dedicated Search Nodes. They are optional production isolation ([Search deployment options](https://www.mongodb.com/docs/search/deployment/deployment-options/)). On M10+ Atlas, including this sharded lab cluster, `mongot` runs next to `mongod` after the first Search or Vector Search index exists.
 
-Confirm `chunks.text_idx` and `chunks.vector_idx` are READY. `just dump-local-env` writes `SKIP_INDEX_CREATION=false`, so local compose creates indexes on boot. For the ECS UI, run `just index-create` if they were never created, then wait until READY. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
+Confirm `chunks.text_idx` and `chunks.autoembed_idx` are READY. `just dump-local-env` writes `SKIP_INDEX_CREATION=false`, so local compose creates indexes on boot. For the ECS UI, run `just index-create` if they were never created, then wait until READY. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
 
 ### What is the app secret name?
 

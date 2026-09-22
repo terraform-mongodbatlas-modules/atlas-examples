@@ -25,8 +25,7 @@ locals {
       MONGODB_URI            = local.ui.mongo.connection_string
       SKIP_INDEX_CREATION    = "true"
       TOP_K                  = "20"
-      VOYAGE_BASE_URL        = module.voyage_api_key.voyage_base_url
-      VOYAGE_MODEL           = var.voyage_model
+      AUTOEMBED_MODEL        = var.autoembed_model
     },
     local.llm_enabled ? { LLM_PROVIDER = local.llm_provider } : {},
     local.bedrock_enabled ? {
@@ -39,7 +38,7 @@ locals {
     var.llm_env
   ) : {}
   container_secret_keys = concat(
-    ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
+    ["CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
     sort(keys(local.llm_app_secrets))
   )
   # CRS SizeRestrictions_BODY blocks bodies over 8 KB. Chainlit POST /project/file
@@ -95,13 +94,6 @@ module "lz" {
   public_debug_access = var.public_debug_access
 }
 
-module "voyage_api_key" {
-  source = "./modules/voyage_api_key"
-
-  project_id = module.lz.atlas.project_id
-  key_name   = var.voyage_key_name
-}
-
 resource "random_password" "chainlit_auth" {
   length  = 64
   special = false
@@ -141,7 +133,6 @@ resource "aws_secretsmanager_secret_version" "app" {
       env         = local.llm_container_env
       secret_keys = local.container_secret_keys
     }
-    VOYAGE_API_KEY         = module.voyage_api_key.api_key
     CHAINLIT_AUTH_SECRET   = random_password.chainlit_auth.result
     CHAINLIT_DEMO_PASSWORD = random_password.chainlit_demo.result
   }, local.llm_app_secrets))

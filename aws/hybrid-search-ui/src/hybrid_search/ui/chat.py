@@ -9,7 +9,6 @@ from pathlib import Path
 import chainlit as cl
 from pymongo.errors import PyMongoError
 
-from hybrid_search import voyage as voyage_module
 from hybrid_search.indexes import create_chunks_indexes_if_missing
 from hybrid_search.ingest import (
     delete_all_chunks,
@@ -102,17 +101,15 @@ async def on_chat_start():
         load_demo_queries(settings.demo_queries_path)
         client = get_client(settings)
         collection = chunks_collection(client, settings)
-        voyage = voyage_module.build_voyage_client(settings)
         if not settings.skip_index_creation:
             await create_chunks_indexes_if_missing(collection, settings)
         cl.user_session.set("settings", settings)
         cl.user_session.set("client", client)
         cl.user_session.set("collection", collection)
-        cl.user_session.set("voyage", voyage)
     except (OSError, ValueError, RuntimeError, TypeError, PyMongoError) as exc:
         logger.exception("Startup failed")
         await cl.Message(
-            content=(f"Startup failed. Check MONGODB_URI, VOYAGE_API_KEY, and Atlas access: {exc}")
+            content=(f"Startup failed. Check MONGODB_URI and Atlas access: {exc}")
         ).send()
         return
     set_ui_mode(UiMode.QUERY)
@@ -203,10 +200,9 @@ async def _show_demo_questions() -> None:
 async def _handle_query(query: str):
     settings = cl.user_session.get("settings")
     collection = cl.user_session.get("collection")
-    voyage = cl.user_session.get("voyage")
     modes = cl.user_session.get(SEARCH_MODES_KEY, DEFAULT)
     result = await run_query_with_steps(
-        query, settings=settings, collection=collection, voyage=voyage, modes=modes
+        query, settings=settings, collection=collection, modes=modes
     )
     if not result.answer:
         return
@@ -342,7 +338,6 @@ async def on_cancel(_action: cl.Action):
 async def _ingest_named_paths(named_paths: list[tuple[str, Path]]) -> None:
     settings = cl.user_session.get("settings")
     collection = cl.user_session.get("collection")
-    voyage = cl.user_session.get("voyage")
     ingested_names = await ingested_display_names(collection)
     batch_names: set[str] = set()
     progress: list[FileProgress] = []
@@ -384,7 +379,6 @@ async def _ingest_named_paths(named_paths: list[tuple[str, Path]]) -> None:
                     path,
                     settings=settings,
                     collection=collection,
-                    voyage=voyage,
                     source_name=name,
                     on_progress=on_progress,
                 )

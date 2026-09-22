@@ -1,7 +1,7 @@
 [project]
 name = "hybrid-search"
 version = "0.1.0"
-description = "Lean hybrid search demo: Voyage ingest and Atlas $rankFusion"
+description = "Lean hybrid search demo: Atlas autoEmbed ingest and Atlas $rankFusion"
 requires-python = ">=3.13"
 dependencies = [
     "certifi",
@@ -10,7 +10,6 @@ dependencies = [
     "pydantic-settings",
     "pymongo",
     "typer",
-    "voyageai",
 ]
 
 [project.scripts]

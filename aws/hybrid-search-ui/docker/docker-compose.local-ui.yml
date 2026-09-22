@@ -19,9 +19,7 @@ services:
     environment:
       MONGODB_URI: ${MONGODB_URI:?set MONGODB_URI in secrets/.env.local}
       MONGODB_DATABASE: ${MONGODB_DATABASE:-hybrid_search}
-      VOYAGE_API_KEY: ${VOYAGE_API_KEY:?set VOYAGE_API_KEY in secrets/.env.local}
-      VOYAGE_BASE_URL: ${VOYAGE_BASE_URL:-}
-      VOYAGE_MODEL: ${VOYAGE_MODEL:-voyage-context-4}
+      AUTOEMBED_MODEL: ${AUTOEMBED_MODEL:-voyage-4-lite}
       LLM_PROVIDER: ${LLM_PROVIDER:-bedrock}
       ENABLE_LLM: ${ENABLE_LLM:-true}
       SKIP_INDEX_CREATION: ${SKIP_INDEX_CREATION:-false}

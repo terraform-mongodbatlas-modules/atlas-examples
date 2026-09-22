@@ -3,14 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import voyageai
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from hybrid_search.generate import generate_answer, unique_source_files
 from hybrid_search.search import SearchResult, search_with_modes
 from hybrid_search.search_modes import DEFAULT, SearchModes
 from hybrid_search.settings import HybridSearchSettings
-from hybrid_search.voyage import embed_query
 
 
 @dataclass(frozen=True)
@@ -28,15 +26,10 @@ async def retrieve(
     modes: SearchModes,
     settings: HybridSearchSettings,
     collection: AsyncIOMotorCollection,
-    voyage: voyageai.AsyncClient,
 ) -> SearchResult:
     modes.validate_retrieval()
-    query_vector = None
-    if modes.vector:
-        query_vector = await embed_query(query, client=voyage, settings=settings)
     return await search_with_modes(
         query,
-        query_vector,
         modes=modes,
         collection=collection,
         settings=settings,
@@ -75,7 +68,6 @@ async def answer_query(
     *,
     settings: HybridSearchSettings,
     collection: AsyncIOMotorCollection,
-    voyage: voyageai.AsyncClient,
     modes: SearchModes = DEFAULT,
 ) -> QueryResult:
     search_result = await retrieve(
@@ -83,6 +75,5 @@ async def answer_query(
         modes=modes,
         settings=settings,
         collection=collection,
-        voyage=voyage,
     )
     return await answer_or_format(query, search_result, modes=modes, settings=settings)

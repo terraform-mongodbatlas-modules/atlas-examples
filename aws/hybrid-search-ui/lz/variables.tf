@@ -182,7 +182,7 @@ variable "ecs_apps" {
     ui = {
       name            = "hybrid-search-ui"
       ecr_key         = "ui"
-      internet_egress = true
+      internet_egress = false
       routing = {
         edge              = "main"
         listener_priority = 100
@@ -254,14 +254,8 @@ variable "llm_env" {
   }
 }
 
-variable "voyage_key_name" {
-  description = "Atlas AI Model API key name."
+variable "autoembed_model" {
+  description = "Atlas autoEmbed model used by the vector search index."
   type        = string
-  default     = "hybrid-search-ui-voyage"
-}
-
-variable "voyage_model" {
-  description = "Atlas AI Model name."
-  type        = string
-  default     = "voyage-context-4"
+  default     = "voyage-4-lite"
 }

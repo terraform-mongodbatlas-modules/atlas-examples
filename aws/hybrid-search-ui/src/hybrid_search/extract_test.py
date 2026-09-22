@@ -47,3 +47,27 @@ def test_iter_pdf_page_groups(monkeypatch):
 
 def test_text_needs_split():
     assert extract_module.text_needs_split("x" * (120_000 * 4)) is True
+
+
+def test_chunk_text_single_small_input():
+    assert extract_module.chunk_text("hello", max_tokens=512) == ["hello"]
+
+
+def test_chunk_text_splits_on_paragraph_boundaries():
+    paragraph = "a" * 1000
+    text = "\n\n".join([paragraph] * 5)
+    chunks = extract_module.chunk_text(text, max_tokens=1000)
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 4000 for chunk in chunks)
+    assert "".join(chunks).replace("\n\n", "") == text.replace("\n\n", "")
+
+
+def test_chunk_text_hard_splits_oversized_paragraph():
+    paragraph = "b" * 10_000
+    chunks = extract_module.chunk_text(paragraph, max_tokens=1000)
+    assert len(chunks) == 3
+    assert all(len(chunk) <= 4000 for chunk in chunks)
+
+
+def test_chunk_text_skips_blank_input():
+    assert extract_module.chunk_text("   \n\n  ", max_tokens=512) == []

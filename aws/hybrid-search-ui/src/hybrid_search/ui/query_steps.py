@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import chainlit as cl
-import voyageai
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from hybrid_search.search import SearchResult
@@ -14,10 +13,7 @@ from hybrid_search.ui.result_format import format_retrieval_body, retrieval_head
 def _retrieval_status(search_result: SearchResult, modes: SearchModes) -> str:
     if not modes.vector:
         return "Keyword search (no query embedding)"
-    header = retrieval_header(
-        search_result.pipeline,
-        vector_skipped_reason=search_result.vector_skipped_reason,
-    )
+    header = retrieval_header(search_result.pipeline)
     return f"{header} · {len(search_result.references)} hits"
 
 
@@ -29,12 +25,7 @@ def _answer_output(result: QueryResult) -> str:
         else:
             footer = "### Sources\nNo sources retrieved"
         return f"{result.answer}\n\n{footer}"
-    return format_retrieval_body(
-        result.references,
-        modes=result.modes,
-        pipeline=result.search_result.pipeline,
-        vector_skipped_reason=result.search_result.vector_skipped_reason,
-    )
+    return format_retrieval_body(result.references)
 
 
 async def run_query_with_steps(
@@ -42,7 +33,6 @@ async def run_query_with_steps(
     *,
     settings: HybridSearchSettings,
     collection: AsyncIOMotorCollection,
-    voyage: voyageai.AsyncClient,
     modes: SearchModes,
 ) -> QueryResult:
     async with cl.Step(name="Query", type="run"):
@@ -52,7 +42,6 @@ async def run_query_with_steps(
                 modes=modes,
                 settings=settings,
                 collection=collection,
-                voyage=voyage,
             )
             retrieve_step.output = _retrieval_status(search_result, modes)
             await retrieve_step.update()

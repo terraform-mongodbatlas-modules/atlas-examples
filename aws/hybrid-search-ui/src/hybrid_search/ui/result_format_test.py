@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from hybrid_search.search import ZERO_QUERY_EMBEDDING, RetrievalPipeline
-from hybrid_search.search_modes import SearchModes
+from hybrid_search.search import RetrievalPipeline
 from hybrid_search.ui.result_format import (
     format_retrieval_body,
     format_retrieval_results,
     retrieval_header,
 )
-
-_MODES = SearchModes(keyword=True, vector=True, llm=False)
 
 
 def test_retrieval_header_fused():
@@ -17,18 +14,14 @@ def test_retrieval_header_fused():
     )
 
 
-def test_retrieval_header_keyword_fallback():
-    header = retrieval_header(
-        RetrievalPipeline.KEYWORD,
-        vector_skipped_reason=ZERO_QUERY_EMBEDDING,
-    )
-    assert header == "Keyword search only (vector skipped: zero query embedding)"
+def test_retrieval_header_keyword_only():
+    header = retrieval_header(RetrievalPipeline.KEYWORD)
+    assert header == "Keyword search only"
 
 
 def test_format_retrieval_results_empty():
     text = format_retrieval_results(
         [],
-        modes=_MODES,
         pipeline=RetrievalPipeline.RANK_FUSION,
     )
     assert "Keyword + vector retrieval" in text
@@ -40,7 +33,6 @@ def test_format_retrieval_results_one_hit():
     refs = [{"file_path": "docs/NIST.AI.100-1.pdf", "content": "AI RMF context", "score": 0.87}]
     text = format_retrieval_results(
         refs,
-        modes=SearchModes(keyword=True, vector=False),
         pipeline=RetrievalPipeline.KEYWORD,
     )
     assert "Keyword search only" in text
@@ -51,7 +43,7 @@ def test_format_retrieval_results_one_hit():
 
 def test_format_retrieval_results_truncates_snippet():
     refs = [{"file_path": "a.txt", "content": "x" * 250, "score": 1.0}]
-    text = format_retrieval_results(refs, modes=_MODES, pipeline=RetrievalPipeline.RANK_FUSION)
+    text = format_retrieval_results(refs, pipeline=RetrievalPipeline.RANK_FUSION)
     assert "…" in text
     assert "x" * 201 not in text
 
@@ -64,22 +56,12 @@ def test_format_retrieval_body_strips_markdown_noise():
             "score": 3.4,
         }
     ]
-    text = format_retrieval_body(
-        refs,
-        modes=_MODES,
-        pipeline=RetrievalPipeline.RANK_FUSION,
-    )
+    text = format_retrieval_body(refs)
     assert "## Description" not in text
     assert "> Description Vector-store protection" in text
     assert "\n9. " not in text
 
 
-def test_format_retrieval_body_vector_skip_notice():
-    text = format_retrieval_body(
-        [],
-        modes=_MODES,
-        pipeline=RetrievalPipeline.KEYWORD,
-        vector_skipped_reason=ZERO_QUERY_EMBEDDING,
-    )
-    assert "Vector search was not used" in text
-    assert "ai-dev.mongodb.com" in text
+def test_format_retrieval_body_empty():
+    text = format_retrieval_body([])
+    assert "No matching chunks found." in text

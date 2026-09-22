@@ -40,8 +40,7 @@ services:
     environment:
       MONGODB_URI: mongodb://mongodb:27017/?directConnection=true
       MONGODB_DATABASE: ${MONGODB_DATABASE:-hybrid_search}
-      VOYAGE_API_KEY: ${VOYAGE_API_KEY:?set VOYAGE_API_KEY in secrets/.env.local}
-      VOYAGE_BASE_URL: ${VOYAGE_BASE_URL:-}
+      AUTOEMBED_MODEL: ${AUTOEMBED_MODEL:-voyage-4-lite}
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       ENABLE_LLM: ${ENABLE_LLM:-true}
       SKIP_INDEX_CREATION: ${SKIP_INDEX_CREATION:-false}

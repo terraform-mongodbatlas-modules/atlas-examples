@@ -11,7 +11,6 @@ from hybrid_search.settings import HybridSearchSettings
 def test_cmd_index_create_applies_settings_log_level(monkeypatch):
     settings = HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),
-        voyage_api_key=SecretStr("key"),
         log_level="DEBUG",
     )
     applied: list[str] = []

@@ -8,7 +8,7 @@ _SECRET = {
         "env": {
             "MONGODB_URI": "mongodb+srv://iam@cluster/?authMechanism=MONGODB-AWS",
             "MONGODB_DATABASE": "hybrid_search",
-            "VOYAGE_BASE_URL": "https://ai.mongodb.com/v1",
+            "AUTOEMBED_MODEL": "voyage-4-lite",
             "ENABLE_LLM": "true",
             "LLM_PROVIDER": "anthropic",
             "SKIP_INDEX_CREATION": "true",
@@ -16,13 +16,11 @@ _SECRET = {
             "CHAINLIT_DEMO_USERNAME": "demo",
         },
         "secret_keys": [
-            "VOYAGE_API_KEY",
             "CHAINLIT_AUTH_SECRET",
             "CHAINLIT_DEMO_PASSWORD",
             "ANTHROPIC_API_KEY",
         ],
     },
-    "VOYAGE_API_KEY": "voyage-key",
     "CHAINLIT_AUTH_SECRET": "auth",
     "CHAINLIT_DEMO_PASSWORD": "demo-pass",
     "ANTHROPIC_API_KEY": "llm-key",
@@ -36,8 +34,10 @@ def test_maps_public_uri_and_drops_chainlit() -> None:
     )
     assert warnings == []
     assert env["MONGODB_URI"] == "mongodb+srv://debug:pass@cluster/hybrid_search"
-    assert env["VOYAGE_API_KEY"] == "voyage-key"
     assert env["ANTHROPIC_API_KEY"] == "llm-key"
+    assert env["AUTOEMBED_MODEL"] == "voyage-4-lite"
+    assert "VOYAGE_API_KEY" not in env
+    assert "VOYAGE_BASE_URL" not in env
     assert env["SKIP_INDEX_CREATION"] == "false"
     assert env["TOP_K"] == "20"
     assert "CHAINLIT_AUTH_SECRET" not in env
@@ -68,7 +68,7 @@ def test_bedrock_env_keys_flow_through() -> None:
         "container": {
             "env": {
                 "MONGODB_DATABASE": "hybrid_search",
-                "VOYAGE_BASE_URL": "https://ai.mongodb.com/v1",
+                "AUTOEMBED_MODEL": "voyage-4-lite",
                 "ENABLE_LLM": "true",
                 "LLM_PROVIDER": "bedrock",
                 "BEDROCK_MODEL": "amazon.nova-lite-v1:0",
@@ -76,16 +76,18 @@ def test_bedrock_env_keys_flow_through() -> None:
                 "TOP_K": "20",
             },
             "secret_keys": [
-                "VOYAGE_API_KEY",
                 "CHAINLIT_AUTH_SECRET",
                 "CHAINLIT_DEMO_PASSWORD",
             ],
         },
-        "VOYAGE_API_KEY": "voyage-key",
     }
     env, _ = local_env_from_secret(secret, mongodb_uri="mongodb+srv://debug:pass@cluster/db")
     assert env["LLM_PROVIDER"] == "bedrock"
     assert env["BEDROCK_MODEL"] == "amazon.nova-lite-v1:0"
     assert env["AWS_REGION"] == "us-east-1"
     rendered = render_env_file(env, secret_name="hybrid-search-ui-app")
-    assert rendered.index("LLM_PROVIDER=") < rendered.index("BEDROCK_MODEL=") < rendered.index("AWS_REGION=")
+    assert (
+        rendered.index("LLM_PROVIDER=")
+        < rendered.index("BEDROCK_MODEL=")
+        < rendered.index("AWS_REGION=")
+    )

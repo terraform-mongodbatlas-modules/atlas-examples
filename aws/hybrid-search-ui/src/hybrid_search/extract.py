@@ -9,7 +9,7 @@ try:
 except ImportError:
     pymupdf = None
 
-VOYAGE_AUTO_CHUNK_TOKEN_CAP = 120_000
+CHUNK_TEXT_TOKEN_CAP = 120_000
 _CHARS_PER_TOKEN_ESTIMATE = 4
 PDF_PAGES_PER_GROUP = 25
 
@@ -63,4 +63,38 @@ def estimate_tokens(text: str) -> int:
 
 
 def text_needs_split(text: str) -> bool:
-    return estimate_tokens(text) >= VOYAGE_AUTO_CHUNK_TOKEN_CAP
+    return estimate_tokens(text) >= CHUNK_TEXT_TOKEN_CAP
+
+
+def chunk_text(text: str, *, max_tokens: int) -> list[str]:
+    max_chars = max_tokens * _CHARS_PER_TOKEN_ESTIMATE
+    if len(text) <= max_chars:
+        return [text] if text.strip() else []
+    chunks: list[str] = []
+    current: list[str] = []
+    current_chars = 0
+    for paragraph in text.split("\n\n"):
+        if not paragraph.strip():
+            continue
+        if len(paragraph) > max_chars:
+            if current:
+                chunks.append("\n\n".join(current))
+                current = []
+                current_chars = 0
+            chunks.extend(_hard_split(paragraph, max_chars=max_chars))
+            continue
+        separator = 2 if current else 0
+        if current_chars + separator + len(paragraph) > max_chars:
+            chunks.append("\n\n".join(current))
+            current = [paragraph]
+            current_chars = len(paragraph)
+            continue
+        current.append(paragraph)
+        current_chars += separator + len(paragraph)
+    if current:
+        chunks.append("\n\n".join(current))
+    return chunks
+
+
+def _hard_split(paragraph: str, *, max_chars: int) -> list[str]:
+    return [paragraph[start : start + max_chars] for start in range(0, len(paragraph), max_chars)]

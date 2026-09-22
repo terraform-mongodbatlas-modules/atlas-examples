@@ -23,7 +23,6 @@ async def test_on_chat_start_logs_startup_failure(monkeypatch, caplog, tmp_path)
     queries.write_text("queries:\n  - label: A\n    message: What is A?\n")
     settings = HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),
-        voyage_api_key=SecretStr("key"),
         demo_queries_path=queries,
     )
     sent: list[str] = []

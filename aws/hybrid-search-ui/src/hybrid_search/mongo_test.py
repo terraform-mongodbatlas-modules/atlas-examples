@@ -9,7 +9,6 @@ from hybrid_search.settings import HybridSearchSettings
 def test_chunks_collection_name():
     settings = HybridSearchSettings(
         mongodb_uri=SecretStr("mongodb://localhost"),
-        voyage_api_key=SecretStr("key"),
     )
 
     class DB:

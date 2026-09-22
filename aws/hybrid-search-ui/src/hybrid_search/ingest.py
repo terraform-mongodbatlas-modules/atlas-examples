@@ -6,14 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import voyageai
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo import ReplaceOne
 
 from hybrid_search import extract as extract_module
-from hybrid_search import voyage as voyage_module
 from hybrid_search.settings import HybridSearchSettings
-from hybrid_search.voyage import DocumentEmbedResult, assert_nonzero_embeddings, is_zero_vector
 
 
 @dataclass(frozen=True)
@@ -93,25 +90,21 @@ async def ingest_file(
     *,
     settings: HybridSearchSettings,
     collection: AsyncIOMotorCollection,
-    voyage: voyageai.AsyncClient,
     source_name: str | None = None,
     on_progress: OnProgress | None = None,
 ) -> IngestResult:
     extracted = extract_module.extract_text(path)
     file_path = source_name or str(path)
-    batches = _text_batches(path, extracted.text)
-    chunk_index = 0
+    chunk_texts = extract_module.chunk_text(
+        extracted.text,
+        max_tokens=settings.chunk_max_tokens,
+    )
     total = 0
-    for batch in batches:
-        embed = await voyage_module.embed_document(batch, client=voyage, settings=settings)
-        assert_nonzero_embeddings(embed, voyage_base_url=settings.voyage_base_url)
-        await _emit_progress(on_progress, f"Embedding {len(embed.chunk_texts)} chunks")
-        ops = _upsert_ops(file_path, chunk_index, embed)
-        if ops:
-            await collection.bulk_write(ops, ordered=False)
-            await _emit_progress(on_progress, f"Stored {len(ops)} chunks")
-            chunk_index += len(ops)
-            total += len(ops)
+    if chunk_texts:
+        ops = _upsert_ops(file_path, chunk_texts)
+        await collection.bulk_write(ops, ordered=False)
+        await _emit_progress(on_progress, f"Stored {len(ops)} chunks")
+        total = len(ops)
     if on_progress is not None:
         await _emit_progress(on_progress, "Completed processing file")
     return IngestResult(chunk_count=total)
@@ -125,29 +118,13 @@ async def _emit_progress(on_progress: OnProgress | None, message: str) -> None:
         await result
 
 
-def _text_batches(path: Path, text: str) -> list[str]:
-    if extract_module.text_needs_split(text):
-        if path.suffix.lower() == ".pdf":
-            return list(
-                extract_module.iter_pdf_page_groups(
-                    path,
-                    max_pages_per_group=extract_module.PDF_PAGES_PER_GROUP,
-                )
-            )
-        midpoint = len(text) // 2
-        return [text[:midpoint], text[midpoint:]]
-    return [text]
-
-
 def _upsert_ops(
     file_path: str,
-    start_index: int,
-    embed: DocumentEmbedResult,
+    chunk_texts: list[str],
 ) -> list[ReplaceOne]:
     ops: list[ReplaceOne] = []
-    chunk_index = start_index
-    for content, vector in zip(embed.chunk_texts, embed.embeddings, strict=True):
-        if not content.strip() or is_zero_vector(vector):
+    for chunk_index, content in enumerate(chunk_texts):
+        if not content.strip():
             continue
         doc_id = chunk_doc_id(file_path, chunk_index)
         ops.append(
@@ -156,12 +133,10 @@ def _upsert_ops(
                 {
                     "_id": doc_id,
                     "content": content,
-                    "vector": vector,
                     "file_path": file_path,
                     "chunk_index": chunk_index,
                 },
                 upsert=True,
             )
         )
-        chunk_index += 1
     return ops

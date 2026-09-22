@@ -1,13 +1,5 @@
 mock_provider "mongodbatlas" {
   override_during = plan
-
-  mock_resource "mongodbatlas_ai_model_api_key" {
-    defaults = {
-      secret     = "al-test-voyage-key"
-      endpoint   = "ai.mongodb.com"
-      api_key_id = "key-1"
-    }
-  }
 }
 
 mock_provider "aws" {
@@ -87,19 +79,19 @@ run "llm_grove_sets_provider_and_base_url" {
   assert {
     condition = alltrue([
       sort(local.container_secret_keys) == sort([
-        "VOYAGE_API_KEY",
         "CHAINLIT_AUTH_SECRET",
         "CHAINLIT_DEMO_PASSWORD",
         "GROVE_API_KEY",
         "GROVE_BASE_URL",
         "GROVE_MODEL",
       ]),
+      !contains(local.container_secret_keys, "VOYAGE_API_KEY"),
       local.llm_container_env["ENABLE_LLM"] == "true",
       local.llm_container_env["SKIP_INDEX_CREATION"] == "true",
       local.llm_container_env["LLM_PROVIDER"] == "grove",
       local.llm_container_env["MONGODB_URI"] != "",
       local.llm_container_env["MONGODB_DATABASE"] == "hybrid_search",
-      local.llm_container_env["VOYAGE_BASE_URL"] == "https://ai.mongodb.com/v1",
+      local.llm_container_env["AUTOEMBED_MODEL"] == "voyage-4-lite",
       local.llm_container_env["TOP_K"] == "20",
       !contains(keys(local.llm_container_env), "GROVE_BASE_URL"),
       local.bedrock_runtime_endpoint == false,
@@ -122,10 +114,10 @@ run "bedrock_is_default_with_no_key" {
   assert {
     condition = alltrue([
       sort(local.container_secret_keys) == sort([
-        "VOYAGE_API_KEY",
         "CHAINLIT_AUTH_SECRET",
         "CHAINLIT_DEMO_PASSWORD",
       ]),
+      !contains(local.container_secret_keys, "VOYAGE_API_KEY"),
       local.llm_container_env["ENABLE_LLM"] == "true",
       local.llm_container_env["LLM_PROVIDER"] == "bedrock",
       local.llm_container_env["BEDROCK_MODEL"] == "amazon.nova-lite-v1:0",
@@ -155,7 +147,7 @@ run "enable_llm_false_is_search_only" {
       local.llm_container_env["ENABLE_LLM"] == "false",
       !contains(keys(local.llm_container_env), "LLM_PROVIDER"),
       !contains(keys(local.llm_container_env), "BEDROCK_MODEL"),
-      length(local.container_secret_keys) == 3,
+      length(local.container_secret_keys) == 2,
       local.bedrock_enabled == false,
       local.bedrock_runtime_endpoint == false,
     ])

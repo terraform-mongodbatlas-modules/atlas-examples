@@ -18,13 +18,10 @@ class HybridSearchSettings(BaseSettings):
 
     mongodb_uri: SecretStr
     mongodb_database: str = "hybrid_search"
-    voyage_api_key: SecretStr
-    voyage_base_url: str | None = None
-    voyage_model: str = "voyage-context-4"
-    voyage_output_dimension: int = 1024
-    voyage_chunk_size: int = 512
+    autoembed_model: str = "voyage-4-lite"
+    chunk_max_tokens: int = 512
     top_k: int = 20
-    vector_index_name: str = "vector_idx"
+    vector_index_name: str = "autoembed_idx"
     text_index_name: str = "text_idx"
     chunks_collection: str = "chunks"
     vector_weight: float = 0.6

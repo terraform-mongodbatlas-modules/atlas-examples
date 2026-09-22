@@ -1,13 +1,5 @@
 mock_provider "mongodbatlas" {
   override_during = plan
-
-  mock_resource "mongodbatlas_ai_model_api_key" {
-    defaults = {
-      secret     = "al-test-voyage-key"
-      endpoint   = "ai.mongodb.com"
-      api_key_id = "key-1"
-    }
-  }
 }
 
 mock_provider "aws" {
@@ -78,14 +70,13 @@ variables {
   llm_env         = {}
 }
 
-run "app_secret_nests_groups_and_voyage" {
+run "app_secret_nests_groups_without_voyage_key" {
   command = plan
 
   assert {
     condition = alltrue([
-      module.voyage_api_key.api_key_id == "key-1",
-      module.voyage_api_key.voyage_base_url == "https://ai.mongodb.com/v1",
-      local.container_secret_keys == ["VOYAGE_API_KEY", "CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
+      local.container_secret_keys == ["CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
+      !contains(local.container_secret_keys, "VOYAGE_API_KEY"),
       local.llm_container_env["ENABLE_LLM"] == "false",
       local.llm_container_env["SKIP_INDEX_CREATION"] == "true",
       !contains(keys(local.llm_container_env), "LLM_PROVIDER"),
@@ -93,9 +84,8 @@ run "app_secret_nests_groups_and_voyage" {
       local.bedrock_runtime_endpoint == false,
       strcontains(local.llm_container_env["MONGODB_URI"], "authMechanism=MONGODB-AWS"),
       local.llm_container_env["MONGODB_DATABASE"] == "hybrid_search",
-      local.llm_container_env["VOYAGE_BASE_URL"] == "https://ai.mongodb.com/v1",
+      local.llm_container_env["AUTOEMBED_MODEL"] == "voyage-4-lite",
       local.llm_container_env["TOP_K"] == "20",
-      !contains(local.container_secret_keys, "VOYAGE_BASE_URL"),
       local.ui.name == "hybrid-search-ui",
       local.ui.routing.container_port == 8001,
       local.ui.routing.origin_header_name == "X-Origin-Verify",
@@ -104,6 +94,6 @@ run "app_secret_nests_groups_and_voyage" {
       output.app_secret_name == "hybrid-search-ui-app",
       contains(local.chainlit_waf_count_rules, "SizeRestrictions_BODY"),
     ])
-    error_message = "Voyage key, UI routing, CloudFront https_url, and app secret name should be known at plan"
+    error_message = "UI routing, CloudFront https_url, and app secret name should be known at plan"
   }
 }

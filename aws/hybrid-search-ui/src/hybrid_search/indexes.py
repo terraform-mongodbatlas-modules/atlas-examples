@@ -18,14 +18,14 @@ _BOOTSTRAP_ID = "__hybrid_search_bootstrap"
 logger = logging.getLogger(__name__)
 
 
-def vector_index_definition(*, dimensions: int) -> dict[str, Any]:
+def autoembed_index_definition(*, model: str) -> dict[str, Any]:
     return {
         "fields": [
             {
-                "type": "vector",
-                "path": "vector",
-                "numDimensions": dimensions,
-                "similarity": "cosine",
+                "type": "autoEmbed",
+                "modality": "text",
+                "path": "content",
+                "model": model,
             },
             {"type": "filter", "path": "file_path"},
         ]
@@ -88,7 +88,7 @@ async def create_chunks_indexes_if_missing(
         await _create_search_index(
             collection,
             SearchIndexModel(
-                definition=vector_index_definition(dimensions=settings.voyage_output_dimension),
+                definition=autoembed_index_definition(model=settings.autoembed_model),
                 name=settings.vector_index_name,
                 type="vectorSearch",
             ),
