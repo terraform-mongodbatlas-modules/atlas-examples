@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,6 +13,10 @@ except ImportError:
 # https://www.mongodb.com/docs/voyageai/tutorials/tokenization/
 # Use 4 to overestimate tokens and keep chunks under the model context window.
 _CHARS_PER_TOKEN_ESTIMATE = 4
+
+# Split after sentence terminators and on single newlines (headings, list items).
+# The lookbehind keeps the delimiter attached to the sentence it closes.
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?] )|(?<=\n)")
 
 
 @dataclass(frozen=True)
@@ -52,7 +57,7 @@ def chunk_text(text: str, *, max_tokens: int) -> list[str]:
                 chunks.append("\n\n".join(current))
                 current = []
                 current_chars = 0
-            chunks.extend(_hard_split(paragraph, max_chars=max_chars))
+            chunks.extend(_pack_sentences(_split_sentences(paragraph), max_chars=max_chars))
             continue
         separator = 2 if current else 0
         if current_chars + separator + len(paragraph) > max_chars:
@@ -65,6 +70,30 @@ def chunk_text(text: str, *, max_tokens: int) -> list[str]:
     if current:
         chunks.append("\n\n".join(current))
     return chunks
+
+
+def _split_sentences(paragraph: str) -> list[str]:
+    return [part for part in _SENTENCE_BOUNDARY.split(paragraph) if part]
+
+
+def _pack_sentences(sentences: list[str], *, max_chars: int) -> list[str]:
+    pieces: list[str] = []
+    current = ""
+    for sentence in sentences:
+        if len(sentence) > max_chars:
+            if current:
+                pieces.append(current)
+                current = ""
+            pieces.extend(_hard_split(sentence, max_chars=max_chars))
+            continue
+        if current and len(current) + len(sentence) > max_chars:
+            pieces.append(current)
+            current = sentence
+            continue
+        current += sentence
+    if current:
+        pieces.append(current)
+    return pieces
 
 
 def _hard_split(paragraph: str, *, max_chars: int) -> list[str]:

@@ -86,6 +86,7 @@ run "app_secret_nests_groups_without_voyage_key" {
       local.llm_container_env["MONGODB_DATABASE"] == "hybrid_search",
       local.llm_container_env["AUTOEMBED_MODEL"] == "voyage-4-lite",
       local.llm_container_env["TOP_K"] == "20",
+      local.llm_container_env["CHUNK_MAX_TOKENS"] == "512",
       local.ui.name == "hybrid-search-ui",
       local.ui.routing.container_port == 8001,
       local.ui.routing.origin_header_name == "X-Origin-Verify",

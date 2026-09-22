@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import SecretStr
 
+import hybrid_search.settings as settings_module
 from hybrid_search.settings import (
     HybridSearchSettings,
     apply_log_level,
@@ -82,6 +83,30 @@ def test_log_level_env_uppercases(monkeypatch):
     monkeypatch.setenv("MONGODB_URI", "mongodb://localhost")
     clear_settings_cache()
     assert get_settings().log_level == "DEBUG"
+
+
+def test_chunk_max_tokens_accepts_bounds():
+    assert _settings(chunk_max_tokens=40).chunk_max_tokens == 40
+    assert _settings(chunk_max_tokens=512).chunk_max_tokens == 512
+    assert _settings(chunk_max_tokens=1500).chunk_max_tokens == 1500
+
+
+def test_chunk_max_tokens_rejects_below_minimum():
+    with pytest.raises(ValueError, match="chunk_max_tokens"):
+        _settings(chunk_max_tokens=39)
+
+
+def test_chunk_max_tokens_rejects_zero_or_negative():
+    with pytest.raises(ValueError, match="chunk_max_tokens"):
+        _settings(chunk_max_tokens=0)
+    with pytest.raises(ValueError, match="chunk_max_tokens"):
+        _settings(chunk_max_tokens=-1)
+
+
+def test_chunk_max_tokens_rejects_above_context_window(monkeypatch):
+    monkeypatch.setattr(settings_module, "AUTOEMBED_CONTEXT_TOKENS", 1_000)
+    with pytest.raises(ValueError, match="context window"):
+        _settings(chunk_max_tokens=1_200)
 
 
 def test_apply_log_level_configures_root_and_hybrid_search(monkeypatch):

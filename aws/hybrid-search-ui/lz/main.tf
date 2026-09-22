@@ -25,6 +25,7 @@ locals {
       MONGODB_URI            = local.ui.mongo.connection_string
       SKIP_INDEX_CREATION    = "true"
       TOP_K                  = "20"
+      CHUNK_MAX_TOKENS       = "512"
       AUTOEMBED_MODEL        = var.autoembed_model
     },
     local.llm_enabled ? { LLM_PROVIDER = local.llm_provider } : {},

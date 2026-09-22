@@ -25,6 +25,7 @@ services:
       SKIP_INDEX_CREATION: ${SKIP_INDEX_CREATION:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       TOP_K: ${TOP_K:-20}
+      CHUNK_MAX_TOKENS: ${CHUNK_MAX_TOKENS:-512}
       BEDROCK_MODEL: ${BEDROCK_MODEL:-amazon.nova-lite-v1:0}
       AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}

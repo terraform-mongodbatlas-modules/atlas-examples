@@ -93,6 +93,7 @@ run "llm_grove_sets_provider_and_base_url" {
       local.llm_container_env["MONGODB_DATABASE"] == "hybrid_search",
       local.llm_container_env["AUTOEMBED_MODEL"] == "voyage-4-lite",
       local.llm_container_env["TOP_K"] == "20",
+      local.llm_container_env["CHUNK_MAX_TOKENS"] == "512",
       !contains(keys(local.llm_container_env), "GROVE_BASE_URL"),
       local.bedrock_runtime_endpoint == false,
     ])

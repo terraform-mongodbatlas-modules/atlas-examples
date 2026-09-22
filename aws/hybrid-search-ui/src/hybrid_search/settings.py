@@ -12,6 +12,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 LlmProvider = Literal["anthropic", "bedrock", "openai", "gemini", "grove"]
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
+# Atlas Automated Embedding truncates text past the model context window silently, with
+# no error at index time. voyage-4-lite and the other supported models share this window.
+# https://www.mongodb.com/docs/vector-search/crud-embeddings/automated-embedding/models
+AUTOEMBED_CONTEXT_TOKENS = 32_000
+# Chunk-size envelope from the Atlas Search Playground chunking UI.
+# https://www.mongodb.com/docs/vector-search/query/vector-search-playground/
+MIN_CHUNK_MAX_TOKENS = 40
+MAX_CHUNK_MAX_TOKENS = 1500
+
 
 class HybridSearchSettings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
@@ -53,6 +62,23 @@ class HybridSearchSettings(BaseSettings):
                 return value.upper()
             case _:
                 return value
+
+    @field_validator("chunk_max_tokens")
+    @classmethod
+    def validate_chunk_max_tokens(cls, value: int) -> int:
+        if not MIN_CHUNK_MAX_TOKENS <= value <= MAX_CHUNK_MAX_TOKENS:
+            msg = (
+                f"chunk_max_tokens must be between {MIN_CHUNK_MAX_TOKENS} and "
+                f"{MAX_CHUNK_MAX_TOKENS}, got {value}"
+            )
+            raise ValueError(msg)
+        if value > AUTOEMBED_CONTEXT_TOKENS:
+            msg = (
+                f"chunk_max_tokens must not exceed the autoEmbed context window of "
+                f"{AUTOEMBED_CONTEXT_TOKENS} tokens, got {value}"
+            )
+            raise ValueError(msg)
+        return value
 
     @field_validator("mongodb_uri")
     @classmethod

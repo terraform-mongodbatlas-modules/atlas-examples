@@ -24,6 +24,7 @@ _CONTAINER_ENV_KEYS = (
     "AWS_REGION",
     "ENABLE_LLM",
     "TOP_K",
+    "CHUNK_MAX_TOKENS",
 )
 _ENV_ORDER = (
     "MONGODB_URI",
@@ -35,6 +36,7 @@ _ENV_ORDER = (
     "ENABLE_LLM",
     "SKIP_INDEX_CREATION",
     "TOP_K",
+    "CHUNK_MAX_TOKENS",
 )
 
 Run = Callable[..., CompletedProcess[str]]

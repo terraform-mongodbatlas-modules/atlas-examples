@@ -46,6 +46,7 @@ mock_provider "aws" {
             MONGODB_DATABASE       = "hybrid_search"
             AUTOEMBED_MODEL        = "voyage-4-lite"
             TOP_K                  = "20"
+            CHUNK_MAX_TOKENS       = "512"
           }
           secret_keys = ["CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"]
         }

@@ -34,12 +34,12 @@ async def test_ingest_upserts_one_doc_per_chunk(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_ingest_splits_large_text(tmp_path: Path):
     path = tmp_path / "big.txt"
-    path.write_text("\n\n".join(["x" * 4000] * 4))
+    path.write_text("\n\n".join(["x" * 2900] * 4))
     collection = MagicMock()
     collection.bulk_write = AsyncMock()
 
     result = await ingest_module.ingest_file(
-        path, settings=_settings(chunk_max_tokens=2500), collection=collection
+        path, settings=_settings(chunk_max_tokens=1500), collection=collection
     )
     assert result.chunk_count == 2
     ops = collection.bulk_write.await_args.args[0]

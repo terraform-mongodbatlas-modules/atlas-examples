@@ -43,3 +43,22 @@ def test_chunk_text_hard_splits_oversized_paragraph():
 
 def test_chunk_text_skips_blank_input():
     assert extract_module.chunk_text("   \n\n  ", max_tokens=512) == []
+
+
+def test_chunk_text_sentence_boundary():
+    paragraph = "".join(f"{'s' * 596}. " for _ in range(10))
+    chunks = extract_module.chunk_text(paragraph, max_tokens=500)
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 2000 for chunk in chunks)
+    assert all(chunk.endswith(". ") for chunk in chunks)
+    assert "".join(chunks) == paragraph
+
+
+def test_chunk_text_heading_boundary():
+    paragraph = "\n".join(f"## Section {i}\n{'b' * 2000}" for i in range(3))
+    chunks = extract_module.chunk_text(paragraph, max_tokens=1000)
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 4000 for chunk in chunks)
+    assert all(chunk.endswith("\n") for chunk in chunks[:-1])
+    assert all(sum(f"## Section {i}\n" in chunk for chunk in chunks) == 1 for i in range(3))
+    assert "".join(chunks) == paragraph

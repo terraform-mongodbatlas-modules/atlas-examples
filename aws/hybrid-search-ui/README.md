@@ -202,6 +202,14 @@ Cross-region caveat for both: the `bedrock-runtime` endpoint secures the source-
 
 To change it on a deployed stack, edit `TOP_K` in `lz/main.tf` `llm_container_env` (or add a tfvars knob if you fork the example), re-apply lz, then re-apply app so the task picks up the new secret. For local Docker, set `TOP_K` in `secrets/.env.local` or compose env.
 
+### How do I tune the chunk size?
+
+`CHUNK_MAX_TOKENS` caps the size of the chunks the app writes before Atlas embeds each one. The default is **512** tokens. The app splits oversized paragraphs on sentence and heading boundaries first, and falls back to a character cut only for a single sentence that is still too long.
+
+The app rejects a value outside 40-1500 tokens at startup. Text past the model context window (32,000 tokens) is truncated silently by Atlas Automated Embedding, with no error at index time, so the app refuses a `CHUNK_MAX_TOKENS` above that window as well.
+
+To change it on a deployed stack, edit `CHUNK_MAX_TOKENS` in `lz/main.tf` `llm_container_env` (or add a tfvars knob if you fork the example), re-apply lz, then re-apply app so the task picks up the new secret. For local Docker, set `CHUNK_MAX_TOKENS` in `secrets/.env.local` or compose env. Existing chunks keep their current boundaries until you re-ingest the file.
+
 ### Local Docker without ECS
 
 The optional `just dump-local-env` step after lz apply writes `secrets/.env.local` with `SKIP_INDEX_CREATION=false` and prints the compose command. The default provider is Bedrock, so local Docker also needs AWS credentials: export short-lived SSO credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) in your shell, and the compose file passes them through along with `AWS_REGION`. For a local MongoDB instead of Atlas, use `docker/docker-compose.local-ui-atlas.yml`.
