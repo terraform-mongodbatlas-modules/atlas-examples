@@ -19,16 +19,16 @@ build-push repo_url tag="0.0.1":
     docker push "${image_uri}"
     echo "Pushed ${image_uri}"
 
-# Write a raw LLM API key to Secrets Manager. Paste the printed name into lz tfvars as llm_secret_name.
+# Write a raw LLM API key to Secrets Manager. Paste the printed name into lz tfvars as llm.secret_name.
 create-llm-secret name="hybrid-search-ui-llm" region="us-east-1":
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "Supported providers. Set llm_env_name in lz tfvars to match the key:" >&2
-    echo "  Bedrock            no key needed; this is the default. Set llm_provider to a keyed provider only if you want one" >&2
-    echo "  ANTHROPIC_API_KEY  optional llm_env.ANTHROPIC_MODEL" >&2
-    echo "  OPENAI_API_KEY     optional llm_env.OPENAI_MODEL, OPENAI_BASE_URL" >&2
-    echo "  GEMINI_API_KEY     optional llm_env.GEMINI_MODEL" >&2
-    echo "  GROVE_API_KEY      requires llm_env.GROVE_BASE_URL, optional GROVE_MODEL" >&2
+    echo "Supported providers. Set llm.env_name in lz tfvars to match the key:" >&2
+    echo "  Bedrock            no key needed; this is the default. Set llm.provider to a keyed provider only if you want one" >&2
+    echo "  ANTHROPIC_API_KEY  optional llm.env.ANTHROPIC_MODEL" >&2
+    echo "  OPENAI_API_KEY     optional llm.env.OPENAI_MODEL, OPENAI_BASE_URL" >&2
+    echo "  GEMINI_API_KEY     optional llm.env.GEMINI_MODEL" >&2
+    echo "  GROVE_API_KEY      requires llm.env.GROVE_BASE_URL, optional GROVE_MODEL" >&2
     read -r -s -p "LLM API key: " key
     echo
     if aws secretsmanager describe-secret --secret-id "{{name}}" --region "{{region}}" >/dev/null 2>&1; then
@@ -38,7 +38,7 @@ create-llm-secret name="hybrid-search-ui-llm" region="us-east-1":
     fi
     echo "{{name}}"
 
-# Delete the LLM API key secret from Secrets Manager. Remove llm_secret_name from lz tfvars after.
+# Delete the LLM API key secret from Secrets Manager. Remove llm.secret_name from lz tfvars after.
 delete-llm-secret name="hybrid-search-ui-llm" region="us-east-1":
     #!/usr/bin/env bash
     set -euo pipefail

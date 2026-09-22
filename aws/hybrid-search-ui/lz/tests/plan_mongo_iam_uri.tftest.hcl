@@ -48,7 +48,6 @@ run "mongo_includes_iam_query_params" {
   command = plan
 
   variables {
-    ecr_repositories = { ui = {} }
     ecs_apps = {
       ui = {
         ecr_key = "ui"
@@ -89,7 +88,6 @@ run "existing_query_params_use_ampersand" {
   }
 
   variables {
-    ecr_repositories = { ui = {} }
     ecs_apps = {
       ui = {
         ecr_key = "ui"

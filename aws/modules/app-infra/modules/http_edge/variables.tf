@@ -35,9 +35,9 @@ variable "idle_timeout" {
 }
 
 variable "waf" {
-  description = "CloudFront WAF. enabled defaults true (AWS Managed Rules Common Rule Set). common_rule_set_count_rules counts named CRS rules. Empty means all CRS actions stay at their managed defaults."
+  description = "CloudFront WAF. On by default (AWS Managed Rules Common Rule Set); set disabled = true to skip. common_rule_set_count_rules counts named CRS rules. Empty means all CRS actions stay at their managed defaults."
   type = object({
-    enabled                     = optional(bool, true)
+    disabled                    = optional(bool, false)
     common_rule_set_count_rules = optional(list(string), [])
   })
   default = {}

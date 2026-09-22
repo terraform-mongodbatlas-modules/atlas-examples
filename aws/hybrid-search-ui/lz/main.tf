@@ -168,18 +168,18 @@ locals {
 module "llm" {
   source = "../../modules/llm"
 
-  enable_llm   = var.enable_llm
-  llm_provider = var.llm_provider
-  secret_name  = var.llm_secret_name
+  enable_llm   = !var.llm.disabled
+  llm_provider = var.llm.provider
+  secret_name  = var.llm.secret_name
   secret_value = try(data.aws_secretsmanager_secret_version.llm[0].secret_string, null)
-  env_name     = var.llm_env_name
-  env          = var.llm_env
+  env_name     = var.llm.env_name
+  env          = var.llm.env
   aws_region   = local.aws_region
 }
 
 data "aws_secretsmanager_secret_version" "llm" {
-  count     = var.enable_llm && var.llm_secret_name != null ? 1 : 0
-  secret_id = var.llm_secret_name
+  count     = !var.llm.disabled && var.llm.secret_name != null ? 1 : 0
+  secret_id = var.llm.secret_name
 }
 
 # --- Atlas and AWS app infra --------------------------------------------------
@@ -190,31 +190,30 @@ module "app_infra" {
   default_resource_name_prefix = var.default_resource_name_prefix
   regions                      = var.regions
   tags                         = var.tags
-  ecr_repositories             = var.ecr_repositories
+  ecr_repositories             = { ui = { name = var.default_resource_name_prefix } }
   # bedrock_runtime_endpoint defaults to the provider inference: a Bedrock
-  # provider needs the private endpoint, a keyed provider does not.
-  vpc_config = merge(var.vpc_config, {
+  # provider needs the private endpoint, a keyed provider does not. Only
+  # skip_interface_endpoints is caller-facing; the rest of vpc_config stays at
+  # the module defaults. For a BYO VPC (create = false with a by_region entry)
+  # or a second named edge, pass the full vpc_config / http_edges maps your
+  # caller owns. See ../../modules/app-infra/README.md.
+  vpc_config = {
+    skip_interface_endpoints = var.skip_interface_endpoints
     bedrock_runtime_endpoint = module.llm.bedrock.enabled
-  })
-  http_edges = {
-    for k, v in var.http_edges : k => {
-      waf = {
-        enabled                     = v.waf.enabled
-        common_rule_set_count_rules = distinct(concat(v.waf.common_rule_set_count_rules, local.chainlit_waf_count_rules))
-      }
-    }
   }
+  http_edges = local.http_edges
   ecs_apps = {
     for k, app in var.ecs_apps : k => {
-      name             = app.name
-      ecr_key          = app.ecr_key
-      aws_region       = app.aws_region
-      primary_database = app.primary_database
-      internet_egress  = app.internet_egress
-      roles            = app.roles
+      name       = app.name
+      ecr_key    = app.ecr_key
+      aws_region = app.aws_region
+      # app-infra requires NAT when skip_interface_endpoints is set (the
+      # vpc.tf precondition), so derive egress from it instead of asking twice.
+      internet_egress = app.internet_egress || var.skip_interface_endpoints
+      roles           = app.roles
       # app_infra validates the rest; only routing collapses when there is
       # no HTTP edge.
-      routing             = length(var.http_edges) == 0 ? null : app.routing
+      routing             = var.http_edge.enabled ? app.routing : null
       extra_task_policies = module.llm.task_policy_jsons
     }
   }
@@ -230,6 +229,19 @@ locals {
     "GenericLFI_BODY",
     "EC2MetaDataSSRF_BODY",
   ]
+
+  # Compiled app-infra http_edges input. app-infra exposes no compiled edge
+  # config, so the plan test asserts this map directly.
+  http_edges = var.http_edge.enabled ? {
+    main = {
+      waf = {
+        disabled                    = var.http_edge.waf_disabled
+        common_rule_set_count_rules = local.chainlit_waf_count_rules
+      }
+      aliases             = try(var.http_edge.custom_domain.aliases, [])
+      acm_certificate_arn = try(var.http_edge.custom_domain.acm_certificate_arn, null)
+    }
+  } : {}
 
   # App env is not LLM-provider logic, so it lives here next to MONGODB_*.
   # TOP_K caps $rankFusion hits before the LLM answers; CHUNK_MAX_TOKENS caps the

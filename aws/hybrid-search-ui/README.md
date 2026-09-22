@@ -25,7 +25,7 @@ The ECS cluster and service live in `app/`, not `lz/`.
 
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role.
 - **AWS:** VPC (private subnets plus NAT and public subnets for the ALB), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
-- **LLM:** Amazon Bedrock by default. The ECS task role calls `bedrock-runtime` (Amazon Nova Lite) over a private interface endpoint, so there is no API key, no secret, and no manual approval step. A keyed provider still works when you set `llm_secret_name`.
+- **LLM:** Amazon Bedrock by default. The ECS task role calls `bedrock-runtime` (Amazon Nova Lite) over a private interface endpoint, so there is no API key, no secret, and no manual approval step. A keyed provider still works when you set `llm.secret_name`.
 - **App:** ECS cluster, Fargate service running the in-example Chainlit image (port 8001), built from this directory's `Dockerfile`. Indexes are a one-shot `ecs run-task` of that same image with `hybrid-search index create`, not a second service.
 
 ```sh
@@ -58,7 +58,7 @@ Optional: local Docker after apply (`just dump-local-env` writes gitignored `sec
 
 ```hcl
 public_debug_access = { ip_address = "1.2.3.4" }
-http_edges          = {}
+http_edge           = { enabled = false }
 ```
 
 ```sh
@@ -83,7 +83,7 @@ docker compose -f docker/docker-compose.local-ui.yml --env-file secrets/.env.loc
 # Open http://localhost:8001
 ```
 
-To use a keyed provider instead, run `just create-llm-secret`, paste the printed name into `lz/terraform.tfvars` as `llm_secret_name`, and re-apply lz. See [How does the LLM answer work?](#how-does-the-llm-answer-work).
+To use a keyed provider instead, run `just create-llm-secret`, paste the printed name into `lz/terraform.tfvars` as `llm.secret_name`, and re-apply lz. See [How does the LLM answer work?](#how-does-the-llm-answer-work).
 
 ## Build the image and deploy the UI
 
@@ -153,7 +153,7 @@ terraform -chdir=lz destroy
 The following stay billed while the stack is up:
 
 - **NAT Gateway:** Hourly plus data. The default Bedrock configuration runs with `internet_egress = false`. Set `internet_egress = true` only when a keyed LLM provider (`grove`, `openai`, `anthropic`, `gemini`) must reach the internet.
-- **VPC interface endpoints:** Five AWS interface endpoints (ECR API, ECR DKR, CloudWatch Logs, Secrets Manager, STS) bill per AZ-hour in private subnets. When Bedrock is the LLM provider (the default) a sixth endpoint, `bedrock-runtime`, is added. About $2.40/day for the five in `us-east-1` with two AZs, about $3.60/day with the bedrock endpoint. Set `llm_provider` to a keyed provider or `enable_llm = false` to keep five; set `vpc_config.bedrock_runtime_endpoint = false` to keep five while still using Bedrock over NAT. Atlas PrivateLink is separate and is not controlled by this knob.
+- **VPC interface endpoints:** Five AWS interface endpoints (ECR API, ECR DKR, CloudWatch Logs, Secrets Manager, STS) bill per AZ-hour in private subnets. When Bedrock is the LLM provider (the default) a sixth endpoint, `bedrock-runtime`, is added. About $2.40/day for the five in `us-east-1` with two AZs, about $3.60/day with the bedrock endpoint. Set `llm.provider` to a keyed provider or `llm.disabled = true` to keep five. Keeping five while still using Bedrock is a call-site override in `lz/main.tf` (`vpc_config.bedrock_runtime_endpoint = false`), not a tfvars knob; the default follows the provider inference. Atlas PrivateLink is separate and is not controlled by this knob.
 - **Atlas cluster:** Default is a sharded cluster (one shard) with compute auto-scaling from M10 to M200. Disk GB auto-scales either way.
 - **KMS, log export, backup export:** On by default via `atlas_integrations`. A customer-managed key has a monthly charge and a pending-delete window after destroy. Log and backup export create S3 buckets.
 - **CloudFront WAF:** AWS Managed Rules Common Rule Set, about $6/month if you leave the stack up.
@@ -175,13 +175,13 @@ atlas_integrations = {
 }
 ```
 
-- **Skip WAF:** `http_edges = { main = { waf = { enabled = false } } }`. Do not use this to unblock Chainlit uploads or WebSockets; see [How do I turn WAF off?](#how-do-i-turn-waf-off) and [What is the file upload size limit?](#what-is-the-file-upload-size-limit).
-- **Skip ALB, CloudFront, and WAF:** `http_edges = {}` when you only run locally. Skip the app stack. NAT and the Atlas cluster still bill.
-- **Skip AWS interface VPC endpoints:** `vpc_config = { skip_interface_endpoints = true }`. AWS API traffic uses public endpoints over NAT; Atlas PrivateLink and the S3 gateway stay. This also omits the `bedrock-runtime` endpoint, so Bedrock calls go over NAT when this is set and `internet_egress = true`.
+- **Skip WAF:** `http_edge = { waf_disabled = true }`. Do not use this to unblock Chainlit uploads or WebSockets; see [How do I turn WAF off?](#how-do-i-turn-waf-off) and [What is the file upload size limit?](#what-is-the-file-upload-size-limit).
+- **Skip ALB, CloudFront, and WAF:** `http_edge = { enabled = false }` when you only run locally. Skip the app stack. NAT and the Atlas cluster still bill.
+- **Skip AWS interface VPC endpoints:** `skip_interface_endpoints = true`. This turns NAT on for the app, so AWS API traffic uses public endpoints over NAT; Atlas PrivateLink and the S3 gateway stay. It also omits the `bedrock-runtime` endpoint, so Bedrock calls go over NAT.
 
 ### How do I turn WAF off?
 
-Set `http_edges = { main = { waf = { enabled = false } } }` in lz tfvars. Do not use this as the WebSocket workaround; if Common Rule Set blocks the Chainlit upgrade, add an allow rule instead. File uploads are a different rule (`SizeRestrictions_BODY`); see [What is the file upload size limit?](#what-is-the-file-upload-size-limit).
+Set `http_edge = { waf_disabled = true }` in lz tfvars. Do not use this as the WebSocket workaround; if Common Rule Set blocks the Chainlit upgrade, add an allow rule instead. File uploads are a different rule (`SizeRestrictions_BODY`); see [What is the file upload size limit?](#what-is-the-file-upload-size-limit).
 
 ### What is the file upload size limit?
 
@@ -191,7 +191,7 @@ This example counts `SizeRestrictions_BODY` and the other Common Rule Set BODY r
 
 WAF inspects at most 16 KB of the body on CloudFront (64 KB if you raise the inspection limit). That is inspection only, not an upload size cap. After the BODY rules are counted, CloudFront and the ALB forward the full POST. CloudFront's request-body quota is 64 GB. This example does not set a smaller cap. A slow upload can still fail the 120s origin read timeout.
 
-Do not set `waf.enabled = false` to fix uploads.
+Do not set `waf_disabled = true` to fix uploads.
 
 ### How does the LLM answer work?
 
@@ -199,9 +199,9 @@ The default provider is Amazon Bedrock with Amazon Nova Lite (`amazon.nova-lite-
 
 The `bedrock-runtime` endpoint carries a policy that allows only the Converse actions (`InvokeModel`, `InvokeModelWithResponseStream`, `Converse`, `ConverseStream`, `CountTokens`). Traffic to any other Bedrock action is rejected at the endpoint, before IAM is evaluated. The other interface endpoints keep the default full-access policy.
 
-`ENABLE_LLM=false` (or `enable_llm = false` in tfvars) disables the LLM for every session, skips the task-role policy, and omits the `bedrock-runtime` endpoint. The **LLM answer** toggle is a per-session override when the env allows LLM.
+`ENABLE_LLM=false` (or `llm.disabled = true` in tfvars) disables the LLM for every session, skips the task-role policy, and omits the `bedrock-runtime` endpoint. The **LLM answer** toggle is a per-session override when the env allows LLM.
 
-For a keyed provider, run `just create-llm-secret` before lz apply. It writes a Secrets Manager secret and prints the name; set `llm_secret_name` in lz tfvars. The key is inlined as `llm_env_name` (default `ANTHROPIC_API_KEY`). The provider is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`), and `llm_secret_name` wins over `llm_provider`. Pin the model in `llm_env` (`ANTHROPIC_MODEL`, `BEDROCK_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `GROVE_MODEL`). Grove also needs `GROVE_BASE_URL`. OpenAI extras (`OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) go in `llm_env` too. Commented examples are in `lz/terraform.tfvars.example`.
+For a keyed provider, run `just create-llm-secret` before lz apply. It writes a Secrets Manager secret and prints the name; set `llm.secret_name` in lz tfvars. The key is inlined as `llm.env_name` (default `ANTHROPIC_API_KEY`). The provider is inferred from that name (`ANTHROPIC_API_KEY` -> `anthropic`, same for `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROVE_API_KEY`), and `llm.secret_name` wins over `llm.provider`. Pin the model in `llm.env` (`ANTHROPIC_MODEL`, `BEDROCK_MODEL`, `GEMINI_MODEL`, `OPENAI_MODEL`, `GROVE_MODEL`). Grove also needs `GROVE_BASE_URL`. OpenAI extras (`OPENAI_BASE_URL`, `OPENAI_EXTRA_HEADERS`) go in `llm.env` too. Commented examples are in `lz/terraform.tfvars.example`.
 
 The task role carries the Bedrock Converse policy. Prefer that over `AWS_ACCESS_KEY_ID` in the container; the static-key path is for local Docker only.
 
@@ -209,8 +209,8 @@ The task role carries the Bedrock Converse policy. Prefer that over `AWS_ACCESS_
 
 Both options need account-level setup and neither is automatic.
 
-- **Newer Amazon model (no form, no account change):** set `BEDROCK_MODEL = "us.amazon.nova-2-lite-v1:0"` in `llm_env` and re-apply lz. The `us.` prefix is required: Nova 2 Lite is inference-profile only, and the bare id fails with `... with on-demand throughput isn't supported`. Output is about 10x the price of Nova Lite.
-- **Anthropic Claude model (needs a one-time account step):** submit the Anthropic use-case details form in the Bedrock console for this account, then set the inference-profile id in `llm_env.BEDROCK_MODEL` (for example `us.anthropic.claude-haiku-4-5-20251001-v1:0`, with the `us.` prefix). The first call before the form is approved fails with `ResourceNotFoundException: Model use case details have not been submitted for this account`. Approval can take a short while, and it is per account and per region family. The task-role policy already covers these ids through `foundation-model/*` plus the inference-profile ARNs, so no IAM edit is needed.
+- **Newer Amazon model (no form, no account change):** set `BEDROCK_MODEL = "us.amazon.nova-2-lite-v1:0"` in `llm.env` and re-apply lz. The `us.` prefix is required: Nova 2 Lite is inference-profile only, and the bare id fails with `... with on-demand throughput isn't supported`. Output is about 10x the price of Nova Lite.
+- **Anthropic Claude model (needs a one-time account step):** submit the Anthropic use-case details form in the Bedrock console for this account, then set the inference-profile id in `llm.env.BEDROCK_MODEL` (for example `us.anthropic.claude-haiku-4-5-20251001-v1:0`, with the `us.` prefix). The first call before the form is approved fails with `ResourceNotFoundException: Model use case details have not been submitted for this account`. Approval can take a short while, and it is per account and per region family. The task-role policy already covers these ids through `foundation-model/*` plus the inference-profile ARNs, so no IAM edit is needed.
 
 Cross-region caveat for both: the `bedrock-runtime` endpoint secures the source-region request only. When an inference profile routes inference to another region, that hop uses the AWS backbone, outside the VPC. The geographic profile choice, not the endpoint, is what keeps the hop in a region set. Endpoint-per-region is the strict-posture option.
 
@@ -258,7 +258,7 @@ Opt-in SCRAM plus one IPv4 for laptop `mongosh`, local hybrid-search Docker, or 
 
 ### How do I use a custom domain?
 
-Set `http_edges.main.aliases` and `acm_certificate_arn` (certificate in `us-east-1`). See [`aws/modules/app-infra`](../modules/app-infra/README.md). No new example variables.
+Set `http_edge.custom_domain.aliases` and `acm_certificate_arn` (certificate in `us-east-1`). See [`aws/modules/app-infra`](../modules/app-infra/README.md). No new example variables.
 
 ### What is `user_agent_extra.example`?
 

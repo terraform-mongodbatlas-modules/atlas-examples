@@ -63,11 +63,9 @@ override_module {
 }
 
 variables {
-  atlas_org_id    = "org123"
-  cluster_name    = "hybrid-search-ui"
-  enable_llm      = false
-  llm_secret_name = null
-  llm_env         = {}
+  atlas_org_id = "org123"
+  cluster_name = "hybrid-search-ui"
+  llm          = { disabled = true }
 }
 
 run "app_secret_nests_groups_without_voyage_key" {
@@ -96,5 +94,55 @@ run "app_secret_nests_groups_without_voyage_key" {
       contains(local.chainlit_waf_count_rules, "SizeRestrictions_BODY"),
     ])
     error_message = "UI routing, CloudFront https_url, and app secret name should be known at plan"
+  }
+}
+
+run "waf_count_rules_reach_the_compiled_edge" {
+  command = plan
+
+  # app-infra exposes no compiled edge config, so assert the example-side map
+  # that feeds module.app_infra.http_edges.
+  assert {
+    condition = alltrue([
+      local.http_edges["main"].waf.disabled == false,
+      toset(local.http_edges["main"].waf.common_rule_set_count_rules) == toset(local.chainlit_waf_count_rules),
+      length(output.https_url) > 0,
+    ])
+    error_message = "The Chainlit CRS count rules should reach the compiled app-infra http_edges map with WAF on"
+  }
+}
+
+run "http_edge_enabled_false_compiles_no_edge" {
+  command = plan
+
+  variables {
+    http_edge = { enabled = false }
+  }
+
+  assert {
+    condition = alltrue([
+      length(keys(local.http_edges)) == 0,
+      try(local.ecs_apps["ui"].routing, null) == null || local.ui.routing == null,
+      output.https_url == null,
+    ])
+    error_message = "http_edge.enabled = false should compile an empty edge map and no routing"
+  }
+}
+
+run "skip_interface_endpoints_derives_nat" {
+  command = plan
+
+  # The derive must satisfy the app-infra vpc.tf precondition that
+  # skip_interface_endpoints requires NAT, with no separate internet_egress.
+  variables {
+    skip_interface_endpoints = true
+  }
+
+  assert {
+    condition = alltrue([
+      module.app_infra.aws.vpcs["us-east-1"].nat_gateway_enabled == true,
+      length(keys(local.http_edges)) == 1,
+    ])
+    error_message = "skip_interface_endpoints = true alone should derive internet_egress and enable NAT"
   }
 }

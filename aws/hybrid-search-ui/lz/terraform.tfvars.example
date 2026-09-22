@@ -7,83 +7,96 @@ cluster_name = "hybrid-search-ui"
 # Cheap personal lab (before first apply):
 # cluster_type = "REPLICASET"
 
-# Skip AWS interface VPC endpoints (ECR, logs, Secrets Manager, STS). NAT stays
-# on via ecs_apps.ui.internet_egress; AWS API calls go NAT to public endpoints.
-# Does not skip Atlas PrivateLink or the S3 gateway. About $2.40/day off in
-# us-east-1 with two AZs.
-# vpc_config = { skip_interface_endpoints = true }
+# Lab (skip module-managed CMK, log export, backup export):
+# atlas_integrations = {
+#   encryption      = { enabled = false }
+#   log_integration = { enabled = false }
+#   backup_export   = { enabled = false }
+# }
+
+# Skip AWS interface VPC endpoints (ECR, logs, Secrets Manager, STS). Turns NAT
+# on for the app; AWS API calls go NAT to public endpoints. Does not skip Atlas
+# PrivateLink or the S3 gateway. About $2.40/day off in us-east-1 with two AZs.
+# skip_interface_endpoints = true
 
 # Skip WAF (not the WebSocket or upload fallback; lab should keep WAF on):
-# http_edges = { main = { waf = { enabled = false } } }
+# http_edge = { waf_disabled = true }
 
 # Local-only: skip ALB + CloudFront + WAF. Pair with public_debug_access and
 # just dump-local-env after apply (do not apply the app stack).
-# http_edges = {}
+# http_edge = { enabled = false }
 
 # Opt-in SCRAM + one IPv4 for laptop mongosh / local app (not on the happy path).
 # Find the IPv4 with: curl -fsS https://ifconfig.me
 # public_debug_access = { ip_address = "1.2.3.4" }
 
 # LLM. Default is bedrock: no key, no secret, no manual step (uses the ECS
-# task role). Set llm_secret_name to switch to a keyed provider instead.
+# task role). Set llm.secret_name to switch to a keyed provider instead.
 #
 # Bedrock (default, no key needed):
-# llm_provider = "bedrock"
-# llm_env = {
-#   BEDROCK_MODEL = "amazon.nova-lite-v1:0"
+# llm = {
+#   provider = "bedrock"
+#   env = {
+#     BEDROCK_MODEL = "amazon.nova-lite-v1:0"
+#   }
 # }
 #
 # Newer Amazon model (inference-profile only; the us. prefix is required):
-# llm_env = {
-#   BEDROCK_MODEL = "us.amazon.nova-2-lite-v1:0"
+# llm = {
+#   env = {
+#     BEDROCK_MODEL = "us.amazon.nova-2-lite-v1:0"
+#   }
 # }
 #
 # Anthropic Claude on Bedrock needs a one-time use-case form in the Bedrock
 # console for this account. Until it is approved the first call fails with
 # ResourceNotFoundException. Then set the inference-profile id:
-# llm_env = {
-#   BEDROCK_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+# llm = {
+#   env = {
+#     BEDROCK_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+#   }
 # }
 #
 # Search-only (no LLM, no bedrock-runtime endpoint):
-# enable_llm = false
+# llm = { disabled = true }
 #
 # Keyed providers (just create-llm-secret, then paste the name).
-# LLM_PROVIDER is inferred from llm_env_name.
+# LLM_PROVIDER is inferred from llm.env_name.
 #
 # Anthropic:
-# llm_secret_name = "hybrid-search-ui-llm"
-# llm_env_name    = "ANTHROPIC_API_KEY"
-# llm_env = {
-#   ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+# llm = {
+#   secret_name = "hybrid-search-ui-llm"
+#   env_name    = "ANTHROPIC_API_KEY"
+#   env = {
+#     ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+#   }
 # }
 #
 # OpenAI:
-# llm_secret_name = "hybrid-search-ui-llm"
-# llm_env_name    = "OPENAI_API_KEY"
-# llm_env = {
-#   OPENAI_MODEL    = "gpt-4o"
-#   OPENAI_BASE_URL = "https://your-endpoint/v1"
+# llm = {
+#   secret_name = "hybrid-search-ui-llm"
+#   env_name    = "OPENAI_API_KEY"
+#   env = {
+#     OPENAI_MODEL    = "gpt-4o"
+#     OPENAI_BASE_URL = "https://your-endpoint/v1"
+#   }
 # }
 #
 # Gemini:
-# llm_secret_name = "hybrid-search-ui-llm"
-# llm_env_name    = "GEMINI_API_KEY"
-# llm_env = {
-#   GEMINI_MODEL = "gemini-2.5-flash"
+# llm = {
+#   secret_name = "hybrid-search-ui-llm"
+#   env_name    = "GEMINI_API_KEY"
+#   env = {
+#     GEMINI_MODEL = "gemini-2.5-flash"
+#   }
 # }
 #
 # Grove:
-# llm_secret_name = "hybrid-search-ui-llm"
-# llm_env_name    = "GROVE_API_KEY"
-# llm_env = {
-#   GROVE_BASE_URL = "https://grove.example.mongodb.com/v1"
-#   GROVE_MODEL    = "gpt-4o"
-# }
-
-# Lab (skip module-managed CMK, log export, backup export):
-# atlas_integrations = {
-#   encryption      = { enabled = false }
-#   log_integration = { enabled = false }
-#   backup_export   = { enabled = false }
+# llm = {
+#   secret_name = "hybrid-search-ui-llm"
+#   env_name    = "GROVE_API_KEY"
+#   env = {
+#     GROVE_BASE_URL = "https://grove.example.mongodb.com/v1"
+#     GROVE_MODEL    = "gpt-4o"
+#   }
 # }

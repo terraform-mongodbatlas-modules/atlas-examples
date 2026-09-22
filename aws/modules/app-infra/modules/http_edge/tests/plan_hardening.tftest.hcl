@@ -81,12 +81,12 @@ run "waf_can_be_disabled" {
   command = plan
 
   variables {
-    waf = { enabled = false }
+    waf = { disabled = true }
   }
 
   assert {
     condition     = length(aws_wafv2_web_acl.this) == 0
-    error_message = "waf.enabled = false should skip the Web ACL"
+    error_message = "waf.disabled = true should skip the Web ACL"
   }
 }
 

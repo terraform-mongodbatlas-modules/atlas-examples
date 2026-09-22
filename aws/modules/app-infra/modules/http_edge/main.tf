@@ -78,7 +78,7 @@ resource "aws_lb_listener" "http" {
 }
 
 resource "aws_wafv2_web_acl" "this" {
-  count       = var.waf.enabled ? 1 : 0
+  count       = var.waf.disabled ? 0 : 1
   region      = "us-east-1"
   name        = var.name
   description = "CloudFront WAF for ${var.name}"
@@ -135,7 +135,7 @@ resource "aws_cloudfront_distribution" "this" {
   price_class     = "PriceClass_100"
   is_ipv6_enabled = true
   aliases         = var.aliases
-  web_acl_id      = var.waf.enabled ? aws_wafv2_web_acl.this[0].arn : null
+  web_acl_id      = var.waf.disabled ? null : aws_wafv2_web_acl.this[0].arn
 
   origin {
     domain_name = aws_lb.this.dns_name
