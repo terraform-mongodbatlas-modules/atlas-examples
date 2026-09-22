@@ -1,3 +1,5 @@
+# Shared locals. File-local locals live next to the resources that read them.
+
 locals {
   # --- Regions and app inputs -------------------------------------------------
   regions_resolved = [
@@ -57,27 +59,6 @@ locals {
     if v.lifecycle_keep_count > 0
   }
 
-  # --- IAM --------------------------------------------------------------------
-  ecs_execution_managed_policies = {
-    execution = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-  }
-  ecs_execution_role_policy_attachments = {
-    for pair in setproduct(keys(local.ecs_apps), keys(local.ecs_execution_managed_policies)) :
-    "${pair[0]}-${pair[1]}" => {
-      app_key    = pair[0]
-      policy_arn = local.ecs_execution_managed_policies[pair[1]]
-    }
-  }
-
-  # Caller-owned task-role policies (for example Bedrock). The caller passes
-  # module.llm.task_policy_jsons through ecs_apps.*.extra_task_policies.
-  extra_task_policies = merge([
-    for k, v in var.ecs_apps : {
-      for name, policy in v.extra_task_policies :
-      "${k}-${name}" => { app_key = k, name = name, policy = policy }
-    }
-  ]...)
-
   # --- VPC and app network ----------------------------------------------------
   managed_vpc_regions = var.vpc_config.create ? toset(local.aws_regions) : toset([])
   vpc_cidr_by_region = {
@@ -120,14 +101,6 @@ locals {
     }
   }
 
-  ecs_container_ports_by_region = {
-    for region in local.ecs_alb_regions : region => distinct([
-      for app in local.ecs_routing_apps :
-      app.routing.container_port
-      if local.http_edges[app.routing.edge].aws_region == region
-    ])
-  }
-
   ecs_internet_egress_regions = toset([
     for app in local.ecs_apps : app.aws_region
     if app.internet_egress
@@ -136,8 +109,4 @@ locals {
     for region in local.managed_vpc_regions :
     region => var.vpc_config.enable_nat_gateway || contains(local.ecs_internet_egress_regions, region)
   }
-  app_regions_with_internet_egress = toset(concat(
-    var.vpc_config.enable_nat_gateway ? tolist(local.app_aws_regions) : [],
-    tolist(local.ecs_internet_egress_regions)
-  ))
 }

@@ -68,7 +68,6 @@ run "ecs_ui_path" {
       output.ecs_apps["ui"].name == "hybridrag-ui",
       output.ecs_apps["ui"].runtime_secret_name == "hybridrag-ui-app",
       output.ecs_apps["ui"].routing.container_port == 8001,
-      output.ecs_apps["ui"].mongo.database_name == "hybridrag",
       !contains(keys(output.ecs_apps["ui"].routing), "health_check_path"),
       !contains(keys(output.ecs_apps["ui"]), "task_cpu"),
       !contains(keys(output.ecs_apps["ui"]), "ecs_cluster_arn"),

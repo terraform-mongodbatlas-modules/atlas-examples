@@ -25,6 +25,9 @@ locals {
   }
   app_aws_regions = toset([for app in local.ecs_apps : app.aws_region])
   ui              = module.app_platform.ecs_apps["ui"]
+  # The app's roles grant carries the database name, so MONGODB_DATABASE cannot
+  # drift from the IAM user's grant.
+  ui_database     = local.ecs_apps["ui"].roles[0].database_name
   app_secret_name = local.ui.runtime_secret_name
 
   # --- Atlas AWS integrations -------------------------------------------------
@@ -140,6 +143,9 @@ locals {
 
   mongo_iam_auth_query = "authSource=%24external&authMechanism=MONGODB-AWS"
 
+  # The app's URI. The module deliberately does not return it: it derives from
+  # module.atlas_cluster, which depends_on module.app_platform, so routing it
+  # back through the module would close a cycle.
   mongo_iam_connection_strings_by_region = {
     for region, srv in local.mongo_private_connection_strings_by_region :
     region => (
@@ -261,7 +267,7 @@ locals {
   # chunk size the app writes. Change them here and re-apply lz, then app.
   app_env = {
     CHAINLIT_DEMO_USERNAME = "demo"
-    MONGODB_DATABASE       = local.ui.mongo.database_name
+    MONGODB_DATABASE       = local.ui_database
     MONGODB_URI            = local.mongo_iam_connection_strings_by_region[local.ui.aws_region]
     SKIP_INDEX_CREATION    = "true"
     TOP_K                  = "20"

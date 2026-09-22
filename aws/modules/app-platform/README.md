@@ -15,7 +15,7 @@ This is not a published Landing Zone product. The nested `regional_vpc` and `htt
 
 ## Outputs
 
-- **`ecs_apps`:** Per-app `network`, `iam`, `mongo.database_name`, `routing`, ECR URL, and derived `runtime_secret_name` (`<app-name>-app`). The caller stores these groups, adds `mongo.connection_string` from its own cluster, and passes them to ecs-service. Does not include `ecs_cluster` / `ecs_cluster_arn`, origin-header values, task size, or container env.
+- **`ecs_apps`:** Per-app `network`, `iam`, `routing`, ECR URL, and derived `runtime_secret_name` (`<app-name>-app`). The caller stores these groups and passes them to ecs-service. The caller owns the database name and connection string. Does not include `ecs_cluster` / `ecs_cluster_arn`, origin-header values, task size, or container env.
 - **`region_network`:** Per-cluster-region `vpc_id`, `private_subnet_ids`, and `vpc_cidr_block` for every entry in `regions`, so the caller can wire Atlas PrivateLink endpoints with no dependency cycle.
 - **`http_edge_origin_header_values`:** Sensitive map keyed by `http_edges`. The caller copies the value onto `routing.origin_header_value` in the app secret.
 - **`aws.http_edges.*.https_url`:** CloudFront HTTPS URL. Smoke tests should not curl the ALB on HTTP.
@@ -25,6 +25,6 @@ This is not a published Landing Zone product. The nested `regional_vpc` and `htt
 ## When your VPC differs from the default
 
 - **BYO VPC:** Set `vpc_config.create = false` and give every cluster region a `by_region` entry (see the variable validation for required fields).
-- **VPC endpoints:** `aws_vpc_endpoint.interface` and `aws_vpc_endpoint.s3` in `aws.tf`. Toggle interface endpoints with `vpc_config.skip_interface_endpoints`.
-- **App egress:** The `egress` blocks on `aws_security_group.app` in `aws.tf` (PrivateLink, interface endpoints, DNS, S3, internet via NAT).
+- **VPC endpoints:** `aws_vpc_endpoint.interface` and `aws_vpc_endpoint.s3` in `vpc.tf`. Toggle interface endpoints with `vpc_config.skip_interface_endpoints`.
+- **App egress:** The `egress` blocks on `aws_security_group.app` in `vpc.tf` (PrivateLink, interface endpoints, DNS, S3, internet via NAT).
 - **NAT:** `enable_nat_gateway_by_region` in `main.tf`; `vpc_config.enable_nat_gateway` turns it on everywhere, `ecs_apps.*.internet_egress` per app region.

@@ -1,4 +1,18 @@
-data "aws_caller_identity" "current" {}
+# VPC, app security groups, and VPC endpoints.
+
+locals {
+  ecs_container_ports_by_region = {
+    for region in local.ecs_alb_regions : region => distinct([
+      for app in local.ecs_routing_apps :
+      app.routing.container_port
+      if local.http_edges[app.routing.edge].aws_region == region
+    ])
+  }
+  app_regions_with_internet_egress = toset(concat(
+    var.vpc_config.enable_nat_gateway ? tolist(local.app_aws_regions) : [],
+    tolist(local.ecs_internet_egress_regions)
+  ))
+}
 
 # --- VPC ----------------------------------------------------------------------
 module "vpc" {
@@ -15,23 +29,6 @@ module "vpc" {
   create_igw            = var.vpc_config.create_igw
   create_public_subnets = contains(local.ecs_alb_regions, each.key)
   tags                  = var.tags
-}
-
-# --- HTTP edge (ALB + CloudFront + WAF) ---------------------------------------
-module "http_edge" {
-  for_each = local.http_edges
-
-  source              = "./modules/http_edge"
-  aws_region          = each.value.aws_region
-  name                = "${var.default_resource_name_prefix}-${each.key}"
-  security_group_name = "${var.default_resource_name_prefix}-alb-${each.key}"
-  vpc_id              = local.app_network[each.value.aws_region].vpc_id
-  public_subnet_ids   = local.app_network[each.value.aws_region].public_subnet_ids
-  aliases             = each.value.aliases
-  acm_certificate_arn = each.value.acm_certificate_arn
-  idle_timeout        = each.value.idle_timeout
-  waf                 = each.value.waf
-  tags                = var.tags
 }
 
 # --- App security groups ------------------------------------------------------
@@ -201,72 +198,4 @@ resource "aws_vpc_endpoint" "s3" {
       error_message = "vpc_config.skip_interface_endpoints requires NAT (vpc_config.enable_nat_gateway or ecs_apps.*.internet_egress) so tasks can reach AWS APIs."
     }
   }
-}
-
-# --- ECS task and execution roles --------------------------------------------
-resource "aws_iam_role" "ecs_task" {
-  for_each = local.ecs_apps
-
-  name = "${each.value.name}-ecs-task"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "ecs-tasks.amazonaws.com" }
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role" "ecs_task_execution" {
-  for_each = local.ecs_apps
-
-  name = "${each.value.name}-ecs-exec"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "ecs-tasks.amazonaws.com" }
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
-  for_each = local.ecs_execution_role_policy_attachments
-
-  role       = aws_iam_role.ecs_task_execution[each.value.app_key].name
-  policy_arn = each.value.policy_arn
-}
-
-resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
-  for_each = local.ecs_apps
-
-  name = "${each.key}-ecs-exec-secrets"
-  role = aws_iam_role.ecs_task_execution[each.key].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["secretsmanager:GetSecretValue"]
-      Resource = "arn:aws:secretsmanager:${each.value.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${each.value.runtime_secret_name}-*"
-    }]
-  })
-}
-
-# Caller-owned task-role policies (for example Bedrock). The caller authors the
-# JSON; this module only attaches it, so the caller does not write IAM here.
-resource "aws_iam_role_policy" "extra" {
-  for_each = local.extra_task_policies
-
-  name   = each.value.name
-  role   = aws_iam_role.ecs_task[each.value.app_key].id
-  policy = each.value.policy
 }

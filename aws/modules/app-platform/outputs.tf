@@ -93,7 +93,7 @@ output "ecr_repositories" {
 }
 
 output "ecs_apps" {
-  description = "Resolved ECS apps for the example to store and pass to ecs-service. connection_string comes from the caller. Origin header values: http_edge_origin_header_values."
+  description = "Resolved ECS apps for the example to store and pass to ecs-service. The caller owns the database name and connection string. Origin header values: http_edge_origin_header_values."
   value = {
     for k, v in local.ecs_apps : k => {
       name                = v.name
@@ -107,9 +107,6 @@ output "ecs_apps" {
       iam = {
         task_role_arn           = aws_iam_role.ecs_task[k].arn
         task_execution_role_arn = aws_iam_role.ecs_task_execution[k].arn
-      }
-      mongo = {
-        database_name = v.primary_database
       }
       routing = v.routing == null ? null : {
         edge               = v.routing.edge
