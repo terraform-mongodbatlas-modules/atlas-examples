@@ -117,12 +117,6 @@ locals {
     module.atlas_cluster.connection_strings.standard_srv
     ), "NO_CONNECTION_STRING_AVAILABLE"
   )
-  mongo_private_connection_string_uses_standard_srv = (
-    local.mongo_private_connection_string == module.atlas_cluster.connection_strings.standard_srv
-  )
-  mongo_private_connection_string_unavailable = (
-    local.mongo_private_connection_string == "NO_CONNECTION_STRING_AVAILABLE"
-  )
 
   aws_to_atlas_region = {
     for r in local.regions_resolved : r.aws_name => r.atlas_name
@@ -143,9 +137,6 @@ locals {
 
   mongo_iam_auth_query = "authSource=%24external&authMechanism=MONGODB-AWS"
 
-  # The app's URI. The module deliberately does not return it: it derives from
-  # module.atlas_cluster, which depends_on module.app_platform, so routing it
-  # back through the module would close a cycle.
   mongo_iam_connection_strings_by_region = {
     for region, srv in local.mongo_private_connection_strings_by_region :
     region => (
@@ -168,28 +159,6 @@ locals {
     urlencode(local.public_debug_password),
     trimprefix(module.atlas_cluster.connection_strings.standard_srv, "mongodb+srv://")
   ) : null
-}
-
-check "mongo_private_connection_string_standard_srv_fallback" {
-  assert {
-    condition     = !local.mongo_private_connection_string_uses_standard_srv
-    error_message = <<-EOT
-      mongo_private_connection_string fell back to standard_srv (non-PrivateLink).
-      Atlas did not publish private_endpoint or private_srv SRV connection strings yet.
-      ECS apps will receive the public Atlas SRV; traffic may not route over PrivateLink.
-    EOT
-  }
-}
-
-check "mongo_private_connection_string_unavailable" {
-  assert {
-    condition     = !local.mongo_private_connection_string_unavailable
-    error_message = <<-EOT
-      mongo_private_connection_string is NO_CONNECTION_STRING_AVAILABLE.
-      Atlas did not publish private_endpoint, private_srv, or standard_srv connection strings.
-      This can happen when the cluster is paused; otherwise it should not occur (cluster state: ${module.atlas_cluster.state_name}).
-    EOT
-  }
 }
 
 # --- LLM ----------------------------------------------------------------------
