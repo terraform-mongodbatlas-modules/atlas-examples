@@ -36,14 +36,14 @@ module "atlas_aws" {
 
   project_id = module.atlas_project.id
 
-  # PrivateLink into the app platform VPC. module.app_platform must come first:
+  # PrivateLink into the app infra VPC. module.app_infra must come first:
   # these are its subnet IDs.
   privatelink_endpoints = [
     for r in local.regions_resolved : {
       region     = r.atlas_name
-      subnet_ids = module.app_platform.region_network[r.aws_name].private_subnet_ids
+      subnet_ids = module.app_infra.region_network[r.aws_name].private_subnet_ids
       security_group = {
-        inbound_cidr_blocks = [module.app_platform.region_network[r.aws_name].vpc_cidr_block]
+        inbound_cidr_blocks = [module.app_infra.region_network[r.aws_name].vpc_cidr_block]
       }
     }
   ]
@@ -89,7 +89,7 @@ resource "mongodbatlas_database_user" "ecs" {
   for_each = local.ecs_apps
 
   project_id         = module.atlas_project.id
-  username           = module.app_platform.aws.ecs_task_roles[each.key]
+  username           = module.app_infra.aws.ecs_task_roles[each.key]
   auth_database_name = "$external"
   aws_iam_type       = "ROLE"
 
@@ -142,6 +142,6 @@ resource "aws_security_group_rule" "atlas_pl_ingress_from_app" {
   to_port                  = 65535
   protocol                 = "tcp"
   security_group_id        = module.atlas_aws.privatelink[each.key].security_group_id
-  source_security_group_id = module.app_platform.aws.compute[each.key].app_security_group_id
+  source_security_group_id = module.app_infra.aws.compute[each.key].app_security_group_id
   description              = "MongoDB Atlas PrivateLink from app SG"
 }

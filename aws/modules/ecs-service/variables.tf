@@ -14,7 +14,7 @@ variable "ecr_repository_url" {
 }
 
 variable "network" {
-  description = "Private subnets and app security group from modules/app-platform ecs_apps.network."
+  description = "Private subnets and app security group from modules/app-infra ecs_apps.network."
   type = object({
     private_subnet_ids    = list(string)
     ecs_security_group_id = string
@@ -27,7 +27,7 @@ variable "network" {
 }
 
 variable "iam" {
-  description = "Task and execution role ARNs from modules/app-platform ecs_apps.iam."
+  description = "Task and execution role ARNs from modules/app-infra ecs_apps.iam."
   type = object({
     task_role_arn           = string
     task_execution_role_arn = string
@@ -35,7 +35,7 @@ variable "iam" {
 }
 
 variable "routing" {
-  description = "ALB listener rule and target group. Matches modules/app-platform ecs_apps.routing plus health_check_path and origin_header_value (example merge)."
+  description = "ALB listener rule and target group. Matches modules/app-infra ecs_apps.routing plus health_check_path and origin_header_value (example merge)."
   type = object({
     listener_arn        = string
     listener_priority   = number

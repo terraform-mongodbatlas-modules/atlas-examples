@@ -39,7 +39,7 @@ aws/hybrid-search-ui/
 ├── docker/             # local compose stacks; chainlit/config.toml is the image UI title
 ├── lz/                 # Atlas + AWS infra, autoEmbed, Chainlit, app secret
 └── app/                # ECS cluster + service
-aws/modules/app-platform/  # VPC, endpoints, IAM, ECR, HTTP edge
+aws/modules/app-infra/     # VPC, endpoints, IAM, ECR, HTTP edge
 aws/modules/llm/           # provider inference, container env, secrets, Bedrock policy
 aws/modules/ecs-service/
 ```
@@ -258,7 +258,7 @@ Opt-in SCRAM plus one IPv4 for laptop `mongosh`, local hybrid-search Docker, or 
 
 ### How do I use a custom domain?
 
-Set `http_edges.main.aliases` and `acm_certificate_arn` (certificate in `us-east-1`). See [`aws/modules/app-platform`](../modules/app-platform/README.md). No new example variables.
+Set `http_edges.main.aliases` and `acm_certificate_arn` (certificate in `us-east-1`). See [`aws/modules/app-infra`](../modules/app-infra/README.md). No new example variables.
 
 ### What is `user_agent_extra.example`?
 
@@ -266,4 +266,4 @@ Set `http_edges.main.aliases` and `acm_certificate_arn` (certificate in `us-east
 
 ### Landing Zone module inputs
 
-Full schemas live in the published modules: [project](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/project/mongodbatlas/latest), [cluster](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest), [atlas-aws](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/atlas-aws/mongodbatlas/latest). Demo knobs are `atlas_org_id`, `cluster_name`, and the commented examples in `lz/terraform.tfvars.example`. Composition inputs for VPC and ECS apps are in [`aws/modules/app-platform`](../modules/app-platform/README.md); LLM env and Bedrock policy live in [`aws/modules/llm`](../modules/llm/README.md).
+Full schemas live in the published modules: [project](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/project/mongodbatlas/latest), [cluster](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest), [atlas-aws](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/atlas-aws/mongodbatlas/latest). Demo knobs are `atlas_org_id`, `cluster_name`, and the commented examples in `lz/terraform.tfvars.example`. Composition inputs for VPC and ECS apps are in [`aws/modules/app-infra`](../modules/app-infra/README.md); LLM env and Bedrock policy live in [`aws/modules/llm`](../modules/llm/README.md).

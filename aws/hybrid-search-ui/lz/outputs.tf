@@ -1,11 +1,11 @@
 output "https_url" {
   description = "CloudFront HTTPS URL for the UI. Null when http_edges is empty."
-  value       = try(module.app_platform.aws.http_edges["main"].https_url, null)
+  value       = try(module.app_infra.aws.http_edges["main"].https_url, null)
 }
 
 output "ecr_repository_url" {
   description = "ECR repository URL for just build-push (no tag)."
-  value       = module.app_platform.ecr_repositories["ui"]
+  value       = module.app_infra.ecr_repositories["ui"]
 }
 
 output "app_secret_name" {

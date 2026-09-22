@@ -1,10 +1,10 @@
 # `modules/llm`
 
 LLM provider selection as a pure transform. The module creates no resources, so
-it can be called before the app platform without a dependency cycle.
+it can be called before the app infra without a dependency cycle.
 
 Given the provider knobs from tfvars, it resolves the provider, builds the
-container env map, and returns the IAM task-role policy the app platform should
+container env map, and returns the IAM task-role policy the app infra should
 attach for Bedrock. The caller keeps ownership of the app secret and the
 `aws_secretsmanager_secret_version` data source.
 
@@ -29,5 +29,5 @@ attach for Bedrock. The caller keeps ownership of the app secret and the
 - **`env`:** Container env map with the LLM keys (`ENABLE_LLM`, `LLM_PROVIDER`, and for bedrock `BEDROCK_MODEL` / `AWS_REGION`). The caller merges this with its own app env (`MONGODB_URI`, `MONGODB_DATABASE`, `TOP_K`, `CHUNK_MAX_TOKENS`, `AUTOEMBED_MODEL`).
 - **`secret_keys`:** Secret key names the container reads. Always `CHAINLIT_AUTH_SECRET` and `CHAINLIT_DEMO_PASSWORD`; adds `env_name` plus `env` keys when a secret is set.
 - **`secrets`:** Sensitive map to merge into the app secret JSON. Empty when no secret is set.
-- **`bedrock`:** `{ enabled, model, region }`. `enabled` drives the `bedrock-runtime` interface endpoint on the app platform.
-- **`task_policy_jsons`:** Map of policy name to JSON for the app platform's `extra_task_policies`. Empty when the provider is not Bedrock.
+- **`bedrock`:** `{ enabled, model, region }`. `enabled` drives the `bedrock-runtime` interface endpoint on the app infra.
+- **`task_policy_jsons`:** Map of policy name to JSON for the app infra's `extra_task_policies`. Empty when the provider is not Bedrock.

@@ -18,7 +18,7 @@ output "secrets" {
 }
 
 output "bedrock" {
-  description = "Bedrock provider state. enabled drives the bedrock-runtime interface endpoint on the app platform; model and region are the resolved values."
+  description = "Bedrock provider state. enabled drives the bedrock-runtime interface endpoint on the app infra; model and region are the resolved values."
   value = {
     enabled = local.bedrock_enabled
     model   = local.bedrock_model
@@ -27,6 +27,6 @@ output "bedrock" {
 }
 
 output "task_policy_jsons" {
-  description = "IAM task-role policies the app platform should attach, keyed by policy name. Empty when the provider is not bedrock. Pass this to extra_task_policies on the app platform."
+  description = "IAM task-role policies the app infra should attach, keyed by policy name. Empty when the provider is not bedrock. Pass this to extra_task_policies on the app infra."
   value       = local.task_policy_jsons
 }

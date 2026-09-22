@@ -65,7 +65,7 @@ variable "manual_scaling" {
 }
 
 variable "vpc_config" {
-  description = "App VPC for PrivateLink and ECS. Composition input for modules/app-platform; that module validates the value. bedrock_runtime_endpoint overrides the inferred bedrock-runtime endpoint (null infers it from the LLM provider)."
+  description = "App VPC for PrivateLink and ECS. Composition input for modules/app-infra; that module validates the value. bedrock_runtime_endpoint overrides the inferred bedrock-runtime endpoint (null infers it from the LLM provider)."
   type = object({
     create                   = optional(bool, true)
     base_cidr                = optional(string, "10.0.0.0/8")
@@ -89,7 +89,7 @@ variable "vpc_config" {
 }
 
 variable "atlas_integrations" {
-  description = "Atlas AWS integrations (encryption, log export, backup export). Consumed here, not by modules/app-platform."
+  description = "Atlas AWS integrations (encryption, log export, backup export). Consumed here, not by modules/app-infra."
   type = object({
     encryption = optional(object({
       enabled                = optional(bool, true)
@@ -126,7 +126,7 @@ variable "atlas_integrations" {
 }
 
 variable "ecr_repositories" {
-  description = "ECR repositories. Composition input for modules/app-platform."
+  description = "ECR repositories. Composition input for modules/app-infra."
   type = map(object({
     name                 = optional(string)
     region               = optional(string)
@@ -141,7 +141,7 @@ variable "ecr_repositories" {
 }
 
 variable "http_edges" {
-  description = "HTTP edges (ALB + CloudFront + WAF). Composition input for modules/app-platform. Set http_edges = {} (see terraform.tfvars.example) to skip ALB, CloudFront, and WAF when you only run the UI locally."
+  description = "HTTP edges (ALB + CloudFront + WAF). Composition input for modules/app-infra. Set http_edges = {} (see terraform.tfvars.example) to skip ALB, CloudFront, and WAF when you only run the UI locally."
   type = map(object({
     aws_region          = optional(string)
     aliases             = optional(list(string), [])
@@ -158,7 +158,7 @@ variable "http_edges" {
 }
 
 variable "ecs_apps" {
-  description = "ECS apps. Composition input for modules/app-platform. Default UI on port 8001."
+  description = "ECS apps. Composition input for modules/app-infra. Default UI on port 8001."
   type = map(object({
     name             = optional(string)
     ecr_key          = string

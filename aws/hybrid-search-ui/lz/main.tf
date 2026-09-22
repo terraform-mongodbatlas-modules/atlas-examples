@@ -1,5 +1,5 @@
 # Hybrid Search UI: stack one of two. This stack creates the Atlas project,
-# cluster, AWS app platform (VPC, endpoints, roles, ECR, HTTP edge), and the
+# cluster, AWS app infra (VPC, endpoints, roles, ECR, HTTP edge), and the
 # Secrets Manager secret the app stack in `../app/` reads.
 
 locals {
@@ -24,7 +24,7 @@ locals {
     }
   }
   app_aws_regions = toset([for app in local.ecs_apps : app.aws_region])
-  ui              = module.app_platform.ecs_apps["ui"]
+  ui              = module.app_infra.ecs_apps["ui"]
   # The app's roles grant carries the database name, so MONGODB_DATABASE cannot
   # drift from the IAM user's grant.
   ui_database     = local.ecs_apps["ui"].roles[0].database_name
@@ -182,10 +182,10 @@ data "aws_secretsmanager_secret_version" "llm" {
   secret_id = var.llm_secret_name
 }
 
-# --- Atlas and AWS app platform ----------------------------------------------
+# --- Atlas and AWS app infra --------------------------------------------------
 
-module "app_platform" {
-  source = "../../modules/app-platform"
+module "app_infra" {
+  source = "../../modules/app-infra"
 
   default_resource_name_prefix = var.default_resource_name_prefix
   regions                      = var.regions
@@ -212,7 +212,7 @@ module "app_platform" {
       primary_database = app.primary_database
       internet_egress  = app.internet_egress
       roles            = app.roles
-      # app_platform validates the rest; only routing collapses when there is
+      # app_infra validates the rest; only routing collapses when there is
       # no HTTP edge.
       routing             = length(var.http_edges) == 0 ? null : app.routing
       extra_task_policies = module.llm.task_policy_jsons
@@ -279,7 +279,7 @@ resource "aws_secretsmanager_secret_version" "app" {
     iam                = local.ui.iam
     routing = local.ui.routing == null ? null : merge(local.ui.routing, {
       health_check_path   = "/"
-      origin_header_value = module.app_platform.http_edge_origin_header_values[local.ui.routing.edge]
+      origin_header_value = module.app_infra.http_edge_origin_header_values[local.ui.routing.edge]
     })
     container = {
       env         = local.container_env

@@ -1,6 +1,6 @@
-# `modules/app-platform`
+# `modules/app-infra`
 
-AWS app platform for an Atlas deployment: managed or BYO VPC, VPC endpoints, app security groups, ECS task and execution roles, ECR, and an optional HTTP edge (ALB + CloudFront + WAF).
+AWS app infra for an Atlas deployment: managed or BYO VPC, VPC endpoints, app security groups, ECS task and execution roles, ECR, and an optional HTTP edge (ALB + CloudFront + WAF).
 
 This is not a published Landing Zone product. The nested `regional_vpc` and `http_edge` modules are implementation details. The module does not create an ECS cluster, does not write the app secret, and does not touch Atlas. The caller composes the published [project](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/project/mongodbatlas/latest), [atlas-aws](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/atlas-aws/mongodbatlas/latest), and [cluster](https://registry.terraform.io/modules/terraform-mongodbatlas-modules/cluster/mongodbatlas/latest) modules, plus the database users and connection strings, next to this one.
 
