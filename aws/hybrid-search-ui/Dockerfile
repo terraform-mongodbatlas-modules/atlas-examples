@@ -4,16 +4,19 @@ COPY --from=ghcr.io/astral-sh/uv:0.9.21 /uv /uvx /bin/
 
 WORKDIR /app
 
+# Dependencies only. Cached until pyproject.toml or uv.lock change.
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project --extra ui --extra aws
 
+# Project source, then install the project into the environment created above.
+COPY src/ ./src/
+RUN uv sync --frozen --no-dev --extra ui --extra aws
+
+# Static assets last: edits here keep the install layers cached.
 COPY chainlit.md ./
 COPY chainlit.md chainlit_en-US.md
 COPY docker/chainlit/ .chainlit/
 COPY demo_queries.yaml ./
-
-COPY src/ ./src/
-RUN uv sync --frozen --no-dev --extra ui --extra aws
 
 RUN useradd --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app
