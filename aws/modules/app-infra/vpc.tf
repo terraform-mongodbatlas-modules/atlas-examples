@@ -24,10 +24,13 @@ module "vpc" {
   cidr       = local.vpc_cidr_by_region[each.key]
   az_count   = local.vpc_az_count_by_region[each.key]
 
-  enable_nat_gateway    = local.enable_nat_gateway_by_region[each.key]
-  single_nat_gateway    = var.vpc_config.single_nat_gateway
-  create_igw            = var.vpc_config.create_igw
-  create_public_subnets = contains(local.ecs_alb_regions, each.key)
+  enable_nat_gateway = local.enable_nat_gateway_by_region[each.key]
+  single_nat_gateway = var.vpc_config.single_nat_gateway
+  # VPC origins require an IGW in the VPC even though it does not route origin
+  # traffic. create_public_subnets stays false; the ALB is private and subnets
+  # come from NAT needs only.
+  create_igw            = var.vpc_config.create_igw || contains(local.ecs_alb_regions, each.key)
+  create_public_subnets = false
   tags                  = var.tags
 }
 

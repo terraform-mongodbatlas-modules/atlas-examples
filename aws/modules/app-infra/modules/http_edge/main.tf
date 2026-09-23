@@ -11,16 +11,6 @@ data "aws_ec2_managed_prefix_list" "cloudfront_origin" {
   name   = "com.amazonaws.global.cloudfront.origin-facing"
 }
 
-resource "random_password" "origin_header" {
-  length  = 32
-  special = false
-}
-
-locals {
-  origin_header_name  = "X-Origin-Verify"
-  origin_header_value = random_password.origin_header.result
-}
-
 resource "aws_security_group" "alb" {
   region      = var.aws_region
   name_prefix = "${var.security_group_name}-"
@@ -52,13 +42,28 @@ resource "aws_security_group" "alb" {
 resource "aws_lb" "this" {
   region             = var.aws_region
   name               = var.name
-  internal           = false
+  internal           = true
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = var.public_subnet_ids
+  subnets            = var.private_subnet_ids
   idle_timeout       = var.idle_timeout
 
   tags = merge(var.tags, { Name = var.name })
+}
+
+resource "aws_cloudfront_vpc_origin" "this" {
+  vpc_origin_endpoint_config {
+    name                   = "${var.name}-vpc-origin"
+    arn                    = aws_lb.this.arn
+    http_port              = 80
+    https_port             = 443
+    origin_protocol_policy = "http-only"
+
+    origin_ssl_protocols {
+      items    = ["TLSv1.2"]
+      quantity = 1
+    }
+  }
 }
 
 resource "aws_lb_listener" "http" {
@@ -141,18 +146,12 @@ resource "aws_cloudfront_distribution" "this" {
     domain_name = aws_lb.this.dns_name
     origin_id   = "alb"
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-      # 120s is the CloudFront origin-read max without a quota increase. Matches ALB idle default.
-      origin_read_timeout = 120
-    }
-
-    custom_header {
-      name  = local.origin_header_name
-      value = local.origin_header_value
+    vpc_origin_config {
+      vpc_origin_id = aws_cloudfront_vpc_origin.this.id
+      # 120s idle read timeout; matches the ALB idle_timeout. CloudFront measures
+      # the gap since the last byte, not total request duration.
+      origin_read_timeout      = 120
+      origin_keepalive_timeout = 5
     }
   }
 

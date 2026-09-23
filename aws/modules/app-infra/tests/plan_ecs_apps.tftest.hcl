@@ -27,13 +27,9 @@ mock_provider "aws" {
       id          = "E123456789"
     }
   }
-}
 
-mock_provider "random" {
-  override_during = plan
-
-  mock_resource "random_password" {
-    defaults = { result = "test-origin-header-value-32chars" }
+  mock_resource "aws_cloudfront_vpc_origin" {
+    defaults = { id = "vo-test" }
   }
 }
 
@@ -71,9 +67,6 @@ run "ecs_ui_path" {
       !contains(keys(output.ecs_apps["ui"].routing), "health_check_path"),
       !contains(keys(output.ecs_apps["ui"]), "task_cpu"),
       !contains(keys(output.ecs_apps["ui"]), "ecs_cluster_arn"),
-      output.ecs_apps["ui"].routing.origin_header_name == "X-Origin-Verify",
-      contains(keys(nonsensitive(output.http_edge_origin_header_values)), "main"),
-      module.http_edge["main"].origin_header_name == "X-Origin-Verify",
       strcontains(
         jsondecode(aws_iam_role_policy.ecs_task_execution_secrets["ui"].policy).Statement[0].Resource,
         "secret:hybridrag-ui-app-*"

@@ -33,6 +33,7 @@ output "aws" {
         https_url           = module.http_edge[k].https_url
         cloudfront_domain   = module.http_edge[k].cloudfront_domain_name
         cloudfront_id       = module.http_edge[k].cloudfront_distribution_id
+        vpc_origin_id       = module.http_edge[k].vpc_origin_id
         alb_dns_name        = module.http_edge[k].alb_dns_name
         alb_arn             = module.http_edge[k].alb_arn
         listener_arn        = module.http_edge[k].listener_arn
@@ -93,7 +94,7 @@ output "ecr_repositories" {
 }
 
 output "ecs_apps" {
-  description = "Resolved ECS apps for the example to store and pass to ecs-service. The caller owns the database name and connection string. Origin header values: http_edge_origin_header_values."
+  description = "Resolved ECS apps for the example to store and pass to ecs-service. The caller owns the database name and connection string."
   value = {
     for k, v in local.ecs_apps : k => {
       name                = v.name
@@ -109,20 +110,13 @@ output "ecs_apps" {
         task_execution_role_arn = aws_iam_role.ecs_task_execution[k].arn
       }
       routing = v.routing == null ? null : {
-        edge               = v.routing.edge
-        listener_arn       = module.http_edge[v.routing.edge].listener_arn
-        listener_priority  = v.routing.listener_priority
-        path_pattern       = coalesce(v.routing.path_pattern, [])
-        host_header        = coalesce(v.routing.host_header, [])
-        container_port     = v.routing.container_port
-        origin_header_name = module.http_edge[v.routing.edge].origin_header_name
+        edge              = v.routing.edge
+        listener_arn      = module.http_edge[v.routing.edge].listener_arn
+        listener_priority = v.routing.listener_priority
+        path_pattern      = coalesce(v.routing.path_pattern, [])
+        host_header       = coalesce(v.routing.host_header, [])
+        container_port    = v.routing.container_port
       }
     }
   }
-}
-
-output "http_edge_origin_header_values" {
-  description = "CloudFront origin-verify header values keyed by http_edges map key."
-  sensitive   = true
-  value       = { for k, v in local.http_edges : k => module.http_edge[k].origin_header_value }
 }

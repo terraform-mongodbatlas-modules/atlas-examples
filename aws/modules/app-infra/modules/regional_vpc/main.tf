@@ -15,8 +15,9 @@ module "vpc" {
   private_subnets = [for i in range(var.az_count) : cidrsubnet(var.cidr, 4, i)]
   public_subnets  = (var.enable_nat_gateway || var.create_public_subnets) ? [for i in range(var.az_count) : cidrsubnet(var.cidr, 4, 8 + i)] : []
 
-  enable_nat_gateway            = var.enable_nat_gateway
-  single_nat_gateway            = var.single_nat_gateway
+  enable_nat_gateway = var.enable_nat_gateway
+  single_nat_gateway = var.single_nat_gateway
+  # Also true for VPC origin regions (create_igw is set by the caller there).
   create_igw                    = var.create_igw || var.enable_nat_gateway || var.create_public_subnets
   enable_dns_hostnames          = true
   enable_dns_support            = true

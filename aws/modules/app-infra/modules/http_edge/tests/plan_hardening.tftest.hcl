@@ -12,13 +12,9 @@ mock_provider "aws" {
   mock_data "aws_ec2_managed_prefix_list" {
     defaults = { id = "pl-cloudfront" }
   }
-}
 
-mock_provider "random" {
-  override_during = plan
-
-  mock_resource "random_password" {
-    defaults = { result = "test-origin-header-value-32chars" }
+  mock_resource "aws_cloudfront_vpc_origin" {
+    defaults = { id = "vo-test" }
   }
 }
 
@@ -27,7 +23,7 @@ variables {
   name                = "lz-main"
   security_group_name = "lz-alb-main"
   vpc_id              = "vpc-123"
-  public_subnet_ids   = ["subnet-a", "subnet-b"]
+  private_subnet_ids  = ["subnet-a", "subnet-b"]
 }
 
 run "alb_sg_uses_cloudfront_prefix_list" {
@@ -45,6 +41,19 @@ run "alb_sg_uses_cloudfront_prefix_list" {
   }
 }
 
+run "alb_is_internal_in_private_subnets" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      aws_lb.this.internal == true,
+      aws_lb.this.subnets == toset(["subnet-a", "subnet-b"]),
+      output.vpc_origin_id == "vo-test",
+    ])
+    error_message = "ALB must be internal in the private subnets behind a VPC origin"
+  }
+}
+
 run "alb_and_cloudfront_idle_read_timeout_120" {
   command = plan
 
@@ -53,10 +62,27 @@ run "alb_and_cloudfront_idle_read_timeout_120" {
       aws_lb.this.idle_timeout == 120,
       alltrue([
         for o in aws_cloudfront_distribution.this.origin :
-        o.custom_origin_config[0].origin_read_timeout == 120
+        o.vpc_origin_config[0].origin_read_timeout == 120
       ]),
     ])
-    error_message = "ALB idle_timeout and CloudFront origin_read_timeout should default to 120"
+    error_message = "ALB idle_timeout and CloudFront VPC origin origin_read_timeout should default to 120"
+  }
+}
+
+run "distribution_uses_vpc_origin_and_no_header" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      alltrue([
+        for o in aws_cloudfront_distribution.this.origin :
+        length(o.vpc_origin_config) == 1 &&
+        try(o.vpc_origin_config[0].vpc_origin_id, "") == "vo-test" &&
+        length(o.custom_origin_config) == 0 &&
+        length(o.custom_header) == 0
+      ]),
+    ])
+    error_message = "Distribution origin must use vpc_origin_config, not custom_origin_config or custom_header"
   }
 }
 

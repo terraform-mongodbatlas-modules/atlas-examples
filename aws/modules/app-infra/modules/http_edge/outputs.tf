@@ -22,15 +22,10 @@ output "cloudfront_distribution_id" {
   value = aws_cloudfront_distribution.this.id
 }
 
+output "vpc_origin_id" {
+  value = aws_cloudfront_vpc_origin.this.id
+}
+
 output "https_url" {
   value = length(var.aliases) > 0 ? "https://${var.aliases[0]}" : "https://${aws_cloudfront_distribution.this.domain_name}"
-}
-
-output "origin_header_name" {
-  value = local.origin_header_name
-}
-
-output "origin_header_value" {
-  value     = local.origin_header_value
-  sensitive = true
 }

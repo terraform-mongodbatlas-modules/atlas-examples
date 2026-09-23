@@ -20,13 +20,9 @@ mock_provider "aws" {
   mock_data "aws_cloudfront_origin_request_policy" {
     defaults = { id = "origin-req" }
   }
-}
 
-mock_provider "random" {
-  override_during = plan
-
-  mock_resource "random_password" {
-    defaults = { result = "test-origin-header-value-32chars" }
+  mock_resource "aws_cloudfront_vpc_origin" {
+    defaults = { id = "vo-test" }
   }
 }
 
@@ -50,6 +46,23 @@ run "ecs_without_http_edge" {
       length(module.vpc["us-east-1"].public_subnets) == 0,
     ])
     error_message = "ecs_apps without http_edges should not create ALB or public subnets"
+  }
+}
+
+run "edge_without_nat_creates_igw_and_no_public_subnets" {
+  command = plan
+
+  variables {
+    http_edges = { main = {} }
+  }
+
+  assert {
+    condition = alltrue([
+      length(module.http_edge) == 1,
+      module.vpc["us-east-1"].igw_id != "",
+      length(module.vpc["us-east-1"].public_subnets) == 0,
+    ])
+    error_message = "An http_edge with NAT off should still plan an IGW for the VPC origin and no public subnets"
   }
 }
 

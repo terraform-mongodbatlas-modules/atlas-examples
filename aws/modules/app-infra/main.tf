@@ -89,14 +89,9 @@ locals {
   )
   app_network = {
     for region in local.app_aws_regions : region => {
-      vpc_id             = local.region_network[region].vpc_id
-      private_subnet_ids = local.region_network[region].private_subnet_ids
-      vpc_cidr_block     = local.region_network[region].vpc_cidr_block
-      public_subnet_ids = var.vpc_config.create ? (
-        contains(local.ecs_alb_regions, region) ? module.vpc[region].public_subnets : []
-        ) : (
-        try(var.vpc_config.by_region[region].public_subnet_ids, [])
-      )
+      vpc_id                  = local.region_network[region].vpc_id
+      private_subnet_ids      = local.region_network[region].private_subnet_ids
+      vpc_cidr_block          = local.region_network[region].vpc_cidr_block
       private_route_table_ids = var.vpc_config.create ? module.vpc[region].private_route_table_ids : var.vpc_config.by_region[region].private_route_table_ids
     }
   }

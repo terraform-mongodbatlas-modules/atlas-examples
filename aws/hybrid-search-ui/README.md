@@ -24,7 +24,7 @@ The ECS cluster and service live in `app/`, not `lz/`.
 ## What this creates
 
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role.
-- **AWS:** VPC (private subnets plus NAT and public subnets for the ALB), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
+- **AWS:** VPC (private subnets plus NAT and an IGW for the CloudFront VPC origin), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
 - **LLM:** Amazon Bedrock by default. The ECS task role calls `bedrock-runtime` (Amazon Nova Lite) over a private interface endpoint, so there is no API key, no secret, and no manual approval step. A keyed provider still works when you set `llm.secret_name`.
 - **App:** ECS cluster, Fargate service running the in-example Chainlit image (port 8001), built from this directory's `Dockerfile`. Indexes are a one-shot `ecs run-task` of that same image with `hybrid-search index create`, not a second service.
 
@@ -156,6 +156,8 @@ The following stay billed while the stack is up:
 - **KMS, log export, backup export:** On by default via `atlas_integrations`. A customer-managed key has a monthly charge and a pending-delete window after destroy. Log and backup export create S3 buckets.
 - **CloudFront WAF:** AWS Managed Rules Common Rule Set, about $6/month if you leave the stack up.
 - **ALB, CloudFront, ECS Fargate, ECR, Secrets Manager:** Smaller while you run the lab.
+
+The ALB is internal in private subnets, so there are no public subnets and no internet-facing load balancer. CloudFront reaches it through a VPC origin, which is what keeps every other CloudFront distribution out. The VPC still needs an internet gateway (an IGW has no hourly charge); VPC origins require one in the VPC.
 
 Destroy `app`, then `lz`, when you are done. Leftover cost after a failed destroy is usually Secrets Manager secrets, ECR images, or a KMS key still in pending-delete.
 

@@ -40,7 +40,7 @@ variable "regions" {
 }
 
 variable "vpc_config" {
-  description = "App VPC for PrivateLink and ECS. create=true manages one private VPC per cluster AWS region; create=false requires a full by_region entry per region. enable_nat_gateway turns on NAT in every managed region; single_nat_gateway shares one NAT across AZs (default true; set false for per-AZ HA). ecs_apps.*.internet_egress enables NAT per app region and HTTPS egress from the app security group. skip_interface_endpoints omits interface endpoints for ecr.api, ecr.dkr, logs, secretsmanager, and sts (requires NAT so Fargate can reach those APIs over public HTTPS). bedrock_runtime_endpoint adds a bedrock-runtime interface endpoint for Bedrock inference (Converse), with a VPC endpoint policy restricted to the Converse and InvokeModel actions; it bills per AZ-hour. It is inaccessible while skip_interface_endpoints = true. No bedrock control-plane endpoint is created because the app only calls the runtime API. Does not skip the S3 gateway endpoint or Atlas PrivateLink."
+  description = "App VPC for PrivateLink, VPC origins, and ECS. create=true manages one private VPC per cluster AWS region; create=false requires a full by_region entry per region. enable_nat_gateway turns on NAT in every managed region; single_nat_gateway shares one NAT across AZs (default true; set false for per-AZ HA). ecs_apps.*.internet_egress enables NAT per app region and HTTPS egress from the app security group. skip_interface_endpoints omits interface endpoints for ecr.api, ecr.dkr, logs, secretsmanager, and sts (requires NAT so Fargate can reach those APIs over public HTTPS). bedrock_runtime_endpoint adds a bedrock-runtime interface endpoint for Bedrock inference (Converse), with a VPC endpoint policy restricted to the Converse and InvokeModel actions; it bills per AZ-hour. It is inaccessible while skip_interface_endpoints = true. No bedrock control-plane endpoint is created because the app only calls the runtime API. Does not skip the S3 gateway endpoint or Atlas PrivateLink. A BYO VPC that hosts an http_edge must already have an IGW (CloudFront VPC origins require one)."
   type = object({
     create                   = optional(bool, true)
     base_cidr                = optional(string, "10.0.0.0/8")
@@ -137,17 +137,6 @@ variable "vpc_config" {
     condition     = !var.vpc_config.create || length(distinct([for r in var.regions : replace(lower(r.name), "_", "-")])) <= 256
     error_message = "Too many cluster AWS regions for vpc_config.base_cidr (max 256 /16 blocks from a /8 base)."
   }
-
-  validation {
-    condition = !var.vpc_config.create ? alltrue([
-      for region in distinct([
-        for _, edge in var.http_edges :
-        coalesce(edge.aws_region, replace(lower(var.regions[0].name), "_", "-"))
-      ]) :
-      length(var.vpc_config.by_region[region].public_subnet_ids) > 0
-    ]) : true
-    error_message = "When vpc_config.create = false, public_subnet_ids is required in by_region for each http_edges region."
-  }
 }
 
 variable "ecr_repositories" {
@@ -198,8 +187,10 @@ variable "ecr_repositories" {
 variable "http_edges" {
   description = <<-EOT
     Regional HTTP edges (ALB + CloudFront + WAF). Map keys are stable identities (e.g. main).
-    Public subnets and IGW are created per edge region when this map is non-empty.
-    CloudFront terminates HTTPS on the default *.cloudfront.net domain; ALB is HTTP-only origin, restricted to the CloudFront origin-facing prefix list.
+    The ALB is internal in private subnets; CloudFront reaches it through a VPC origin, so only this distribution can reach the app.
+    A VPC origin needs an IGW in the edge region; the module creates one even when NAT is off.
+    CloudFront terminates HTTPS on the default *.cloudfront.net domain.
+    ALB security group ingress stays on the shared CloudFront origin-facing prefix list (account-wide; the private ALB and VPC origin are what bound reachability).
     idle_timeout defaults 120 (ALB). Nested http_edge sets CloudFront origin_read_timeout to 120 to match.
     WAF (AWS Managed Rules Common Rule Set) is on by default. Set waf = { disabled = true } to skip.
     waf.common_rule_set_count_rules counts named CRS rules (for example SizeRestrictions_BODY for file uploads). Empty by default.

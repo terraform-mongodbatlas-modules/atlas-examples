@@ -20,13 +20,9 @@ mock_provider "aws" {
   mock_data "aws_cloudfront_origin_request_policy" {
     defaults = { id = "origin-req" }
   }
-}
 
-mock_provider "random" {
-  override_during = plan
-
-  mock_resource "random_password" {
-    defaults = { result = "test-origin-header-value-32chars" }
+  mock_resource "aws_cloudfront_vpc_origin" {
+    defaults = { id = "vo-test" }
   }
 }
 

@@ -87,7 +87,6 @@ run "app_secret_nests_groups_without_voyage_key" {
       local.container_env["CHUNK_MAX_TOKENS"] == "512",
       local.ui.name == "hybrid-search-ui",
       local.ui.routing.container_port == 8001,
-      local.ui.routing.origin_header_name == "X-Origin-Verify",
       startswith(output.https_url, "https://"),
       strcontains(output.https_url, "cloudfront.net"),
       output.app_secret_name == "hybrid-search-ui-app",

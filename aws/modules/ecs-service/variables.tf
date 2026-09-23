@@ -35,16 +35,14 @@ variable "iam" {
 }
 
 variable "routing" {
-  description = "ALB listener rule and target group. Matches modules/app-infra ecs_apps.routing plus health_check_path and origin_header_value (example merge)."
+  description = "ALB listener rule and target group. Matches modules/app-infra ecs_apps.routing plus health_check_path (example merge)."
   type = object({
-    listener_arn        = string
-    listener_priority   = number
-    path_pattern        = optional(list(string), [])
-    host_header         = optional(list(string), [])
-    container_port      = optional(number, 8000)
-    health_check_path   = optional(string, "/health")
-    origin_header_name  = optional(string, "")
-    origin_header_value = optional(string, "")
+    listener_arn      = string
+    listener_priority = number
+    path_pattern      = optional(list(string), [])
+    host_header       = optional(list(string), [])
+    container_port    = optional(number, 8000)
+    health_check_path = optional(string, "/health")
   })
 
   validation {
@@ -60,15 +58,9 @@ variable "routing" {
   validation {
     condition = (
       length(var.routing.path_pattern) > 0 ||
-      length(var.routing.host_header) > 0 ||
-      var.routing.origin_header_name != ""
+      length(var.routing.host_header) > 0
     )
-    error_message = "routing must set path_pattern, host_header, or origin_header_name so the listener rule has a condition."
-  }
-
-  validation {
-    condition     = var.routing.origin_header_name == "" || var.routing.origin_header_value != ""
-    error_message = "routing.origin_header_value is required when origin_header_name is set."
+    error_message = "routing must set path_pattern or host_header so the listener rule has a condition."
   }
 }
 
@@ -109,6 +101,46 @@ variable "wait_for_steady_state" {
   description = "When true, block apply until the ECS service reaches steady state (running tasks and healthy ALB targets)."
   type        = bool
   default     = true
+}
+
+variable "deployment_minimum_healthy_percent" {
+  description = "Lower bound on the percentage of desired tasks that must stay healthy during a rolling deploy. 100 keeps the old tasks serving until new ones are healthy."
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.deployment_minimum_healthy_percent >= 0 && var.deployment_minimum_healthy_percent <= 100
+    error_message = "deployment_minimum_healthy_percent must be between 0 and 100."
+  }
+}
+
+variable "deployment_maximum_percent" {
+  description = "Upper bound on the percentage of desired tasks allowed during a rolling deploy. 200 lets ECS start a replacement task before draining the old one."
+  type        = number
+  default     = 200
+
+  validation {
+    condition     = var.deployment_maximum_percent >= 100
+    error_message = "deployment_maximum_percent must be at least 100."
+  }
+}
+
+variable "deployment_circuit_breaker_enabled" {
+  description = "Enable the ECS deployment circuit breaker. A failed deploy rolls back instead of leaving a half-updated service."
+  type        = bool
+  default     = true
+}
+
+variable "deployment_circuit_breaker_rollback" {
+  description = "Roll back to the last stable task definition when the circuit breaker trips."
+  type        = bool
+  default     = true
+}
+
+variable "deregistration_delay" {
+  description = "Seconds the target group waits for in-flight requests to drain before deregistering a target during a deploy."
+  type        = number
+  default     = 30
 }
 
 variable "deployment_timeout" {

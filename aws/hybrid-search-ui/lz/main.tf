@@ -290,8 +290,7 @@ resource "aws_secretsmanager_secret_version" "app" {
     network            = local.ui.network
     iam                = local.ui.iam
     routing = local.ui.routing == null ? null : merge(local.ui.routing, {
-      health_check_path   = "/"
-      origin_header_value = module.app_infra.http_edge_origin_header_values[local.ui.routing.edge]
+      health_check_path = "/"
     })
     container = {
       env         = local.container_env

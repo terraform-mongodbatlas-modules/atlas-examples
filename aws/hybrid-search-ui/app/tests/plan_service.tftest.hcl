@@ -29,13 +29,11 @@ mock_provider "aws" {
           task_execution_role_arn = "arn:aws:iam::123456789012:role/hybrid-search-ui-ecs-exec"
         }
         routing = {
-          listener_arn        = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
-          listener_priority   = 100
-          path_pattern        = ["/*"]
-          container_port      = 8001
-          health_check_path   = "/"
-          origin_header_name  = "X-Origin-Verify"
-          origin_header_value = "test-origin-header-value-32chars"
+          listener_arn      = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
+          listener_priority = 100
+          path_pattern      = ["/*"]
+          container_port    = 8001
+          health_check_path = "/"
         }
         container = {
           env = {

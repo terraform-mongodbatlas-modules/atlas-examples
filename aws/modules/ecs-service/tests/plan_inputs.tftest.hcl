@@ -22,13 +22,11 @@ variables {
     task_execution_role_arn = "arn:aws:iam::123456789012:role/hybridrag-ui-ecs-exec"
   }
   routing = {
-    listener_arn        = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
-    listener_priority   = 100
-    path_pattern        = ["/*"]
-    container_port      = 8001
-    health_check_path   = "/"
-    origin_header_name  = "X-Origin-Verify"
-    origin_header_value = "test-origin-header-value-32chars"
+    listener_arn      = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
+    listener_priority = 100
+    path_pattern      = ["/*"]
+    container_port    = 8001
+    health_check_path = "/"
   }
   container = {
     env = {
@@ -43,7 +41,7 @@ variables {
   task_memory = "2048"
 }
 
-run "creates_cluster_and_origin_header_rule" {
+run "creates_cluster_and_target_group" {
   command = plan
 
   assert {
@@ -52,9 +50,13 @@ run "creates_cluster_and_origin_header_rule" {
       aws_ecs_service.this.name == "hybridrag-ui",
       aws_lb_target_group.this.port == 8001,
       aws_lb_target_group.this.health_check[0].path == "/",
-      var.routing.origin_header_name == "X-Origin-Verify",
+      aws_lb_target_group.this.deregistration_delay == "30",
+      aws_ecs_service.this.deployment_minimum_healthy_percent == 100,
+      aws_ecs_service.this.deployment_maximum_percent == 200,
+      aws_ecs_service.this.deployment_circuit_breaker[0].enable == true,
+      aws_ecs_service.this.deployment_circuit_breaker[0].rollback == true,
     ])
-    error_message = "Module should create the ECS cluster from name and require the origin header"
+    error_message = "Module should create the cluster, target group, and a zero-downtime rolling deploy"
   }
 }
 

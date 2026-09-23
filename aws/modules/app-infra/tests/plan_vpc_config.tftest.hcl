@@ -10,14 +10,6 @@ mock_provider "aws" {
   }
 }
 
-mock_provider "random" {
-  override_during = plan
-
-  mock_resource "random_password" {
-    defaults = { result = "test-password" }
-  }
-}
-
 run "multi_region_auto_vpc" {
   command = plan
 

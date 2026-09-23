@@ -58,23 +58,6 @@ run "rejects_listener_rule_without_condition" {
   ]
 }
 
-run "rejects_origin_header_name_without_value" {
-  command = plan
-
-  variables {
-    routing = {
-      listener_arn       = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/example/abc/def"
-      listener_priority  = 100
-      path_pattern       = ["/*"]
-      origin_header_name = "X-Origin-Verify"
-    }
-  }
-
-  expect_failures = [
-    var.routing,
-  ]
-}
-
 run "rejects_secret_keys_without_arn" {
   command = plan
 
