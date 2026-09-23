@@ -27,3 +27,17 @@ module "vpc" {
 
   tags = var.tags
 }
+
+# The upstream module creates its IGW only alongside public subnets. A CloudFront
+# VPC origin needs an IGW as an internet-reachability marker, with no public
+# subnets and no routes to it, so create a bare IGW for that case.
+locals {
+  standalone_igw = var.create_igw && !var.enable_nat_gateway && !var.create_public_subnets
+}
+
+resource "aws_internet_gateway" "standalone" {
+  count  = local.standalone_igw ? 1 : 0
+  region = var.aws_region
+  vpc_id = module.vpc.vpc_id
+  tags   = merge(var.tags, { Name = var.name })
+}

@@ -30,7 +30,7 @@ variable "single_nat_gateway" {
 }
 
 variable "create_igw" {
-  description = "Create an internet gateway. Also set automatically for regions that host an http_edge (CloudFront VPC origins require an IGW) or when NAT or public subnets are enabled."
+  description = "Create an internet gateway. Also set automatically for regions that host an http_edge (CloudFront VPC origins require an IGW) or when NAT or public subnets are enabled. With NAT and public subnets off, this creates a bare IGW with no routes."
   type        = bool
   default     = false
 }

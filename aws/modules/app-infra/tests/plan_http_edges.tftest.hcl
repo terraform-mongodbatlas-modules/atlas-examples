@@ -57,12 +57,14 @@ run "edge_without_nat_creates_igw_and_no_public_subnets" {
   }
 
   assert {
+    # The IGW itself is asserted in modules/regional_vpc/tests/plan_subnets.tftest.hcl;
+    # a plan-time id is unknown here, so assert the root-visible VPC shape.
     condition = alltrue([
       length(module.http_edge) == 1,
-      module.vpc["us-east-1"].igw_id != "",
       length(module.vpc["us-east-1"].public_subnets) == 0,
+      length(module.vpc["us-east-1"].natgw_ids) == 0,
     ])
-    error_message = "An http_edge with NAT off should still plan an IGW for the VPC origin and no public subnets"
+    error_message = "An http_edge with NAT off should plan no public subnets and no NAT for the edge region"
   }
 }
 
