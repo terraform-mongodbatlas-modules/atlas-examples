@@ -14,6 +14,7 @@ Groups match `modules/app-infra` `ecs_apps` output. Extra JSON keys never enter 
 - **`task_cpu` / `task_memory`:** Fargate size. Defaults `512` / `1024`.
 - **`image_tag`:** Appended to `ecr_repository_url`.
 - **`deployment_*` / `deregistration_delay`:** Rolling deploy settings. Defaults keep the old task serving until the new one is healthy (`minimum_healthy_percent = 100`, `maximum_percent = 200`) and roll back on failure (`deployment_circuit_breaker_enabled` / `_rollback` true). `deregistration_delay` is the target-group drain time in seconds (default 30).
+- **`health_check_grace_period_seconds`:** ALB health-check grace after a task starts. Default `30`, which suits a fast-booting app. Keep startup work (index or migration) in a separate one-shot task rather than the service entrypoint; a long startup needs a larger grace value.
 
 The example `app/` root reads the SM secret and passes these groups. Mongo env names live on `container.env` (for example `MONGODB_URI`, `MONGODB_DATABASE`). The module does not call Secrets Manager.
 

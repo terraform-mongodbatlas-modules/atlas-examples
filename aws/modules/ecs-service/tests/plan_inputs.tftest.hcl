@@ -55,6 +55,7 @@ run "creates_cluster_and_target_group" {
       aws_ecs_service.this.deployment_maximum_percent == 200,
       aws_ecs_service.this.deployment_circuit_breaker[0].enable == true,
       aws_ecs_service.this.deployment_circuit_breaker[0].rollback == true,
+      aws_ecs_service.this.health_check_grace_period_seconds == 30,
     ])
     error_message = "Module should create the cluster, target group, and a zero-downtime rolling deploy"
   }

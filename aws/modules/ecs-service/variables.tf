@@ -150,9 +150,9 @@ variable "deployment_timeout" {
 }
 
 variable "health_check_grace_period_seconds" {
-  description = "Seconds to ignore failing ALB health checks after a task starts."
+  description = "Seconds to ignore failing ALB health checks after a task starts. Default 30 suits a fast-booting app; index or migration work belongs in a separate one-shot task, not in service startup."
   type        = number
-  default     = 300
+  default     = 30
 
   validation {
     condition     = var.health_check_grace_period_seconds >= 0
