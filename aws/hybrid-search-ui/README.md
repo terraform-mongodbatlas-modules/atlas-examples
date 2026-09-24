@@ -125,7 +125,9 @@ Log in as `demo` with the password from `terraform -chdir=lz output -raw chainli
 
 The browser tab is **MongoDB AI risk** (`[UI] name` in the Chainlit config). Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`).
 
-NIST PDFs can take a few minutes. The app chunks the text in-process, then Atlas embeds each chunk inside the cluster. Progress updates an **Ingest** step in the thread with chunk counts and elapsed time.
+The NIST PDFs ingest in a few seconds each. The app chunks the text in-process, then Atlas embeds each chunk inside the cluster on write. Progress updates an **Ingest** step in the thread with chunk counts and elapsed time (see [How does ingest and search work](#how-does-ingest-and-search-work) to learn more).
+
+The seed corpus is a starting point, not a limit. Upload your own PDF, Markdown, or text files and ask questions they answer: a product datasheet, a runbook, a standards doc. The same ingest path handles them, and each question searches whatever you uploaded. Duplicate filenames are skipped, so re-uploading the same batch is safe. `CHUNK_MAX_TOKENS` is the one knob worth checking for a new corpus (see [How do I tune the chunk size?](#how-do-i-tune-the-chunk-size)).
 
 ### Search modes
 
@@ -214,6 +216,16 @@ Both options need account-level setup and neither is automatic.
 - **Anthropic Claude model (needs a one-time account step):** submit the Anthropic use-case details form in the Bedrock console for this account, then set the inference-profile id in `llm.env.BEDROCK_MODEL` (for example `us.anthropic.claude-haiku-4-5-20251001-v1:0`, with the `us.` prefix). The first call before the form is approved fails with `ResourceNotFoundException: Model use case details have not been submitted for this account`. Approval can take a short while, and it is per account and per region family. The task-role policy already covers these ids through `foundation-model/*` plus the inference-profile ARNs, so no IAM edit is needed.
 
 Cross-region caveat for both: the `bedrock-runtime` endpoint secures the source-region request only. When an inference profile routes inference to another region, that hop uses the AWS backbone, outside the VPC. The geographic profile choice, not the endpoint, is what keeps the hop in a region set. Endpoint-per-region is the strict-posture option.
+
+### How does ingest and search work?
+
+**Ingest (browser upload):** the app extracts text (`pymupdf` for PDF; plain read for `.md` and `.txt`), splits it into chunks, and upserts one document per chunk into `chunks` with `content`, `file_path`, and `chunk_index`. `CHUNK_MAX_TOKENS` (default 512) sets the size target. Chunks follow paragraph, sentence, and heading boundaries; only a single oversized sentence falls back to a character cut (`extract.py`).
+
+Atlas embeds each chunk inside the cluster on write, through the automated embedding index on `content`. The app never calls an embedding API, never holds an embedding model, and never sends a vector. That removes a pipeline and a secret from the application. The query is sent as plain text.
+
+**Ask:** `$rankFusion` runs over `chunks`, blending a text pipeline (`text_idx`) and a vector pipeline (`autoembed_idx`), weighted 0.6 vector and 0.4 text. `TOP_K` (default 20) caps what reaches the LLM. The **Chat Settings** toggles run each retrieval stage on its own, which is what lets the demo show them separately.
+
+Both indexes sit on the same `chunks` collection (`autoembed_idx`, `text_idx`). See [Create indexes](#create-indexes).
 
 ### How do I tune retrieval breadth?
 
