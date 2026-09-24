@@ -68,7 +68,7 @@ http_edge           = { enabled = false }
 curl -fsS https://ifconfig.me
 ```
 
-This stack costs money while it is up (NAT, auto-scaling cluster, WAF). See [How much does this cost?](#how-much-does-this-cost).
+This stack costs money while it is up (auto-scaling cluster, VPC endpoints, etc.). See [How much does this cost?](#how-much-does-this-cost).
 
 ## Deploy Atlas and AWS infra
 
@@ -154,12 +154,12 @@ terraform -chdir=lz destroy
 
 The following stay billed while the stack is up:
 
-- **NAT Gateway:** Hourly plus data. The default Bedrock configuration runs with `internet_egress = false`. Set `internet_egress = true` only when a keyed LLM provider (`grove`, `openai`, `anthropic`, `gemini`) must reach the internet.
 - **VPC interface endpoints:** Five AWS interface endpoints (ECR API, ECR DKR, CloudWatch Logs, Secrets Manager, STS) bill per AZ-hour in private subnets. When Bedrock is the LLM provider (the default) a sixth endpoint, `bedrock-runtime`, is added. About $2.40/day for the five in `us-east-1` with two AZs, about $3.60/day with the bedrock endpoint. Set `llm.provider` to a keyed provider or `llm.disabled = true` to keep five. Keeping five while still using Bedrock is a call-site override in `lz/main.tf` (`vpc_config.bedrock_runtime_endpoint = false`), not a tfvars knob; the default follows the provider inference. Atlas PrivateLink is separate and is not controlled by this knob.
 - **Atlas cluster:** Default is a sharded cluster (one shard) with compute auto-scaling from M30 to M200. Disk GB auto-scales either way.
 - **KMS, log export, backup export:** On by default via `atlas_integrations`. A customer-managed key has a monthly charge and a pending-delete window after destroy. Log and backup export create S3 buckets.
 - **CloudFront WAF:** AWS Managed Rules Common Rule Set, about $6/month if you leave the stack up.
 - **ALB, CloudFront, ECS Fargate, ECR, Secrets Manager:** Smaller while you run the lab.
+- **NAT Gateway:** Hourly plus data. The default Bedrock configuration runs with `internet_egress = false`. Set `internet_egress = true` only when a keyed LLM provider (`grove`, `openai`, `anthropic`, `gemini`) must reach the internet or you deploy a custom app with internet access requirement.
 
 The ALB is internal in private subnets, so there are no public subnets and no internet-facing load balancer. CloudFront reaches it through a VPC origin, which is what keeps every other CloudFront distribution out. The VPC still needs an internet gateway (an IGW has no hourly charge); VPC origins require one in the VPC.
 
