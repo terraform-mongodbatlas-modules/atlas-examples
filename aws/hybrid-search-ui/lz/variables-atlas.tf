@@ -37,12 +37,18 @@ variable "shard_count" {
 }
 
 variable "manual_scaling" {
-  description = "Null keeps compute auto-scaling (M10 to M200). Set instance_size to pin (disk GB still auto-scales)."
+  description = "Null keeps compute auto-scaling (auto_scaling_min_instance_size to M200). Set instance_size to pin (disk GB still auto-scales)."
   type = object({
     instance_size = string
   })
   default  = null
   nullable = true
+}
+
+variable "auto_scaling_min_instance_size" {
+  description = "Compute auto-scaling floor when manual_scaling is null. Default M30. The ceiling is M200 and disk GB always auto-scales."
+  type        = string
+  default     = "M30"
 }
 
 variable "atlas_integrations" {

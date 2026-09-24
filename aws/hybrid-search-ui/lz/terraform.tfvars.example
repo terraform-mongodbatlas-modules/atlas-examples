@@ -1,8 +1,11 @@
 atlas_org_id = "<YOUR_ATLAS_ORG_ID>"
 cluster_name = "hybrid-search-ui"
 
-# Pin compute to cap size (disk GB still auto-scales). Default is auto-scaling M10–M200.
+# Pin compute to cap size (disk GB still auto-scales). Default is auto-scaling M30–M200.
 # manual_scaling = { instance_size = "M10" }
+
+# Lower the auto-scaling floor for a cheaper lab (disk GB still auto-scales).
+# auto_scaling_min_instance_size = "M10"
 
 # Cheap personal lab (before first apply):
 # cluster_type = "REPLICASET"

@@ -67,6 +67,43 @@ run "mongo_includes_iam_query_params" {
   }
 }
 
+run "auto_scaling_floor_defaults_to_m30" {
+  command = plan
+
+  variables {
+    ecs_apps = {
+      ui = {
+        ecr_key = "ui"
+        roles   = [{ database_name = "hybridrag" }]
+      }
+    }
+  }
+
+  assert {
+    condition     = local.cluster_auto_scaling.compute_min_instance_size == "M30" && local.cluster_auto_scaling.compute_enabled
+    error_message = "Auto-scaling should be enabled with an M30 compute floor by default"
+  }
+}
+
+run "auto_scaling_floor_is_configurable" {
+  command = plan
+
+  variables {
+    auto_scaling_min_instance_size = "M10"
+    ecs_apps = {
+      ui = {
+        ecr_key = "ui"
+        roles   = [{ database_name = "hybridrag" }]
+      }
+    }
+  }
+
+  assert {
+    condition     = local.cluster_auto_scaling.compute_min_instance_size == "M10"
+    error_message = "auto_scaling_min_instance_size should override the default M30 floor"
+  }
+}
+
 run "existing_query_params_use_ampersand" {
   command = plan
 

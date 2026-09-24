@@ -11,8 +11,9 @@ locals {
   ]
   cluster_instance_size = try(var.manual_scaling.instance_size, null)
   cluster_auto_scaling = {
-    compute_enabled = var.manual_scaling == null
-    disk_gb_enabled = true
+    compute_enabled           = var.manual_scaling == null
+    compute_min_instance_size = var.auto_scaling_min_instance_size
+    disk_gb_enabled           = true
   }
 }
 
