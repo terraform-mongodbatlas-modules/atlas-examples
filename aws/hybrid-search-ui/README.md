@@ -6,6 +6,8 @@ The `$rankFusion` pipeline in `src/hybrid_search/search.py` is adapted from [Hyb
 
 Two stacks, applied in order. `lz` writes an app secret; `app` reads it and runs the Fargate service.
 
+![stack](docs/p16_offsite-slide-hybrid-lz-stack-dark.svg)
+
 ```mermaid
 flowchart LR
   LZ["lz/<br/>Atlas project, cluster, VPC, ECR, CloudFront, app secret"]
@@ -22,6 +24,8 @@ flowchart LR
 The ECS cluster and service live in `app/`, not `lz/`.
 
 ## What this creates
+
+![iceberg](docs/iceberg-dark.svg)
 
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role.
 - **AWS:** VPC (private subnets plus NAT and an IGW for the CloudFront VPC origin), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
@@ -164,6 +168,7 @@ Destroy `app`, then `lz`, when you are done. Leftover cost after a failed destro
 Set the following in `lz/terraform.tfvars` before the first apply (commented copies live in `lz/terraform.tfvars.example`):
 
 - **Replica set:** `cluster_type = "REPLICASET"`.
+- **Lower the auto-scaling floor:** `auto_scaling_min_instance_size = "M10"`. The default floor is M30; disk GB still auto-scales.
 - **Cap compute:** `manual_scaling = { instance_size = "M10" }`. Disk GB still auto-scales.
 - **Skip module-managed CMK, log export, and backup export:** Atlas still encrypts the cluster with provider-default encryption.
 
