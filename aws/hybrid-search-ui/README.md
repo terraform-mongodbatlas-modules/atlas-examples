@@ -6,7 +6,6 @@ The `$rankFusion` pipeline in `src/hybrid_search/search.py` is adapted from [Hyb
 
 Two stacks, applied in order. `lz` writes an app secret; `app` reads it and runs the Fargate service.
 
-![stack](docs/p16_offsite-slide-hybrid-lz-stack-dark.svg)
 
 ```mermaid
 flowchart LR
@@ -25,7 +24,8 @@ The ECS cluster and service live in `app/`, not `lz/`.
 
 ## What this creates
 
-![iceberg](docs/iceberg-dark.svg)
+- [High Level Diagram here](docs/p16_offsite-slide-hybrid-lz-stack-dark.svg)
+- [Full Diagram available here](docs/iceberg-dark.svg)
 
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role.
 - **AWS:** VPC (private subnets plus NAT and an IGW for the CloudFront VPC origin), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
