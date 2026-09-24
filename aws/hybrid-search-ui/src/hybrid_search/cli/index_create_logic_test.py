@@ -60,3 +60,27 @@ def test_index_create_ignores_skip_flag(monkeypatch):
     clear_settings_cache()
     settings = get_settings().model_copy(update={"skip_index_creation": False})
     assert settings.skip_index_creation is False
+
+
+def test_index_create_logs_wait_timeout(monkeypatch, caplog):
+    settings = HybridSearchSettings(mongodb_uri=SecretStr("mongodb://localhost"))
+    client = MagicMock()
+    client.close = MagicMock()
+    collection = MagicMock()
+    client.__getitem__.return_value.__getitem__.return_value = collection
+
+    monkeypatch.setattr(index_create_logic_module, "get_client", lambda _settings: client)
+    monkeypatch.setattr(index_create_logic_module, "create_chunks_indexes_if_missing", AsyncMock())
+    monkeypatch.setattr(
+        index_create_logic_module,
+        "wait_chunks_indexes_ready",
+        AsyncMock(side_effect=TimeoutError("timed out waiting for indexes on chunks")),
+    )
+    caplog.set_level(logging.ERROR)
+
+    result = index_create(IndexCreateInput(settings=settings))
+
+    assert result.exit_code == 1
+    assert "index create failed" in caplog.text
+    assert "timed out waiting for indexes" in caplog.text
+    client.close.assert_called_once()

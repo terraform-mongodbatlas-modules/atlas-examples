@@ -40,7 +40,8 @@ async def _index_create_async(input: IndexCreateInput) -> IndexCreateResult:
         for line in lines:
             logger.info(line)
         return IndexCreateResult(ready_lines=lines)
-    except (TimeoutError, RuntimeError):
+    except (TimeoutError, RuntimeError) as exc:
+        logger.error(f"index create failed: {exc}")
         return IndexCreateResult(exit_code=1)
     finally:
         client.close()

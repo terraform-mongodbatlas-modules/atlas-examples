@@ -53,7 +53,11 @@ class ScriptedRun:
         del kwargs
         argv = list(args)
         self.calls.append(argv)
-        result = self.by_kind[_kind(argv)]
+        kind = _kind(argv)
+        result = self.by_kind[kind]
+        # A list is a scripted sequence consumed one per call; the last entry repeats.
+        if isinstance(result, list):
+            result = result.pop(0) if len(result) > 1 else result[0]
         if isinstance(result, BaseException):
             raise result
         if isinstance(result, CompletedProcess):
@@ -70,8 +74,6 @@ def _kind(args: list[str]) -> str:
         return "describe-task-definition"
     if "run-task" in args:
         return "run-task"
-    if "wait" in args:
-        return "wait"
     if "describe-tasks" in args:
         return "describe-tasks"
     if "logs" in args:
@@ -85,9 +87,8 @@ def _happy(**overrides: object) -> ScriptedRun:
         "describe-services": ACTIVE_SERVICE,
         "describe-task-definition": TASK_DEFINITION,
         "run-task": {"tasks": [{"taskArn": TASK_ARN}]},
-        "wait": CompletedProcess(["aws"], 0, stdout="", stderr=""),
         "describe-tasks": {
-            "tasks": [{"containers": [{"exitCode": 0}]}],
+            "tasks": [{"lastStatus": "STOPPED", "containers": [{"exitCode": 0}]}],
         },
         "logs": CompletedProcess(["aws"], 0, stdout="", stderr=""),
     }
@@ -119,6 +120,7 @@ def test_tails_logs_when_container_exits_nonzero():
             "describe-tasks": {
                 "tasks": [
                     {
+                        "lastStatus": "STOPPED",
                         "containers": [{"exitCode": 2, "reason": "Error"}],
                         "stoppedReason": "Essential container exited",
                     }
@@ -132,6 +134,34 @@ def test_tails_logs_when_container_exits_nonzero():
     assert any("/ecs/hybrid-search-ui" in call for call in run.calls)
 
 
+def test_polls_until_task_stops():
+    run = _happy(
+        **{
+            "describe-tasks": [
+                {"tasks": [{"lastStatus": "RUNNING"}]},
+                {"tasks": [{"lastStatus": "STOPPED", "containers": [{"exitCode": 1}]}]},
+            ],
+        }
+    )
+    with pytest.raises(IndexCreateError, match="index create failed \\(exit 1"):
+        index_create(APP, run=run, poll_interval_s=0)
+    # Three describes: two polls during the wait, then the exit-code read.
+    assert sum("describe-tasks" in call for call in run.calls) == 3
+
+
+def test_timeout_still_reads_exit_code():
+    run = _happy(
+        **{
+            "describe-tasks": [
+                {"tasks": [{"lastStatus": "RUNNING"}]},
+                {"tasks": [{"lastStatus": "RUNNING", "containers": [{"exitCode": None}]}]},
+            ],
+        }
+    )
+    with pytest.raises(IndexCreateError, match="index create failed \\(exit None"):
+        index_create(APP, run=run, wait_timeout_s=0, poll_interval_s=0)
+
+
 def test_ready_index_names_parses_log_lines():
     output = (
         "2026-08-14 chunks.vector_idx READY\n"
@@ -143,7 +173,7 @@ def test_ready_index_names_parses_log_lines():
 
 def test_returns_after_successful_run_task(capsys):
     log_lines = "2026-08-14 chunks.vector_idx READY\n2026-08-14 chunks.text_idx READY\n"
-    run = _happy(**{"logs": CompletedProcess(["aws"], 0, stdout=log_lines, stderr="")})
+    run = _happy(logs=CompletedProcess(["aws"], 0, stdout=log_lines, stderr=""))
     index_create(APP, run=run)
     run_task = next(call for call in run.calls if "run-task" in call)
     assert "--overrides" in run_task

@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 from subprocess import CompletedProcess
@@ -16,6 +17,12 @@ _READY_RE = re.compile(r"(\S+\.\S+)\s+READY\b")
 
 DEFAULT_APP_DIR = Path(__file__).resolve().parent.parent / "app"
 INDEX_CMD = [".venv/bin/hybrid-search", "index", "create"]
+# The in-container wait (wait_chunks_indexes_ready) defaults to 600s before the app
+# exits 1. Poll past that so the app's own exit code and logs are always read. Do not
+# use `aws ecs wait tasks-stopped`: its botocore ceiling is fixed at 600s (6s x 100)
+# and it would race the app to the same deadline.
+DEFAULT_WAIT_TIMEOUT_S = 900.0
+DEFAULT_POLL_INTERVAL_S = 6.0
 Run = Callable[..., CompletedProcess[str]]
 
 
@@ -25,7 +32,13 @@ class IndexCreateError(RuntimeError):
         self.exit_code = exit_code
 
 
-def index_create(app_dir: Path, *, run: Run = subprocess.run) -> None:
+def index_create(
+    app_dir: Path,
+    *,
+    run: Run = subprocess.run,
+    wait_timeout_s: float = DEFAULT_WAIT_TIMEOUT_S,
+    poll_interval_s: float = DEFAULT_POLL_INTERVAL_S,
+) -> None:
     loc = _terraform_index_run(app_dir, run)
     region, cluster, service = loc["aws_region"], loc["cluster"], loc["service"]
     svc = _aws_json(
@@ -86,22 +99,13 @@ def index_create(app_dir: Path, *, run: Run = subprocess.run) -> None:
 
     print(f"Started task {task_arn}")
     print("Waiting for task to stop...")
-    run(
-        [
-            "aws",
-            "ecs",
-            "wait",
-            "tasks-stopped",
-            "--region",
-            region,
-            "--cluster",
-            cluster,
-            "--tasks",
-            task_arn,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
+    _wait_for_task_stopped(
+        run,
+        region=region,
+        cluster=cluster,
+        task_arn=task_arn,
+        timeout_s=wait_timeout_s,
+        poll_interval_s=poll_interval_s,
     )
     desc = _aws_json(
         run,
@@ -140,6 +144,48 @@ def ready_index_names(log_output: str) -> list[str]:
             seen.add(match.group(1))
             ready.append(match.group(1))
     return ready
+
+
+def _wait_for_task_stopped(
+    run: Run,
+    *,
+    region: str,
+    cluster: str,
+    task_arn: str,
+    timeout_s: float,
+    poll_interval_s: float,
+) -> None:
+    """Poll describe-tasks until the task stops or timeout_s elapses.
+
+    A timeout is not fatal here: the caller reads the exit code and logs to report
+    the real outcome. This replaces `aws ecs wait tasks-stopped`, whose fixed 600s
+    ceiling made the wait race the app's own 600s index wait.
+    """
+    deadline = time.monotonic() + timeout_s
+    while True:
+        desc = _aws_json(
+            run,
+            [
+                "ecs",
+                "describe-tasks",
+                "--region",
+                region,
+                "--cluster",
+                cluster,
+                "--tasks",
+                task_arn,
+            ],
+        )
+        tasks = desc.get("tasks") or []
+        if not tasks or tasks[0].get("lastStatus") == "STOPPED":
+            return
+        if time.monotonic() >= deadline:
+            print(
+                f"timed out after {timeout_s:.0f}s waiting for task to stop; reading exit code anyway",
+                file=sys.stderr,
+            )
+            return
+        time.sleep(poll_interval_s)
 
 
 def _ecs_log_stream_name(*, log_stream_prefix: str, container_name: str, task_arn: str) -> str:
@@ -214,9 +260,18 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_APP_DIR,
         help="App Terraform directory (default: ../app).",
     )
+    parser.add_argument(
+        "--wait-timeout",
+        type=float,
+        default=DEFAULT_WAIT_TIMEOUT_S,
+        help=(
+            "Seconds to poll describe-tasks for the one-shot task to stop "
+            f"(default: {DEFAULT_WAIT_TIMEOUT_S:.0f}; must exceed the in-container index wait)."
+        ),
+    )
     args = parser.parse_args(argv)
     try:
-        index_create(args.app_dir)
+        index_create(args.app_dir, wait_timeout_s=args.wait_timeout)
     except IndexCreateError as exc:
         print(exc, file=sys.stderr)
         return exc.exit_code
