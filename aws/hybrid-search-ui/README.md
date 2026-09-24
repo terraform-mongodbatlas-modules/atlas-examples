@@ -4,7 +4,7 @@ You end with a CloudFront URL and a Chainlit chat that answers from files you up
 
 The `$rankFusion` pipeline in `src/hybrid_search/search.py` is adapted from [Hybrid-Search-RAG](https://github.com/romiluz13/Hybrid-Search-RAG) (`hybrid_search_with_rank_fusion`, Apache-2.0). The shipped app is the in-example `hybrid_search` package in this directory, not HybridRAG.
 
-Two stacks, applied in order. `lz` writes an app secret; `app` reads it and runs the Fargate service.
+`lz` writes an app secret; `app` reads it and runs the Fargate service.
 
 
 ```mermaid
@@ -20,16 +20,14 @@ flowchart LR
   APP --> BROWSER
 ```
 
-The ECS cluster and service live in `app/`, not `lz/`.
-
 ## What this creates
 
-- [High Level Diagram here](docs/p16_offsite-slide-hybrid-lz-stack-dark.svg)
-- [Full Diagram available here](docs/iceberg-dark.svg)
+- [High-level deployment diagram](docs/p16_offsite-slide-hybrid-lz-stack-dark.svg)
+- [Full abstraction iceberg](docs/iceberg-dark.svg)
 
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role.
 - **AWS:** VPC (private subnets plus NAT and an IGW for the CloudFront VPC origin), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
-- **LLM:** Amazon Bedrock by default. The ECS task role calls `bedrock-runtime` (Amazon Nova Lite) over a private interface endpoint, so there is no API key, no secret, and no manual approval step. A keyed provider still works when you set `llm.secret_name`.
+- **LLM:** Amazon Bedrock by default. The ECS task role calls `bedrock-runtime` (Amazon Nova Lite) over a private interface endpoint (no key, no secret); a keyed provider still works when you set `llm.secret_name`.
 - **App:** ECS cluster, Fargate service running the in-example Chainlit image (port 8001), built from this directory's `Dockerfile`. Indexes are a one-shot `ecs run-task` of that same image with `hybrid-search index create`, not a second service.
 
 ```sh
@@ -87,7 +85,7 @@ docker compose -f docker/docker-compose.local-ui.yml --env-file secrets/.env.loc
 # Open http://localhost:8001
 ```
 
-To use a keyed provider instead, run `just create-llm-secret`, paste the printed name into `lz/terraform.tfvars` as `llm.secret_name`, and re-apply lz. See [How does the LLM answer work?](#how-does-the-llm-answer-work).
+To use a keyed provider instead, see [How does the LLM answer work?](#how-does-the-llm-answer-work).
 
 ## Customize and Build the image
 
@@ -196,8 +194,6 @@ This example counts `SizeRestrictions_BODY` and the other Common Rule Set BODY r
 
 WAF inspects at most 16 KB of the body on CloudFront (64 KB if you raise the inspection limit). That is inspection only, not an upload size cap. After the BODY rules are counted, CloudFront and the ALB forward the full POST. CloudFront's request-body quota is 64 GB. This example does not set a smaller cap. A slow upload can still fail the 120s origin read timeout.
 
-Do not set `waf_disabled = true` to fix uploads.
-
 ### How does the LLM answer work?
 
 The default provider is Amazon Bedrock with Amazon Nova Lite (`amazon.nova-lite-v1:0`). The ECS task role calls `bedrock-runtime` over a private interface endpoint, so there is no API key, no secret, and no manual approval step. `LLM_PROVIDER=bedrock`, `BEDROCK_MODEL`, and `AWS_REGION` are plain container env values in the app secret.
@@ -223,7 +219,7 @@ Cross-region caveat for both: the `bedrock-runtime` endpoint secures the source-
 
 `TOP_K` caps how many chunks `$rankFusion` returns before the LLM answers. The default is **20** (set in the `lz/main.tf` `app_env` map and passed to the ECS task).
 
-To change it on a deployed stack, edit `TOP_K` in the `lz/main.tf` `app_env` map (or add a tfvars knob if you fork the example), re-apply lz, then re-apply app so the task picks up the new secret. For local Docker, set `TOP_K` in `secrets/.env.local` or compose env.
+To change it on a deployed stack, edit the value in the `lz/main.tf` `app_env` map (or add a tfvars knob if you fork the example), re-apply lz, then re-apply app so the task picks up the new secret. For local Docker, set it in `secrets/.env.local` or compose env.
 
 ### How do I tune the chunk size?
 
@@ -231,7 +227,7 @@ To change it on a deployed stack, edit `TOP_K` in the `lz/main.tf` `app_env` map
 
 The app rejects a value outside 40-1500 tokens at startup. Text past the model context window (32,000 tokens) is truncated silently by Atlas Automated Embedding, with no error at index time, so the app refuses a `CHUNK_MAX_TOKENS` above that window as well.
 
-To change it on a deployed stack, edit `CHUNK_MAX_TOKENS` in the `lz/main.tf` `app_env` map (or add a tfvars knob if you fork the example), re-apply lz, then re-apply app so the task picks up the new secret. For local Docker, set `CHUNK_MAX_TOKENS` in `secrets/.env.local` or compose env. Existing chunks keep their current boundaries until you re-ingest the file.
+Change it the same way as `TOP_K` (see [How do I tune retrieval breadth?](#how-do-i-tune-retrieval-breadth)). Existing chunks keep their current boundaries until you re-ingest the file.
 
 ### Local Docker without ECS
 
@@ -243,7 +239,7 @@ The optional `just dump-local-env` step after lz apply writes `secrets/.env.loca
 
 This example does not create dedicated Search Nodes. They are optional production isolation ([Search deployment options](https://www.mongodb.com/docs/search/deployment/deployment-options/)). On M10+ Atlas, including this sharded lab cluster, `mongot` runs next to `mongod` after the first Search or Vector Search index exists.
 
-Confirm `chunks.text_idx` and `chunks.autoembed_idx` are READY. `just dump-local-env` writes `SKIP_INDEX_CREATION=false`, so local compose creates indexes on boot. For the ECS UI, run `just create-index` if they were never created, then wait until READY. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
+Confirm `chunks.text_idx` and `chunks.autoembed_idx` are READY. Local compose creates the indexes on boot; for the ECS UI, run `just create-index` (see [Create indexes](#create-indexes)) if they were never created. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
 
 ### What is the app secret name?
 
@@ -253,13 +249,11 @@ Default `app_secret_name` is `hybrid-search-ui-app` (`<ecs_apps.ui.name>-app`). 
 
 This example uses `regions[0]` (default `us-east-1`). The app provider is `us-east-1` to match. There is no app-region knob.
 
-### Where does the LLM secret go?
-
 `just create-llm-secret` defaults `region=us-east-1`. Override if `regions[0]` is not `us-east-1` (for example `just create-llm-secret region=eu-west-1`).
 
 ### What is `public_debug_access`?
 
-Opt-in SCRAM plus one IPv4 for laptop `mongosh`, local hybrid-search Docker, or `just dump-local-env`. Not on the happy path. Find the IPv4 with `curl -fsS https://ifconfig.me`. See commented example in `lz/terraform.tfvars.example` or `lz/variables.tf`.
+Opt-in SCRAM plus one IPv4 for laptop `mongosh`, local hybrid-search Docker, or `just dump-local-env`. Not on the happy path. See [Before you start](#before-you-start) for the flag and how to find your IPv4, or the commented example in `lz/terraform.tfvars.example`.
 
 ### How do I use a custom domain?
 
