@@ -143,6 +143,50 @@ async def test_wait_materializes_namespace_when_list_missing(settings, caplog):
     assert "hybrid_search.chunks" in caplog.text
 
 
+@pytest.mark.asyncio
+async def test_wait_logs_status_transitions(settings, caplog):
+    statuses = iter(
+        [
+            [
+                {"name": "autoembed_idx", "status": "BUILDING"},
+                {"name": "text_idx", "status": "BUILDING"},
+            ],
+            [{"name": "autoembed_idx", "status": "READY"}, {"name": "text_idx", "status": "READY"}],
+        ]
+    )
+    collection = MagicMock()
+    collection.list_search_indexes.side_effect = lambda: MagicMock(
+        to_list=AsyncMock(return_value=next(statuses))
+    )
+    caplog.set_level(logging.INFO)
+
+    await wait_chunks_indexes_ready(collection, settings, timeout_s=5, interval_s=0)
+
+    assert "chunks.autoembed_idx BUILDING" in caplog.text
+    assert "chunks.autoembed_idx READY" in caplog.text
+    assert "chunks.text_idx BUILDING" in caplog.text
+    assert "chunks.text_idx READY" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_wait_logs_missing_index_as_pending_once(settings, caplog):
+    statuses = iter(
+        [
+            [{"name": "autoembed_idx", "status": "BUILDING"}],
+            [{"name": "autoembed_idx", "status": "READY"}, {"name": "text_idx", "status": "READY"}],
+        ]
+    )
+    collection = MagicMock()
+    collection.list_search_indexes.side_effect = lambda: MagicMock(
+        to_list=AsyncMock(return_value=next(statuses))
+    )
+    caplog.set_level(logging.INFO)
+
+    await wait_chunks_indexes_ready(collection, settings, timeout_s=5, interval_s=0)
+
+    assert caplog.text.count("chunks.text_idx PENDING") == 1
+
+
 def test_autoembed_index_definition():
     definition = autoembed_index_definition(model="voyage-4-lite")
     assert definition["fields"][0] == {

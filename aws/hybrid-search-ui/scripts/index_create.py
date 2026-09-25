@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import re
 import subprocess
@@ -99,6 +100,16 @@ def index_create(
 
     print(f"Started task {task_arn}")
     print("Waiting for task to stop...")
+    streamer = _TaskLogStream(
+        run,
+        log_group=log_group,
+        region=region,
+        log_stream=_ecs_log_stream_name(
+            log_stream_prefix=log_stream_prefix,
+            container_name=container_name,
+            task_arn=task_arn,
+        ),
+    )
     _wait_for_task_stopped(
         run,
         region=region,
@@ -106,6 +117,7 @@ def index_create(
         task_arn=task_arn,
         timeout_s=wait_timeout_s,
         poll_interval_s=poll_interval_s,
+        on_poll=streamer.poll,
     )
     desc = _aws_json(
         run,
@@ -121,11 +133,12 @@ def index_create(
         task_arn=task_arn,
         container_name=container_name,
         log_stream_prefix=log_stream_prefix,
+        skip_lines=len(streamer.messages),
     )
     if exit_code != 0:
         detail = container_status.get("reason") or task.get("stoppedReason") or "unknown"
         raise IndexCreateError(f"index create failed (exit {exit_code}, {detail})")
-    ready = ready_index_names(log_output)
+    ready = ready_index_names("".join(streamer.messages) + log_output)
     if ready:
         print(f"index create succeeded ({len(ready)} indexes READY)")
     else:
@@ -154,12 +167,14 @@ def _wait_for_task_stopped(
     task_arn: str,
     timeout_s: float,
     poll_interval_s: float,
+    on_poll: Callable[[], None] | None = None,
 ) -> None:
     """Poll describe-tasks until the task stops or timeout_s elapses.
 
     A timeout is not fatal here: the caller reads the exit code and logs to report
     the real outcome. This replaces `aws ecs wait tasks-stopped`, whose fixed 600s
-    ceiling made the wait race the app's own 600s index wait.
+    ceiling made the wait race the app's own 600s index wait. on_poll runs each
+    iteration and streams new CloudWatch lines while the task is still running.
     """
     deadline = time.monotonic() + timeout_s
     while True:
@@ -176,6 +191,8 @@ def _wait_for_task_stopped(
                 task_arn,
             ],
         )
+        if on_poll:
+            on_poll()
         tasks = desc.get("tasks") or []
         if not tasks or tasks[0].get("lastStatus") == "STOPPED":
             return
@@ -193,6 +210,59 @@ def _ecs_log_stream_name(*, log_stream_prefix: str, container_name: str, task_ar
     return f"{log_stream_prefix}/{container_name}/{task_id}"
 
 
+class _TaskLogStream:
+    """Follow one ECS task's CloudWatch log stream, printing new lines as they appear.
+
+    The stream may not exist for a few seconds after run-task, so a missing stream is
+    tolerated. The first poll reads from the head; later polls pass the previous
+    nextForwardToken. That token does not change when there is nothing new, so events
+    are also deduped on (timestamp, message) rather than trusting the token alone.
+    """
+
+    def __init__(self, run: Run, *, log_group: str, region: str, log_stream: str) -> None:
+        self._run = run
+        self._log_group = log_group
+        self._region = region
+        self._log_stream = log_stream
+        self._next_token: str | None = None
+        self._seen: set[tuple[int, str]] = set()
+        self.messages: list[str] = []
+
+    def poll(self) -> None:
+        if not self._log_group:
+            return
+        args = [
+            "aws",
+            "logs",
+            "get-log-events",
+            "--region",
+            self._region,
+            "--log-group-name",
+            self._log_group,
+            "--log-stream-name",
+            self._log_stream,
+        ]
+        if self._next_token:
+            args += ["--next-token", self._next_token]
+        else:
+            args.append("--start-from-head")
+        completed = self._run(args, check=False, capture_output=True, text=True)
+        if completed.returncode != 0:
+            return
+        payload: dict[str, Any] = {}
+        with contextlib.suppress(json.JSONDecodeError):
+            payload = json.loads(completed.stdout or "{}")
+        self._next_token = payload.get("nextForwardToken") or self._next_token
+        for event in payload.get("events") or []:
+            message = event.get("message", "")
+            key = (event.get("timestamp", 0), message)
+            if key in self._seen:
+                continue
+            self._seen.add(key)
+            self.messages.append(message if message.endswith("\n") else f"{message}\n")
+            print(message, end="" if message.endswith("\n") else "\n")
+
+
 def _tail_task_logs(
     run: Run,
     *,
@@ -201,6 +271,7 @@ def _tail_task_logs(
     task_arn: str,
     container_name: str,
     log_stream_prefix: str,
+    skip_lines: int = 0,
 ) -> str:
     if not log_group:
         return ""
@@ -225,9 +296,11 @@ def _tail_task_logs(
         text=True,
     )
     output = completed.stdout or ""
-    if output:
-        end = "" if output.endswith("\n") else "\n"
-        print(output, end=end)
+    new_lines = output.splitlines(keepends=True)[skip_lines:]
+    if new_lines:
+        tail_output = "".join(new_lines)
+        end = "" if tail_output.endswith("\n") else "\n"
+        print(tail_output, end=end)
     return output
 
 

@@ -76,6 +76,8 @@ def _kind(args: list[str]) -> str:
         return "run-task"
     if "describe-tasks" in args:
         return "describe-tasks"
+    if "get-log-events" in args:
+        return "get-log-events"
     if "logs" in args:
         return "logs"
     raise AssertionError(" ".join(args))
@@ -91,6 +93,7 @@ def _happy(**overrides: object) -> ScriptedRun:
             "tasks": [{"lastStatus": "STOPPED", "containers": [{"exitCode": 0}]}],
         },
         "logs": CompletedProcess(["aws"], 0, stdout="", stderr=""),
+        "get-log-events": {"events": []},
     }
     by_kind.update(overrides)
     return ScriptedRun(by_kind)
@@ -188,3 +191,35 @@ def test_returns_after_successful_run_task(capsys):
     assert "Started task" in captured.out
     assert "chunks.vector_idx READY" in captured.out
     assert "index create succeeded (2 indexes READY)" in captured.out
+
+
+def test_streams_log_events_during_wait(capsys):
+    run = _happy(
+        **{
+            "logs": CompletedProcess(["aws"], 0, stdout="", stderr=""),
+            "get-log-events": {
+                "events": [
+                    {"timestamp": 1, "message": "2026-08-14 chunks.vector_idx BUILDING\n"},
+                    {"timestamp": 2, "message": "2026-08-14 chunks.vector_idx READY\n"},
+                ]
+            },
+        }
+    )
+    index_create(APP, run=run)
+    assert any(call[:3] == ["aws", "logs", "get-log-events"] for call in run.calls)
+    captured = capsys.readouterr()
+    assert "chunks.vector_idx BUILDING" in captured.out
+    assert "index create succeeded (1 indexes READY)" in captured.out
+
+
+def test_missing_log_stream_is_tolerated(capsys):
+    run = _happy(
+        **{
+            "get-log-events": subprocess.CompletedProcess(
+                ["aws"], 1, stdout="", stderr="ResourceNotFoundException"
+            ),
+        }
+    )
+    index_create(APP, run=run)
+    captured = capsys.readouterr()
+    assert "index create succeeded" in captured.out
