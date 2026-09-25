@@ -16,6 +16,7 @@ RUN uv sync --frozen --no-dev --extra ui --extra aws
 COPY chainlit.md ./
 COPY chainlit.md chainlit_en-US.md
 COPY docker/chainlit/ .chainlit/
+COPY public/ ./public/
 COPY demo_queries.yaml ./
 
 RUN useradd --create-home --shell /bin/bash appuser \

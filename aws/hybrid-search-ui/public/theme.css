@@ -1,0 +1,55 @@
+/* MongoDB brand palette over Chainlit's CSS variables.
+ *
+ * Chainlit stores colors as bare HSL channels ("162.7 100% 20.4%"), not
+ * full hsl() values, because Tailwind composes them with opacity. Keep the
+ * three-number form.
+ *
+ * Brand values:
+ *   Slate       #001E2B
+ *   OffWhite    #FDFFF5
+ *   SpringGreen #00ED64  (dark backgrounds)
+ *   Evergreen   #00684A  (light backgrounds, spring green fails contrast)
+ *
+ * Chainlit toggles the light/dark classes on document.documentElement.
+ */
+
+:root,
+.light {
+  --primary: 162.7 100% 20.4%; /* Evergreen */
+  --primary-foreground: 0 0% 100%;
+  --ring: 162.7 100% 20.4%;
+  --accent: 145.3 100% 95%;
+  --accent-foreground: 198.1 100% 8.4%; /* Slate */
+  --foreground: 198.1 100% 8.4%; /* Slate */
+  --card-foreground: 198.1 100% 8.4%;
+  --sidebar-primary: 162.7 100% 20.4%;
+  --sidebar-ring: 162.7 100% 20.4%;
+}
+
+.dark {
+  --primary: 145.3 100% 46.5%; /* SpringGreen */
+  --primary-foreground: 198.1 100% 8.4%; /* Slate text on green */
+  --ring: 145.3 100% 46.5%;
+  --background: 198.1 100% 8.4%; /* Slate, the brand dark background */
+  --foreground: 72 100% 98%; /* OffWhite */
+  --card: 198.1 40% 12%;
+  --card-foreground: 72 100% 98%;
+  --popover: 198.1 40% 12%;
+  --popover-foreground: 72 100% 98%;
+  --secondary: 198.1 30% 16%;
+  --secondary-foreground: 72 100% 98%;
+  --muted: 198.1 25% 18%;
+  --muted-foreground: 72 30% 88%;
+  --accent: 198.1 30% 18%;
+  --accent-foreground: 72 100% 98%;
+  --border: 198.1 25% 20%;
+  --input: 198.1 25% 20%;
+  --sidebar-background: 198.1 45% 6%;
+  --sidebar-foreground: 72 100% 98%;
+  --sidebar-primary: 145.3 100% 46.5%;
+  --sidebar-primary-foreground: 198.1 100% 8.4%;
+  --sidebar-accent: 198.1 35% 14%;
+  --sidebar-accent-foreground: 72 100% 98%;
+  --sidebar-border: 198.1 25% 20%;
+  --sidebar-ring: 145.3 100% 46.5%;
+}

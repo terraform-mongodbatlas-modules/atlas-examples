@@ -3,6 +3,7 @@ name = "MongoDB AI risk"
 description = "Ask NIST AI RMF and OWASP GenAI docs using MongoDB Atlas hybrid search."
 language = "en-US"
 cot = "tool_call"
+custom_css = "/public/theme.css"
 
 [features.spontaneous_file_upload]
 enabled = false

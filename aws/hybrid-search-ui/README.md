@@ -89,10 +89,11 @@ To use a keyed provider instead, see [How does the LLM answer work?](#how-does-t
 
 ## Customize and Build the image
 
-Edit the following before `just build-push` if this hallway demo should not use the NIST/OWASP defaults. `demo_queries.yaml` and `docker/chainlit/config.toml` are copied into the image.
+Edit the following before `just build-push` if this hallway demo should not use the NIST/OWASP defaults. `demo_queries.yaml`, `docker/chainlit/config.toml`, and `public/` are copied into the image.
 
 - **Demo questions:** `demo_queries.yaml`. `label` is the chip/button text; `message` is the query. After deploy, mount a file and set `DEMO_QUERIES_PATH` instead of rebuilding.
 - **Page title:** `[UI] name` in `.chainlit/config.toml` (local `chainlit run`) and `docker/chainlit/config.toml` (what the image copies to `.chainlit/`). Default is `MongoDB AI risk`.
+- **Brand assets:** `public/` holds `logo_light.svg`, `logo_dark.svg`, and `favicon.svg`, plus `theme.css` for the MongoDB palette. Chainlit serves them from there automatically (`custom_css` in `docker/chainlit/config.toml` points at the stylesheet). Replace the SVGs to rebrand a fork.
 
 ```sh
 # ECR is IMMUTABLE: bump image_tag in app/terraform.tfvars and the tag argument on every push.
