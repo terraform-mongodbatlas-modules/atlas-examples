@@ -116,15 +116,12 @@ async def wait_chunks_indexes_ready(
     deadline = time.monotonic() + timeout_s
     ready: list[IndexStatus] = []
     seen_ready: set[str] = set()
-    last_status: dict[str, str] = {}
     while time.monotonic() < deadline:
         indexes = await _list_search_indexes(collection)
         by_name = {index.get("name"): index.get("status") for index in indexes if index.get("name")}
         for name in names:
             status = by_name.get(name) or _PENDING
-            if last_status.get(name) != status:
-                last_status[name] = status
-                logger.info(f"{settings.chunks_collection}.{name} {status}")
+            logger.info(f"{settings.chunks_collection}.{name} {status}")
             if status == "FAILED":
                 msg = f"index {settings.chunks_collection}.{name} failed"
                 raise RuntimeError(msg)

@@ -114,7 +114,7 @@ just create-index
 
 The UI task sets `SKIP_INDEX_CREATION=true`, so the first chat does not submit Atlas Search or Vector index creates. `just create-index` runs the same image with `hybrid-search index create`, which always creates indexes even when that env is set. Skipping `just create-index` still leaves a healthy UI that cannot search.
 
-`just create-index` streams the task's CloudWatch log lines to the terminal while the task runs, so index progress is visible instead of a silent wait. The container logs each index status transition (`PENDING`, `BUILDING`, `READY`, `FAILED`) for `chunks.autoembed_idx` and `chunks.text_idx`. The in-container wait is 600s; the local script polls past that so the task's exit code is always read.
+`just create-index` streams the task's CloudWatch log lines to the terminal while the task runs, so index progress is visible instead of a silent wait. On each poll the container logs the current status (`PENDING`, `BUILDING`, `READY`, `FAILED`) for `chunks.autoembed_idx` and `chunks.text_idx`, so a long `PENDING` or `BUILDING` phase still shows a line every polling interval. The in-container wait is 600s; the local script polls past that so the task's exit code is always read.
 
 ## Download seed files and open the UI
 

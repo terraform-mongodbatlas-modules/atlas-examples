@@ -169,9 +169,10 @@ async def test_wait_logs_status_transitions(settings, caplog):
 
 
 @pytest.mark.asyncio
-async def test_wait_logs_missing_index_as_pending_once(settings, caplog):
+async def test_wait_logs_status_every_poll_not_just_transitions(settings, caplog):
     statuses = iter(
         [
+            [{"name": "autoembed_idx", "status": "BUILDING"}],
             [{"name": "autoembed_idx", "status": "BUILDING"}],
             [{"name": "autoembed_idx", "status": "READY"}, {"name": "text_idx", "status": "READY"}],
         ]
@@ -184,7 +185,28 @@ async def test_wait_logs_missing_index_as_pending_once(settings, caplog):
 
     await wait_chunks_indexes_ready(collection, settings, timeout_s=5, interval_s=0)
 
-    assert caplog.text.count("chunks.text_idx PENDING") == 1
+    # The second BUILDING poll repeats the previous status and must still be logged.
+    assert caplog.text.count("chunks.autoembed_idx BUILDING") == 2
+
+
+@pytest.mark.asyncio
+async def test_wait_logs_missing_index_as_pending_every_poll(settings, caplog):
+    statuses = iter(
+        [
+            [{"name": "autoembed_idx", "status": "BUILDING"}],
+            [{"name": "autoembed_idx", "status": "BUILDING"}],
+            [{"name": "autoembed_idx", "status": "READY"}, {"name": "text_idx", "status": "READY"}],
+        ]
+    )
+    collection = MagicMock()
+    collection.list_search_indexes.side_effect = lambda: MagicMock(
+        to_list=AsyncMock(return_value=next(statuses))
+    )
+    caplog.set_level(logging.INFO)
+
+    await wait_chunks_indexes_ready(collection, settings, timeout_s=5, interval_s=0)
+
+    assert caplog.text.count("chunks.text_idx PENDING") == 2
 
 
 def test_autoembed_index_definition():
