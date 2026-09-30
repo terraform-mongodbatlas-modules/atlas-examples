@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 LlmProvider = Literal["anthropic", "bedrock", "openai", "gemini", "grove"]
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -51,10 +52,22 @@ class HybridSearchSettings(BaseSettings):
     grove_model: str = "gpt-4o"
     grove_base_url: str | None = None
     skip_index_creation: bool = False
+    skip_ingest: bool = False
     log_level: LogLevel = "INFO"
     demo_queries_path: Path = Path("demo_queries.yaml")
+    seed_dir: Path = Path("seed")
+    document_dirs: Annotated[list[Path], NoDecode] = Field(default_factory=list)
     # Driver default is 30s, right for queries but too long for a health probe.
     mongo_server_selection_timeout_ms: int = 30_000
+
+    @field_validator("document_dirs", mode="before")
+    @classmethod
+    def split_document_dirs(cls, value: object) -> object:
+        match value:
+            case str():
+                return [Path(part) for part in value.split(os.pathsep) if part]
+            case _:
+                return value
 
     @field_validator("log_level", mode="before")
     @classmethod

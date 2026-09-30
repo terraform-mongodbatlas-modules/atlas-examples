@@ -8,18 +8,21 @@ import pytest
 import hybrid_search.extract as extract_module
 
 
-def test_extract_txt(tmp_path: Path):
-    path = tmp_path / "note.md"
-    path.write_text("hello")
-    assert extract_module.extract_text(path).text == "hello"
+def test_is_supported_accepts_known_suffixes_case_insensitively(tmp_path: Path):
+    for name in ("doc.md", "doc.txt", "doc.pdf", "DOC.PDF"):
+        assert extract_module.is_supported(tmp_path / name)
 
 
-def test_pdf_requires_pymupdf(tmp_path: Path, monkeypatch):
+def test_is_supported_rejects_other_suffixes(tmp_path: Path):
+    assert not extract_module.is_supported(tmp_path / "data.csv")
+
+
+def test_pdf_chunks_require_pymupdf(tmp_path: Path, monkeypatch):
     path = tmp_path / "doc.pdf"
     path.write_bytes(b"%PDF-1.4")
     monkeypatch.setattr(extract_module, "pymupdf", None)
     with pytest.raises(RuntimeError, match="pymupdf"):
-        extract_module.extract_text(path)
+        extract_module.extract_chunks(path, max_tokens=512)
 
 
 def test_chunk_text_single_small_input():
@@ -88,6 +91,14 @@ def test_extract_chunks_txt_has_no_page(tmp_path: Path):
     assert chunks[0].page is None
     assert chunks[0].start_line == 1
     assert chunks[0].end_line == 1
+
+
+def test_extract_chunks_rejects_unsupported_suffix(tmp_path: Path):
+    path = tmp_path / "data.csv"
+    path.write_text("a,b")
+
+    with pytest.raises(ValueError, match="unsupported file type"):
+        extract_module.extract_chunks(path, max_tokens=512)
 
 
 def test_extract_chunks_pdf_carries_page(tmp_path: Path, monkeypatch):

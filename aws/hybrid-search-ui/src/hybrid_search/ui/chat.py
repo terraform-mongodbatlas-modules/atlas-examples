@@ -9,6 +9,7 @@ from pathlib import Path
 import chainlit as cl
 from pymongo.errors import PyMongoError
 
+from hybrid_search import extract as extract_module
 from hybrid_search.indexes import create_chunks_indexes_if_missing, index_states
 from hybrid_search.ingest import (
     delete_all_chunks,
@@ -54,7 +55,6 @@ from hybrid_search.ui.search_settings import (
 )
 
 logger = logging.getLogger(__name__)
-ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
 _ASK_ACCEPT = ["application/pdf", "text/plain", "text/markdown", "text/x-markdown"]
 INGEST_MAX_FILES = 20
 INGEST_MAX_SIZE_MB = 100
@@ -62,10 +62,6 @@ INGEST_ASK_PROMPT = (
     f"Choose pdf, txt, or md to ingest (up to {INGEST_MAX_FILES} files, "
     f"{INGEST_MAX_SIZE_MB} MB per batch)."
 )
-
-
-def is_allowed_upload(path: Path) -> bool:
-    return path.suffix.lower() in ALLOWED_SUFFIXES
 
 
 def _password_auth_callback(username: str, password: str):
@@ -350,7 +346,7 @@ async def _ingest_named_paths(named_paths: list[tuple[str, Path]]) -> None:
     batch_names: set[str] = set()
     progress: list[FileProgress] = []
     for name, path in named_paths:
-        if not is_allowed_upload(path):
+        if not extract_module.is_supported(path):
             progress.append(FileProgress(name=name, status="skipped", detail="unsupported type"))
             continue
         skip_reason = skip_reason_for_filename(name, ingested=ingested_names, batch=batch_names)

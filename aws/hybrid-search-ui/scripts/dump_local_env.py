@@ -34,7 +34,6 @@ _ENV_ORDER = (
     "BEDROCK_MODEL",
     "AWS_REGION",
     "ENABLE_LLM",
-    "SKIP_INDEX_CREATION",
     "TOP_K",
     "CHUNK_MAX_TOKENS",
 )
@@ -83,9 +82,6 @@ def local_env_from_secret(
         value = secret.get(key)
         if value is not None:
             env[key] = str(value)
-
-    # ECS sets this true; local compose should create indexes on boot.
-    env["SKIP_INDEX_CREATION"] = "false"
 
     return env, warnings
 

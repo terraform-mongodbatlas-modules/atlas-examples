@@ -76,7 +76,7 @@ run "app_secret_nests_groups_without_voyage_key" {
       local.container_secret_keys == ["CHAINLIT_AUTH_SECRET", "CHAINLIT_DEMO_PASSWORD"],
       !contains(local.container_secret_keys, "VOYAGE_API_KEY"),
       local.container_env["ENABLE_LLM"] == "false",
-      local.container_env["SKIP_INDEX_CREATION"] == "true",
+      !contains(keys(local.container_env), "SKIP_INDEX_CREATION"),
       !contains(keys(local.container_env), "LLM_PROVIDER"),
       !contains(keys(local.container_env), "BEDROCK_MODEL"),
       module.llm.bedrock.enabled == false,

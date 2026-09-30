@@ -5,6 +5,8 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 
 from hybrid_search.settings import HybridSearchSettings
 
+INGEST_STATE_COLLECTION = "ingest_state"
+
 
 def get_client(
     settings: HybridSearchSettings,
@@ -24,3 +26,10 @@ def chunks_collection(
     settings: HybridSearchSettings,
 ) -> AsyncIOMotorCollection:
     return client[settings.mongodb_database][settings.chunks_collection]
+
+
+def ingest_state_collection(
+    client: AsyncIOMotorClient,
+    settings: HybridSearchSettings,
+) -> AsyncIOMotorCollection:
+    return client[settings.mongodb_database][INGEST_STATE_COLLECTION]

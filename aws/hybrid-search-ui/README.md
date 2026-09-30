@@ -28,7 +28,7 @@ flowchart LR
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role.
 - **AWS:** VPC (private subnets plus NAT and an IGW for the CloudFront VPC origin), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
 - **LLM:** Amazon Bedrock by default. The ECS task role calls `bedrock-runtime` (Amazon Nova Lite) over a private interface endpoint (no key, no secret); a keyed provider still works when you set `llm.secret_name`.
-- **App:** ECS cluster, Fargate service running the in-example Chainlit image (port 8001), built from this directory's `Dockerfile`. Indexes are a one-shot `ecs run-task` of that same image with `hybrid-search index create`, not a second service.
+- **App:** ECS cluster, Fargate service running the in-example Chainlit image (port 8001), built from this directory's `Dockerfile`. The service creates the indexes and ingests the seed on startup; `hybrid-search index create` and `hybrid-search ingest run` remain for manual re-runs, not a second service.
 
 ```sh
 aws/hybrid-search-ui/
@@ -106,16 +106,33 @@ terraform -chdir=app init
 terraform -chdir=app apply
 ```
 
-## Create indexes
+## Create indexes and ingest on startup
+
+The service creates the indexes and ingests documents itself, in the background, on every boot. A chat session also creates missing indexes, so the two paths are idempotent. `terraform apply` no longer needs a one-shot task to sequence the work.
+
+The startup task connects to Atlas (retrying forever on a transient outage), creates `chunks.autoembed_idx` and `chunks.text_idx` if missing, waits for them to reach `READY`, then ingests `DOCUMENT_DIRS` plus the bundled `seed/`. It runs in the FastAPI lifespan without blocking the HTTP server, so the UI and `/health` respond while the indexes build. On shutdown the task is cancelled, which ends a failing Mongo connection in one event-loop tick instead of holding the container open.
+
+A redeploy re-ingests only files whose content changed. Ingest state lives in a separate `ingest_state` collection keyed by a stable source key, so the filename-based skip rule in the browser upload flow is untouched.
+
+### Ingest from the CLI
 
 ```sh
-# RunTask of the live UI image with command ["hybrid-search", "index", "create"]. Blocks until exit 0.
-just create-index
+# Ingest DOCUMENT_DIRS plus the bundled seed/.
+hybrid-search ingest run
+
+# Scan a specific directory (repeatable; replaces the defaults).
+hybrid-search ingest run --dir ./docs --dir ./more
+
+# Re-ingest unchanged files, or turn the run off.
+hybrid-search ingest run --force
+hybrid-search ingest run --skip-ingest
 ```
 
-The UI task sets `SKIP_INDEX_CREATION=true`, so the first chat does not submit Atlas Search or Vector index creates. `just create-index` runs the same image with `hybrid-search index create`, which always creates indexes even when that env is set. Skipping `just create-index` still leaves a healthy UI that cannot search.
+Unchanged files are skipped by content hash, so a second run over the same directory ingests nothing. A file that fails to ingest exits non-zero, which lets a one-shot task or CI fail the run. On a change the file's existing chunks are deleted before re-ingest, so a shorter file does not leave stale chunks behind.
 
-`just create-index` streams the task's CloudWatch log lines to the terminal while the task runs, so index progress is visible instead of a silent wait. On each poll the container logs the current status (`PENDING`, `BUILDING`, `READY`, `FAILED`) for `chunks.autoembed_idx` and `chunks.text_idx`, so a long `PENDING` or `BUILDING` phase still shows a line every polling interval. The in-container wait is 600s; the local script polls past that so the task's exit code is always read.
+### Re-run manually
+
+`just create-index` runs the live UI image with `hybrid-search index create` and streams the task's CloudWatch log lines while it runs. On each poll the container logs the current status (`PENDING`, `BUILDING`, `READY`, `FAILED`) for `chunks.autoembed_idx` and `chunks.text_idx`, so a long `PENDING` or `BUILDING` phase still shows a line every polling interval. The in-container wait is 600s; the local script polls past that so the task's exit code is always read. Use it to re-create indexes without a redeploy; a healthy deploy creates them on its own.
 
 The chat UI reflects the same state. On session start it reads the indexes and, when any is not `READY`, posts a status block in the `chunks.<name> <STATUS>` form the log already uses. Before a query runs it checks again: a not-ready index stops the query with the status instead of returning an empty result, and a `FAILED` index is reported as an error.
 
@@ -257,13 +274,15 @@ Cross-region caveat for both: the `bedrock-runtime` endpoint secures the source-
 
 ### How does ingest and search work?
 
-**Ingest (browser upload):** the app extracts text (`pymupdf` for PDF; plain read for `.md` and `.txt`), splits it into chunks, and upserts one document per chunk into `chunks` with `content`, `file_path`, and `chunk_index`. A chunk also carries its location when the source has one: `page` for a PDF chunk, `start_line` and `end_line` for a markdown or text chunk. `CHUNK_MAX_TOKENS` (default 512) sets the size target. Chunks follow paragraph, sentence, and heading boundaries; only a single oversized sentence falls back to a character cut (`extract.py`).
+**Ingest (startup and CLI):** the app extracts text (`pymupdf` for PDF; plain read for `.md` and `.txt`), splits it into chunks, and upserts one document per chunk into `chunks` with `content`, `file_path`, and `chunk_index`. A chunk also carries its location when the source has one: `page` for a PDF chunk, `start_line` and `end_line` for a markdown or text chunk. `CHUNK_MAX_TOKENS` (default 512) sets the size target. Chunks follow paragraph, sentence, and heading boundaries; only a single oversized sentence falls back to a character cut (`extract.py`).
+
+The startup task and `hybrid-search ingest run` share this path. They store a content hash per source file in the `ingest_state` collection and skip a file whose hash is unchanged, so a redeploy re-ingests only edited content. The browser upload flow uses the same extract and ingest code but keeps its filename-based skip, because a user thinks in filenames.
 
 Atlas embeds each chunk inside the cluster on write, through the automated embedding index on `content`. The app never calls an embedding API, never holds an embedding model, and never sends a vector. That removes a pipeline and a secret from the application. The query is sent as plain text.
 
 **Ask:** `$rankFusion` runs over `chunks`, blending a text pipeline (`text_idx`) and a vector pipeline (`autoembed_idx`), weighted 0.6 vector and 0.4 text. `TOP_K` (default 20) caps what reaches the LLM. The **Chat Settings** toggles run each retrieval stage on its own, which is what lets the demo show them separately.
 
-Both indexes sit on the same `chunks` collection (`autoembed_idx`, `text_idx`). See [Create indexes](#create-indexes).
+Both indexes sit on the same `chunks` collection (`autoembed_idx`, `text_idx`). See [Create indexes and ingest on startup](#create-indexes-and-ingest-on-startup).
 
 ### How do I tune retrieval breadth?
 
@@ -281,7 +300,7 @@ Change it the same way as `TOP_K` (see [How do I tune retrieval breadth?](#how-d
 
 ### Local Docker without ECS
 
-The optional `just dump-local-env` step after lz apply writes `secrets/.env.local` with `SKIP_INDEX_CREATION=false` and prints the compose command. The default provider is Bedrock, so local Docker also needs AWS credentials: export short-lived SSO credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) in your shell, and the compose file passes them through along with `AWS_REGION`. For a local MongoDB instead of Atlas, use `docker/docker-compose.local-ui-atlas.yml`.
+The optional `just dump-local-env` step after lz apply writes `secrets/.env.local` and prints the compose command. Local compose creates the indexes on boot, same as ECS. The default provider is Bedrock, so local Docker also needs AWS credentials: export short-lived SSO credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) in your shell, and the compose file passes them through along with `AWS_REGION`. For a local MongoDB instead of Atlas, use `docker/docker-compose.local-ui-atlas.yml`.
 
 ### Why does search fail with `localhost:28000`?
 
@@ -289,7 +308,7 @@ The optional `just dump-local-env` step after lz apply writes `secrets/.env.loca
 
 This example does not create dedicated Search Nodes. They are optional production isolation ([Search deployment options](https://www.mongodb.com/docs/search/deployment/deployment-options/)). On M10+ Atlas, including this sharded lab cluster, `mongot` runs next to `mongod` after the first Search or Vector Search index exists.
 
-Confirm `chunks.text_idx` and `chunks.autoembed_idx` are READY. Local compose creates the indexes on boot; for the ECS UI, run `just create-index` (see [Create indexes](#create-indexes)) if they were never created. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
+Confirm `chunks.text_idx` and `chunks.autoembed_idx` are READY. Both local compose and ECS create the indexes on boot; run `just create-index` (see [Re-run manually](#re-run-manually)) if they were never created. If they already are READY, `mongot` is down on the cluster (often after a scale or restart). Recreate the indexes or check Atlas Search health.
 
 ### What is the app secret name?
 

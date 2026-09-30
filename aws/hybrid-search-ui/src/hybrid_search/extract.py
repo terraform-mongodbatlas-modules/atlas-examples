@@ -14,14 +14,12 @@ except ImportError:
 # Use 4 to overestimate tokens and keep chunks under the model context window.
 _CHARS_PER_TOKEN_ESTIMATE = 4
 
+# One set for the browser upload flow and the CLI, so the two cannot drift.
+SUPPORTED_SUFFIXES = {".pdf", ".txt", ".md"}
+
 # Split after sentence terminators and on single newlines (headings, list items).
 # The lookbehind keeps the delimiter attached to the sentence it closes.
 _SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?] )|(?<=\n)")
-
-
-@dataclass(frozen=True)
-class ExtractResult:
-    text: str
 
 
 @dataclass(frozen=True)
@@ -43,14 +41,8 @@ def _page_texts(path: Path) -> list[str]:
         doc.close()
 
 
-def extract_text(path: Path) -> ExtractResult:
-    suffix = path.suffix.lower()
-    if suffix in {".txt", ".md"}:
-        return ExtractResult(text=path.read_text())
-    if suffix == ".pdf":
-        return ExtractResult(text="\n\n".join(_page_texts(path)))
-    msg = f"unsupported file type: {suffix or path.name}"
-    raise ValueError(msg)
+def is_supported(path: Path) -> bool:
+    return path.suffix.lower() in SUPPORTED_SUFFIXES
 
 
 def _chunk_locations(
@@ -88,6 +80,9 @@ def _chunk_locations(
 
 def extract_chunks(path: Path, *, max_tokens: int) -> list[Chunk]:
     suffix = path.suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        msg = f"unsupported file type: {suffix or path.name}"
+        raise ValueError(msg)
     if suffix == ".pdf":
         pages = _page_texts(path)
         normalized = "\n\n".join(page.strip() for page in pages)
@@ -97,13 +92,10 @@ def extract_chunks(path: Path, *, max_tokens: int) -> list[Chunk]:
             page_starts.append(cursor)
             cursor += len(page.strip()) + 2
         is_pdf = True
-    elif suffix in {".txt", ".md"}:
+    else:
         normalized = path.read_text()
         page_starts = []
         is_pdf = False
-    else:
-        msg = f"unsupported file type: {suffix or path.name}"
-        raise ValueError(msg)
     chunks = chunk_text(normalized, max_tokens=max_tokens)
     return _chunk_locations(chunks, normalized, is_pdf=is_pdf, page_starts=page_starts)
 

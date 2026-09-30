@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -107,6 +108,25 @@ def test_chunk_max_tokens_rejects_above_context_window(monkeypatch):
     monkeypatch.setattr(settings_module, "AUTOEMBED_CONTEXT_TOKENS", 1_000)
     with pytest.raises(ValueError, match="context window"):
         _settings(chunk_max_tokens=1_200)
+
+
+def test_document_dirs_defaults_empty():
+    assert _settings().document_dirs == []
+
+
+def test_document_dirs_env_splits_on_pathsep(monkeypatch):
+    monkeypatch.setenv("DOCUMENT_DIRS", f"/a{os.pathsep}/b")
+    monkeypatch.setenv("MONGODB_URI", "mongodb://localhost")
+    clear_settings_cache()
+    assert get_settings().document_dirs == [Path("/a"), Path("/b")]
+
+
+def test_skip_ingest_defaults_false():
+    assert _settings().skip_ingest is False
+
+
+def test_seed_dir_default():
+    assert _settings().seed_dir == Path("seed")
 
 
 def test_apply_log_level_configures_root_and_hybrid_search(monkeypatch):

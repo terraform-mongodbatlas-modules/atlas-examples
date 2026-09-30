@@ -250,7 +250,6 @@ locals {
     CHAINLIT_DEMO_USERNAME = "demo"
     MONGODB_DATABASE       = local.ui_database
     MONGODB_URI            = local.mongo_iam_connection_strings_by_region[local.ui.aws_region]
-    SKIP_INDEX_CREATION    = "true"
     TOP_K                  = "20"
     CHUNK_MAX_TOKENS       = "512"
     AUTOEMBED_MODEL        = var.autoembed_model

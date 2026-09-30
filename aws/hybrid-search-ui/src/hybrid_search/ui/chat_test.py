@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -9,13 +8,7 @@ from pymongo.errors import OperationFailure
 import hybrid_search.ui.chat as chat_module
 from hybrid_search.health import IndexState
 from hybrid_search.settings import HybridSearchSettings
-from hybrid_search.ui.chat import is_allowed_upload, on_chat_start
-
-
-def test_upload_extension_filter():
-    assert is_allowed_upload(Path("doc.pdf"))
-    assert is_allowed_upload(Path("notes.TXT"))
-    assert not is_allowed_upload(Path("image.png"))
+from hybrid_search.ui.chat import on_chat_start
 
 
 @pytest.mark.asyncio

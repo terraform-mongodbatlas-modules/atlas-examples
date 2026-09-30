@@ -39,7 +39,7 @@ def test_maps_public_uri_and_drops_chainlit() -> None:
     assert env["AUTOEMBED_MODEL"] == "voyage-4-lite"
     assert "VOYAGE_API_KEY" not in env
     assert "VOYAGE_BASE_URL" not in env
-    assert env["SKIP_INDEX_CREATION"] == "false"
+    assert "SKIP_INDEX_CREATION" not in env
     assert env["TOP_K"] == "20"
     assert env["CHUNK_MAX_TOKENS"] == "512"
     assert "CHAINLIT_AUTH_SECRET" not in env
