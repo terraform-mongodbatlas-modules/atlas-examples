@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from unittest.mock import AsyncMock, MagicMock
 
@@ -71,7 +73,11 @@ def _patch_query_env(monkeypatch, states: list[IndexState]) -> list[str]:
         async def send(self) -> None:
             sent.append(self.content)
 
-    monkeypatch.setattr(chat_module.cl, "user_session", _FakeSession({"collection": object()}))
+    monkeypatch.setattr(
+        chat_module.cl,
+        "user_session",
+        _FakeSession({"collection": object(), "state_collection": object()}),
+    )
     monkeypatch.setattr(chat_module.cl, "Message", RecordingMessage)
     monkeypatch.setattr(chat_module, "index_states", AsyncMock(return_value=states))
     return sent
@@ -105,3 +111,61 @@ async def test_handle_query_errors_when_index_failed(monkeypatch):
     assert sent
     assert "unavailable" in sent[0]
     assert "chunks.text_idx FAILED" in sent[0]
+
+
+class _FakeStep:
+    def __init__(self, **kwargs: object):
+        self.output = ""
+
+    async def __aenter__(self) -> _FakeStep:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+    async def update(self) -> None:
+        pass
+
+
+def _delete_env(monkeypatch, deleted_count: int = 3) -> tuple[MagicMock, MagicMock]:
+    collection = MagicMock()
+    collection.delete_many = AsyncMock(return_value=MagicMock(deleted_count=deleted_count))
+    state_collection = MagicMock()
+    state_collection.delete_many = AsyncMock()
+    monkeypatch.setattr(
+        chat_module.cl,
+        "user_session",
+        _FakeSession({"collection": collection, "state_collection": state_collection}),
+    )
+    monkeypatch.setattr(chat_module.cl, "Step", _FakeStep)
+    return collection, state_collection
+
+
+@pytest.mark.asyncio
+async def test_perform_delete_clears_chunks_and_state(monkeypatch):
+    collection, state_collection = _delete_env(monkeypatch)
+
+    await chat_module._perform_delete(
+        collection=collection,
+        state_collection=state_collection,
+        file_paths=["/tmp/a.pdf"],
+        delete_all=False,
+    )
+
+    collection.delete_many.assert_awaited_once_with({"file_path": "/tmp/a.pdf"})
+    state_collection.delete_many.assert_awaited_once_with({"_id": "/tmp/a.pdf"})
+
+
+@pytest.mark.asyncio
+async def test_perform_delete_all_clears_chunks_and_state(monkeypatch):
+    collection, state_collection = _delete_env(monkeypatch, deleted_count=12)
+
+    await chat_module._perform_delete(
+        collection=collection,
+        state_collection=state_collection,
+        file_paths=[],
+        delete_all=True,
+    )
+
+    collection.delete_many.assert_awaited_once_with({})
+    state_collection.delete_many.assert_awaited_once_with({})

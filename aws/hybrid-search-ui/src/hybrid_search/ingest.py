@@ -75,13 +75,20 @@ async def delete_by_file_path(
     file_path: str,
     *,
     collection: AsyncIOMotorCollection,
+    state_collection: AsyncIOMotorCollection,
 ) -> DeleteResult:
     result = await collection.delete_many({"file_path": file_path})
+    await state_collection.delete_many({"_id": file_path})
     return DeleteResult(file_path=file_path, chunk_count=result.deleted_count)
 
 
-async def delete_all_chunks(*, collection: AsyncIOMotorCollection) -> int:
+async def delete_all_chunks(
+    *,
+    collection: AsyncIOMotorCollection,
+    state_collection: AsyncIOMotorCollection,
+) -> int:
     result = await collection.delete_many({})
+    await state_collection.delete_many({})
     return result.deleted_count
 
 

@@ -19,7 +19,7 @@ from hybrid_search.ingest import (
     list_ingested_files,
     skip_reason_for_filename,
 )
-from hybrid_search.mongo import chunks_collection, get_client
+from hybrid_search.mongo import chunks_collection, get_client, ingest_state_collection
 from hybrid_search.search_modes import DEFAULT
 from hybrid_search.settings import apply_log_level, get_settings
 from hybrid_search.ui.delete_logic import format_ingested_file_list, resolve_delete_selection
@@ -103,6 +103,7 @@ async def on_chat_start():
         cl.user_session.set("settings", settings)
         cl.user_session.set("client", client)
         cl.user_session.set("collection", collection)
+        cl.user_session.set("state_collection", ingest_state_collection(client, settings))
         states = await index_states(collection, settings)
         if message := problem_message(states, query=False):
             await cl.Message(content=message).send()
@@ -279,15 +280,25 @@ async def _delete_ingested_files() -> None:
     await cl.Message(content=listing, actions=actions).send()
 
 
-async def _perform_delete(*, collection, file_paths: list[str], delete_all: bool) -> None:
+async def _perform_delete(
+    *,
+    collection,
+    state_collection,
+    file_paths: list[str],
+    delete_all: bool,
+) -> None:
     async with cl.Step(name="Delete", type="tool", default_open=True) as step:
         if delete_all:
-            deleted = await delete_all_chunks(collection=collection)
+            deleted = await delete_all_chunks(
+                collection=collection, state_collection=state_collection
+            )
             step.output = f"Deleted all ingested chunks ({deleted} total)."
         else:
             lines: list[str] = []
             for file_path in file_paths:
-                result = await delete_by_file_path(file_path, collection=collection)
+                result = await delete_by_file_path(
+                    file_path, collection=collection, state_collection=state_collection
+                )
                 name = Path(file_path).name
                 lines.append(f"- {name}: {result.chunk_count} chunks")
             step.output = "**Deleted**\n\n" + "\n".join(lines)
@@ -296,6 +307,7 @@ async def _perform_delete(*, collection, file_paths: list[str], delete_all: bool
 
 async def _handle_delete_text_fallback(selection: str) -> None:
     collection = cl.user_session.get("collection")
+    state_collection = cl.user_session.get("state_collection")
     files = await list_ingested_files(collection)
     file_paths = resolve_delete_selection(selection, files)
     if file_paths is None:
@@ -303,6 +315,7 @@ async def _handle_delete_text_fallback(selection: str) -> None:
         return
     await _perform_delete(
         collection=collection,
+        state_collection=state_collection,
         file_paths=file_paths,
         delete_all=selection.strip().lower() == "all",
     )
@@ -315,13 +328,17 @@ async def on_delete_file(action: cl.Action):
     if not isinstance(index, int):
         return
     collection = cl.user_session.get("collection")
+    state_collection = cl.user_session.get("state_collection")
     files = await list_ingested_files(collection)
     if not 1 <= index <= len(files):
         await cl.Message(content="That file is no longer available.").send()
         set_ui_mode(UiMode.QUERY)
         return
     await _perform_delete(
-        collection=collection, file_paths=[files[index - 1].file_path], delete_all=False
+        collection=collection,
+        state_collection=state_collection,
+        file_paths=[files[index - 1].file_path],
+        delete_all=False,
     )
     set_ui_mode(UiMode.QUERY)
 
@@ -329,7 +346,10 @@ async def on_delete_file(action: cl.Action):
 @cl.action_callback(DELETE_ALL_ACTION)
 async def on_delete_all(_action: cl.Action):
     collection = cl.user_session.get("collection")
-    await _perform_delete(collection=collection, file_paths=[], delete_all=True)
+    state_collection = cl.user_session.get("state_collection")
+    await _perform_delete(
+        collection=collection, state_collection=state_collection, file_paths=[], delete_all=True
+    )
     set_ui_mode(UiMode.QUERY)
 
 

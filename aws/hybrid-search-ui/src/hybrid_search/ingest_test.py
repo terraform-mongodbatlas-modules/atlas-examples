@@ -184,15 +184,25 @@ async def test_list_ingested_files_groups_by_file_path():
 async def test_delete_by_file_path():
     collection = MagicMock()
     collection.delete_many = AsyncMock(return_value=MagicMock(deleted_count=5))
-    result = await ingest_module.delete_by_file_path("/tmp/a.pdf", collection=collection)
+    state_collection = MagicMock()
+    state_collection.delete_many = AsyncMock()
+    result = await ingest_module.delete_by_file_path(
+        "/tmp/a.pdf", collection=collection, state_collection=state_collection
+    )
     assert result.chunk_count == 5
     collection.delete_many.assert_awaited_once_with({"file_path": "/tmp/a.pdf"})
+    state_collection.delete_many.assert_awaited_once_with({"_id": "/tmp/a.pdf"})
 
 
 @pytest.mark.asyncio
 async def test_delete_all_chunks():
     collection = MagicMock()
     collection.delete_many = AsyncMock(return_value=MagicMock(deleted_count=12))
-    deleted = await ingest_module.delete_all_chunks(collection=collection)
+    state_collection = MagicMock()
+    state_collection.delete_many = AsyncMock()
+    deleted = await ingest_module.delete_all_chunks(
+        collection=collection, state_collection=state_collection
+    )
     assert deleted == 12
     collection.delete_many.assert_awaited_once_with({})
+    state_collection.delete_many.assert_awaited_once_with({})
