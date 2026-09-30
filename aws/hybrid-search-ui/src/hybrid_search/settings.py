@@ -53,6 +53,8 @@ class HybridSearchSettings(BaseSettings):
     skip_index_creation: bool = False
     log_level: LogLevel = "INFO"
     demo_queries_path: Path = Path("demo_queries.yaml")
+    # Driver default is 30s, right for queries but too long for a health probe.
+    mongo_server_selection_timeout_ms: int = 30_000
 
     @field_validator("log_level", mode="before")
     @classmethod

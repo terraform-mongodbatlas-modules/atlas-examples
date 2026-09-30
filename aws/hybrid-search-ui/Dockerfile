@@ -17,6 +17,7 @@ COPY chainlit.md ./
 COPY chainlit.md chainlit_en-US.md
 COPY docker/chainlit/ .chainlit/
 COPY demo_queries.yaml ./
+COPY seed/ ./seed/
 
 RUN useradd --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app

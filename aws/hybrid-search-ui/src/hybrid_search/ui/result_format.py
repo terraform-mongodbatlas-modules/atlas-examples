@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from hybrid_search.generate import unique_source_files
 from hybrid_search.search import RetrievalPipeline
 
 _SNIPPET_MAX = 200
@@ -23,11 +22,31 @@ def retrieval_header(pipeline: RetrievalPipeline) -> str:
             return "Keyword + vector retrieval ($rankFusion)"
 
 
-def _format_sources(source_files: list[str]) -> str:
-    if source_files:
-        bullets = "\n".join(f"- {name}" for name in source_files)
-        return f"### Sources\n{bullets}"
-    return "### Sources\nNo sources retrieved"
+def format_location(ref: dict[str, Any]) -> str:
+    page = ref.get("page")
+    if page is not None:
+        return f"p. {page}"
+    start = ref.get("start_line")
+    end = ref.get("end_line")
+    if start is not None and end is not None:
+        return f"lines {start}-{end}"
+    return ""
+
+
+def _format_sources(references: list[dict[str, Any]]) -> str:
+    if not references:
+        return "### Sources\nNo sources retrieved"
+    seen: set[str] = set()
+    lines: list[str] = []
+    for ref in references:
+        filename = Path(ref.get("file_path", "")).name or "unknown"
+        location = format_location(ref)
+        label = f"{filename} · {location}" if location else filename
+        if label in seen:
+            continue
+        seen.add(label)
+        lines.append(f"- {label}")
+    return "### Sources\n" + "\n".join(lines)
 
 
 def _plain_snippet(content: str) -> str:
@@ -49,9 +68,11 @@ def _plain_snippet(content: str) -> str:
 
 def _format_hit(index: int, ref: dict[str, Any]) -> str:
     filename = Path(ref.get("file_path", "")).name or "unknown"
+    location = format_location(ref)
+    label = f"{filename} · {location}" if location else filename
     score = float(ref.get("score") or 0.0)
     snippet = _plain_snippet(str(ref.get("content", "")))
-    return f"**{index} · {filename}** · {score:.3f}\n\n> {snippet}"
+    return f"**{index} · {label}** · {score:.3f}\n\n> {snippet}"
 
 
 def format_retrieval_body(references: list[dict[str, Any]]) -> str:
@@ -63,7 +84,7 @@ def format_retrieval_body(references: list[dict[str, Any]]) -> str:
         lines.append(hits)
     else:
         lines.append("No matching chunks found.")
-    lines.extend(["", _format_sources(unique_source_files(references))])
+    lines.extend(["", _format_sources(references)])
     return "\n".join(lines)
 
 

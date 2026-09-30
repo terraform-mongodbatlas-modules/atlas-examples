@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from hybrid_search.search import RetrievalPipeline
 from hybrid_search.ui.result_format import (
+    format_location,
     format_retrieval_body,
     format_retrieval_results,
     retrieval_header,
@@ -65,3 +66,36 @@ def test_format_retrieval_body_strips_markdown_noise():
 def test_format_retrieval_body_empty():
     text = format_retrieval_body([])
     assert "No matching chunks found." in text
+
+
+def test_format_location_page():
+    assert format_location({"page": 12}) == "p. 12"
+
+
+def test_format_location_line_range():
+    assert format_location({"start_line": 40, "end_line": 58}) == "lines 40-58"
+
+
+def test_format_location_none():
+    assert format_location({}) == ""
+
+
+def test_format_hit_with_page_shows_location():
+    refs = [{"file_path": "docs/NIST.AI.100-1.pdf", "content": "ctx", "score": 0.9, "page": 12}]
+    text = format_retrieval_results(refs, pipeline=RetrievalPipeline.KEYWORD)
+    assert "**1 · NIST.AI.100-1.pdf · p. 12** · 0.900" in text
+    assert "- NIST.AI.100-1.pdf · p. 12" in text
+
+
+def test_format_hit_with_line_range_shows_location():
+    refs = [
+        {"file_path": "notes.md", "content": "ctx", "score": 0.5, "start_line": 40, "end_line": 58}
+    ]
+    text = format_retrieval_results(refs, pipeline=RetrievalPipeline.KEYWORD)
+    assert "**1 · notes.md · lines 40-58** · 0.500" in text
+
+
+def test_format_hit_without_location_shows_filename_alone():
+    refs = [{"file_path": "a.txt", "content": "ctx", "score": 0.5}]
+    text = format_retrieval_results(refs, pipeline=RetrievalPipeline.KEYWORD)
+    assert "**1 · a.txt** · 0.500" in text

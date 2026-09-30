@@ -152,14 +152,18 @@ def build_rank_fusion_pipeline(
 
 
 def _docs_to_results(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        {
+    results: list[dict[str, Any]] = []
+    for doc in docs:
+        result: dict[str, Any] = {
             "file_path": doc.get("file_path", ""),
             "content": doc.get("content", ""),
             "score": float(doc.get("hybrid_score") or 0.0),
         }
-        for doc in docs
-    ]
+        for field in ("page", "start_line", "end_line"):
+            if doc.get(field) is not None:
+                result[field] = doc[field]
+        results.append(result)
+    return results
 
 
 async def _pipeline_search(

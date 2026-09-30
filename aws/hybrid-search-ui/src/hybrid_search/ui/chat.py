@@ -9,7 +9,7 @@ from pathlib import Path
 import chainlit as cl
 from pymongo.errors import PyMongoError
 
-from hybrid_search.indexes import create_chunks_indexes_if_missing
+from hybrid_search.indexes import create_chunks_indexes_if_missing, index_states
 from hybrid_search.ingest import (
     delete_all_chunks,
     delete_by_file_path,
@@ -36,6 +36,8 @@ from hybrid_search.ui.demo import (
     load_demo_queries,
     query_from_demo_response,
 )
+from hybrid_search.ui.health_endpoint import register_health_endpoint
+from hybrid_search.ui.index_status import problem_message
 from hybrid_search.ui.ingest_progress import FileProgress, render_ingest_batch
 from hybrid_search.ui.mode_router import (
     PENDING_FILE_ASK_KEY,
@@ -53,6 +55,7 @@ from hybrid_search.ui.search_settings import (
 )
 
 logger = logging.getLogger(__name__)
+register_health_endpoint()
 ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
 _ASK_ACCEPT = ["application/pdf", "text/plain", "text/markdown", "text/x-markdown"]
 INGEST_MAX_FILES = 20
@@ -106,6 +109,9 @@ async def on_chat_start():
         cl.user_session.set("settings", settings)
         cl.user_session.set("client", client)
         cl.user_session.set("collection", collection)
+        states = await index_states(collection, settings)
+        if message := problem_message(states, query=False):
+            await cl.Message(content=message).send()
     except (OSError, ValueError, RuntimeError, TypeError, PyMongoError) as exc:
         logger.exception("Startup failed")
         await cl.Message(
@@ -201,6 +207,10 @@ async def _handle_query(query: str):
     settings = cl.user_session.get("settings")
     collection = cl.user_session.get("collection")
     modes = cl.user_session.get(SEARCH_MODES_KEY, DEFAULT)
+    states = await index_states(collection, settings)
+    if message := problem_message(states, query=True):
+        await cl.Message(content=message).send()
+        return
     result = await run_query_with_steps(
         query, settings=settings, collection=collection, modes=modes
     )

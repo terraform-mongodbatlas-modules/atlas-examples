@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pydantic import SecretStr
 
+import hybrid_search.extract as extract_module
 import hybrid_search.ingest as ingest_module
 from hybrid_search.settings import HybridSearchSettings
 
@@ -51,13 +52,17 @@ async def test_ingest_skips_empty_chunks(tmp_path: Path, monkeypatch):
     path = tmp_path / "doc.txt"
     path.write_text("hello")
 
-    def fake_chunk(_text, *, max_tokens):
+    def fake_chunks(_path, *, max_tokens):
         del max_tokens
-        return ["", "good", "   "]
+        return [
+            extract_module.Chunk(text=""),
+            extract_module.Chunk(text="good", start_line=1, end_line=1),
+            extract_module.Chunk(text="   "),
+        ]
 
     collection = MagicMock()
     collection.bulk_write = AsyncMock()
-    monkeypatch.setattr(ingest_module.extract_module, "chunk_text", fake_chunk)
+    monkeypatch.setattr(ingest_module.extract_module, "extract_chunks", fake_chunks)
     result = await ingest_module.ingest_file(path, settings=_settings(), collection=collection)
     assert result.chunk_count == 1
     ops = collection.bulk_write.await_args.args[0]
@@ -81,6 +86,42 @@ async def test_ingest_uses_source_name_for_stored_file_path(tmp_path: Path):
     ops = collection.bulk_write.await_args.args[0]
     assert ops[0]._filter == {"_id": "NIST.AI.100-1.pdf#0"}
     assert ops[0]._doc["file_path"] == "NIST.AI.100-1.pdf"
+
+
+@pytest.mark.asyncio
+async def test_ingest_writes_location_fields_when_set(tmp_path: Path):
+    path = tmp_path / "doc.md"
+    path.write_text("# Title\n\nBody paragraph.\n")
+    collection = MagicMock()
+    collection.bulk_write = AsyncMock()
+
+    await ingest_module.ingest_file(path, settings=_settings(), collection=collection)
+
+    doc = collection.bulk_write.await_args.args[0][0]._doc
+    assert doc["start_line"] == 1
+    assert doc["end_line"] == 4
+    assert "page" not in doc
+
+
+@pytest.mark.asyncio
+async def test_ingest_omits_location_fields_when_absent(tmp_path: Path, monkeypatch):
+    path = tmp_path / "doc.txt"
+    path.write_text("hello")
+
+    def fake_chunks(_path, *, max_tokens):
+        del max_tokens
+        return [extract_module.Chunk(text="hello")]
+
+    collection = MagicMock()
+    collection.bulk_write = AsyncMock()
+    monkeypatch.setattr(ingest_module.extract_module, "extract_chunks", fake_chunks)
+
+    await ingest_module.ingest_file(path, settings=_settings(), collection=collection)
+
+    doc = collection.bulk_write.await_args.args[0][0]._doc
+    assert "page" not in doc
+    assert "start_line" not in doc
+    assert "end_line" not in doc
 
 
 @pytest.mark.asyncio

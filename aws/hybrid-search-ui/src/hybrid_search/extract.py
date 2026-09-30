@@ -24,22 +24,88 @@ class ExtractResult:
     text: str
 
 
+@dataclass(frozen=True)
+class Chunk:
+    text: str
+    page: int | None = None
+    start_line: int | None = None
+    end_line: int | None = None
+
+
+def _page_texts(path: Path) -> list[str]:
+    if pymupdf is None:
+        msg = "PDF extract requires pymupdf; install with uv sync --extra ui"
+        raise RuntimeError(msg)
+    doc = pymupdf.open(path)
+    try:
+        return [text for page in doc if (text := page.get_text()).strip()]
+    finally:
+        doc.close()
+
+
 def extract_text(path: Path) -> ExtractResult:
     suffix = path.suffix.lower()
     if suffix in {".txt", ".md"}:
         return ExtractResult(text=path.read_text())
     if suffix == ".pdf":
-        if pymupdf is None:
-            msg = "PDF extract requires pymupdf; install with uv sync --extra ui"
-            raise RuntimeError(msg)
-        doc = pymupdf.open(path)
-        try:
-            pages = [page.get_text() for page in doc if page.get_text().strip()]
-        finally:
-            doc.close()
-        return ExtractResult(text="\n\n".join(pages))
+        return ExtractResult(text="\n\n".join(_page_texts(path)))
     msg = f"unsupported file type: {suffix or path.name}"
     raise ValueError(msg)
+
+
+def _chunk_locations(
+    chunks: list[str],
+    normalized: str,
+    *,
+    is_pdf: bool,
+    page_starts: list[int],
+) -> list[Chunk]:
+    located: list[Chunk] = []
+    cursor = 0
+    for chunk in chunks:
+        start = normalized.find(chunk, cursor)
+        if start < 0:
+            located.append(Chunk(text=chunk))
+            continue
+        end = start + len(chunk)
+        cursor = end
+        if is_pdf:
+            page = max(
+                (index for index, page_start in enumerate(page_starts) if page_start <= start),
+                default=0,
+            )
+            located.append(Chunk(text=chunk, page=page + 1))
+        else:
+            located.append(
+                Chunk(
+                    text=chunk,
+                    start_line=normalized.count("\n", 0, start) + 1,
+                    end_line=normalized.count("\n", 0, end) + 1,
+                )
+            )
+    return located
+
+
+def extract_chunks(path: Path, *, max_tokens: int) -> list[Chunk]:
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        pages = _page_texts(path)
+        normalized = "\n\n".join(page.strip() for page in pages)
+        page_starts: list[int] = []
+        cursor = 0
+        for page in pages:
+            page_starts.append(cursor)
+            cursor += len(page.strip()) + 2
+        is_pdf = True
+    elif suffix in {".txt", ".md"}:
+        normalized = path.read_text()
+        page_starts = []
+        is_pdf = False
+    else:
+        msg = f"unsupported file type: {suffix or path.name}"
+        raise ValueError(msg)
+    chunks = chunk_text(normalized, max_tokens=max_tokens)
+    return _chunk_locations(chunks, normalized, is_pdf=is_pdf, page_starts=page_starts)
 
 
 def chunk_text(text: str, *, max_tokens: int) -> list[str]:

@@ -10,6 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo.errors import OperationFailure
 from pymongo.operations import SearchIndexModel
 
+from hybrid_search.health import IndexState
 from hybrid_search.settings import HybridSearchSettings
 
 IndexStatus = tuple[str, str, str]
@@ -103,6 +104,21 @@ async def create_chunks_indexes_if_missing(
                 type="search",
             ),
         )
+
+
+async def index_states(
+    collection: AsyncIOMotorCollection,
+    settings: HybridSearchSettings,
+) -> list[IndexState]:
+    by_name = {
+        index.get("name"): index.get("status")
+        for index in await _list_search_indexes(collection)
+        if index.get("name")
+    }
+    return [
+        IndexState(name=name, status=by_name.get(name) or _PENDING)
+        for name in (settings.vector_index_name, settings.text_index_name)
+    ]
 
 
 async def wait_chunks_indexes_ready(

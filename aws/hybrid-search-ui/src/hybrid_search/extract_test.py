@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -62,3 +63,63 @@ def test_chunk_text_heading_boundary():
     assert all(chunk.endswith("\n") for chunk in chunks[:-1])
     assert all(sum(f"## Section {i}\n" in chunk for chunk in chunks) == 1 for i in range(3))
     assert "".join(chunks) == paragraph
+
+
+def test_extract_chunks_markdown_carries_line_range(tmp_path: Path):
+    path = tmp_path / "notes.md"
+    path.write_text("# Title\n\nFirst paragraph.\n\nSecond paragraph.\n")
+
+    chunks = extract_module.extract_chunks(path, max_tokens=512)
+
+    assert len(chunks) == 1
+    assert chunks[0].text.startswith("# Title")
+    assert chunks[0].page is None
+    assert chunks[0].start_line == 1
+    assert chunks[0].end_line == 6
+
+
+def test_extract_chunks_txt_has_no_page(tmp_path: Path):
+    path = tmp_path / "note.txt"
+    path.write_text("just text")
+
+    chunks = extract_module.extract_chunks(path, max_tokens=512)
+
+    assert len(chunks) == 1
+    assert chunks[0].page is None
+    assert chunks[0].start_line == 1
+    assert chunks[0].end_line == 1
+
+
+def test_extract_chunks_pdf_carries_page(tmp_path: Path, monkeypatch):
+    class FakePage:
+        def __init__(self, text: str):
+            self._text = text
+
+        def get_text(self) -> str:
+            return self._text
+
+    class FakeDoc:
+        def __init__(self, pages: list[str]):
+            self._pages = [FakePage(text) for text in pages]
+
+        def __iter__(self):
+            return iter(self._pages)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        extract_module,
+        "pymupdf",
+        MagicMock(open=MagicMock(return_value=FakeDoc(["page one", "page two"]))),
+    )
+    path = tmp_path / "doc.pdf"
+    path.write_bytes(b"%PDF-1.4")
+
+    chunks = extract_module.extract_chunks(path, max_tokens=512)
+
+    assert len(chunks) == 1
+    assert chunks[0].text == "page one\n\npage two"
+    assert chunks[0].page == 1
+    assert chunks[0].start_line is None
+    assert chunks[0].end_line is None

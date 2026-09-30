@@ -36,6 +36,7 @@ aws/hybrid-search-ui/
 ├── Dockerfile
 ├── justfile
 ├── demo_queries.yaml   # starter chips and Demo picker
+├── seed/               # bundled seed doc (why-mongodb-for-agents.md)
 ├── src/hybrid_search/  # in-example Python app
 ├── scripts/            # seed download (cache/ is gitignored)
 ├── docker/             # local compose stacks; chainlit/config.toml is the image UI title
@@ -116,6 +117,31 @@ The UI task sets `SKIP_INDEX_CREATION=true`, so the first chat does not submit A
 
 `just create-index` streams the task's CloudWatch log lines to the terminal while the task runs, so index progress is visible instead of a silent wait. On each poll the container logs the current status (`PENDING`, `BUILDING`, `READY`, `FAILED`) for `chunks.autoembed_idx` and `chunks.text_idx`, so a long `PENDING` or `BUILDING` phase still shows a line every polling interval. The in-container wait is 600s; the local script polls past that so the task's exit code is always read.
 
+The chat UI reflects the same state. On session start it reads the indexes and, when any is not `READY`, posts a status block in the `chunks.<name> <STATUS>` form the log already uses. Before a query runs it checks again: a not-ready index stops the query with the status instead of returning an empty result, and a `FAILED` index is reported as an error.
+
+## Health check
+
+The app serves `GET /health` with no authentication, so a load balancer or CI check can call it without a session. The ECS task sits behind an ALB target group that health-checks `/health` by default, so this endpoint decides whether the task stays in service.
+
+The response carries three keys and nothing else:
+
+```json
+{
+  "indexes_ready": true,
+  "data_ingested": true,
+  "indexes": [
+    {"name": "autoembed_idx", "status": "READY"},
+    {"name": "text_idx", "status": "READY"}
+  ]
+}
+```
+
+- **`indexes_ready`**: True only when `autoembed_idx` and `text_idx` both report `READY`.
+- **`data_ingested`**: True when the `chunks` collection holds at least one document.
+- **`indexes`**: One entry per expected index with its current status.
+
+The handler opens its own Mongo client with a 2s server-selection timeout, which sits inside the ALB probe timeout. When Atlas is unreachable it returns `503` with the same body, so the ALB takes the task out of service during a cluster outage instead of leaving a half-answering task in the pool. Query and ingest keep the driver default of 30s.
+
 ## Download seed files and open the UI
 
 ```sh
@@ -125,7 +151,9 @@ open "$(terraform -chdir=lz output -raw https_url)"
 
 Log in as `demo` with the password from `terraform -chdir=lz output -raw chainlit_demo_password`. Click **Upload documents** or the composer **Ingest** button, then choose files from `scripts/cache/` (NIST PDFs and OWASP markdown). Starter chips and the composer **Demo** button read `demo_queries.yaml`. **Cancel** on the Demo picker returns to ordinary search.
 
-The browser tab is **MongoDB AI risk** (`[UI] name` in the Chainlit config). Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`).
+The image also carries a small seed at `seed/why-mongodb-for-agents.md` (a short "why MongoDB for agents" write-up), so the demo has a corpus without a network download. The `just download-seed` pack stays the larger option.
+
+The browser tab is **MongoDB AI risk** (`[UI] name` in the Chainlit config). Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`). When a chunk carries a location, the filename in the hit list and the sources list shows it too: `p. 12` for a PDF page, `lines 40-58` for a markdown or text line range. Chunks ingested before this feature render the filename alone.
 
 The NIST PDFs ingest in a few seconds each. The app chunks the text in-process, then Atlas embeds each chunk inside the cluster on write. Progress updates an **Ingest** step in the thread with chunk counts and elapsed time (see [How does ingest and search work](#how-does-ingest-and-search-work) to learn more).
 
@@ -221,7 +249,7 @@ Cross-region caveat for both: the `bedrock-runtime` endpoint secures the source-
 
 ### How does ingest and search work?
 
-**Ingest (browser upload):** the app extracts text (`pymupdf` for PDF; plain read for `.md` and `.txt`), splits it into chunks, and upserts one document per chunk into `chunks` with `content`, `file_path`, and `chunk_index`. `CHUNK_MAX_TOKENS` (default 512) sets the size target. Chunks follow paragraph, sentence, and heading boundaries; only a single oversized sentence falls back to a character cut (`extract.py`).
+**Ingest (browser upload):** the app extracts text (`pymupdf` for PDF; plain read for `.md` and `.txt`), splits it into chunks, and upserts one document per chunk into `chunks` with `content`, `file_path`, and `chunk_index`. A chunk also carries its location when the source has one: `page` for a PDF chunk, `start_line` and `end_line` for a markdown or text chunk. `CHUNK_MAX_TOKENS` (default 512) sets the size target. Chunks follow paragraph, sentence, and heading boundaries; only a single oversized sentence falls back to a character cut (`extract.py`).
 
 Atlas embeds each chunk inside the cluster on write, through the automated embedding index on `content`. The app never calls an embedding API, never holds an embedding model, and never sends a vector. That removes a pipeline and a secret from the application. The query is sent as plain text.
 

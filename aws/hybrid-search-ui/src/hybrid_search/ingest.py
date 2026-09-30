@@ -93,15 +93,11 @@ async def ingest_file(
     source_name: str | None = None,
     on_progress: OnProgress | None = None,
 ) -> IngestResult:
-    extracted = extract_module.extract_text(path)
+    chunks = extract_module.extract_chunks(path, max_tokens=settings.chunk_max_tokens)
     file_path = source_name or str(path)
-    chunk_texts = extract_module.chunk_text(
-        extracted.text,
-        max_tokens=settings.chunk_max_tokens,
-    )
     total = 0
-    if chunk_texts:
-        ops = _upsert_ops(file_path, chunk_texts)
+    if chunks:
+        ops = _upsert_ops(file_path, chunks)
         await collection.bulk_write(ops, ordered=False)
         await _emit_progress(on_progress, f"Stored {len(ops)} chunks")
         total = len(ops)
@@ -120,23 +116,24 @@ async def _emit_progress(on_progress: OnProgress | None, message: str) -> None:
 
 def _upsert_ops(
     file_path: str,
-    chunk_texts: list[str],
+    chunks: list[extract_module.Chunk],
 ) -> list[ReplaceOne]:
     ops: list[ReplaceOne] = []
-    for chunk_index, content in enumerate(chunk_texts):
-        if not content.strip():
+    for chunk_index, chunk in enumerate(chunks):
+        if not chunk.text.strip():
             continue
         doc_id = chunk_doc_id(file_path, chunk_index)
-        ops.append(
-            ReplaceOne(
-                {"_id": doc_id},
-                {
-                    "_id": doc_id,
-                    "content": content,
-                    "file_path": file_path,
-                    "chunk_index": chunk_index,
-                },
-                upsert=True,
-            )
-        )
+        doc: dict[str, Any] = {
+            "_id": doc_id,
+            "content": chunk.text,
+            "file_path": file_path,
+            "chunk_index": chunk_index,
+        }
+        if chunk.page is not None:
+            doc["page"] = chunk.page
+        if chunk.start_line is not None:
+            doc["start_line"] = chunk.start_line
+        if chunk.end_line is not None:
+            doc["end_line"] = chunk.end_line
+        ops.append(ReplaceOne({"_id": doc_id}, doc, upsert=True))
     return ops
