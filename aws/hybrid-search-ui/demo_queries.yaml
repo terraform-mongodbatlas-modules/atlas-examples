@@ -1,7 +1,13 @@
 queries:
-  - label: AI RMF functions
-    message: What are the four functions of the AI RMF?
-  - label: Measure GenAI risk
-    message: How should we measure generative AI risk?
-  - label: Prompt injection
-    message: What is prompt injection and how do we mitigate it?
+  - label: Why one database
+    message: "Why would an agent store retrieval and memory in the same database instead of a separate vector store?"
+  - label: Why not Postgres
+    message: "Why would an agent use MongoDB instead of a relational database like PostgreSQL?"
+  - label: Agent components
+    message: "What are the main components of an AI agent?"
+  - label: Hybrid ranking
+    message: "How does $rankFusion combine keyword and vector search results?"
+  - label: Agent memory
+    message: "How do I store short-term and long-term memory for an agent in MongoDB?"
+  - label: Automated embedding
+    message: "How does Automated Embedding generate vectors at index time and query time?"

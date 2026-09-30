@@ -50,6 +50,8 @@ run "creates_cluster_and_target_group" {
       aws_ecs_service.this.name == "hybridrag-ui",
       aws_lb_target_group.this.port == 8001,
       aws_lb_target_group.this.health_check[0].path == "/",
+      aws_lb_target_group.this.health_check[0].interval == 10,
+      aws_lb_target_group.this.health_check[0].healthy_threshold == 2,
       aws_lb_target_group.this.deregistration_delay == "30",
       aws_ecs_service.this.deployment_minimum_healthy_percent == 100,
       aws_ecs_service.this.deployment_maximum_percent == 200,

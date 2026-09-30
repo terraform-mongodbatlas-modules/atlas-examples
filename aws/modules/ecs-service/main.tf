@@ -32,6 +32,11 @@ resource "aws_lb_target_group" "this" {
 
   health_check {
     path = var.routing.health_check_path
+    # 10s interval with 2 healthy checks returns a recovered task to service in
+    # about 20s instead of the 30s x 5 defaults (~150s). unhealthy_threshold keeps
+    # the AWS default (2) so one slow check does not drain the target.
+    interval          = 10
+    healthy_threshold = 2
   }
 
   tags = var.tags

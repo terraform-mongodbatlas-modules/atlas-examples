@@ -9,7 +9,7 @@ Groups match `modules/app-infra` `ecs_apps` output. Extra JSON keys never enter 
 - **`name` / `aws_region` / `ecr_repository_url`:** Cluster and image.
 - **`network`:** `private_subnet_ids`, `ecs_security_group_id`.
 - **`iam`:** `task_role_arn`, `task_execution_role_arn`.
-- **`routing`:** Listener rule and target group. Includes `health_check_path` (default `/health`; example merge; not an lz output).
+- **`routing`:** Listener rule and target group. Includes `health_check_path` (default `/health`; example merge; not an lz output). The target group checks every 10s and needs 2 successes to return a recovered task to service (about 20s), so a brief Atlas outage drains and recovers the single task quickly.
 - **`container`:** Example-owned `env` and `secret_keys`. `secret_arn` is required when `secret_keys` is set. Task secrets use `valueFrom = "<secret_arn>:<key>::"`.
 - **`task_cpu` / `task_memory`:** Fargate size. Defaults `512` / `1024`.
 - **`image_tag`:** Appended to `ecr_repository_url`.
