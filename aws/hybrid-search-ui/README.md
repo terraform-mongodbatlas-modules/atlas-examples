@@ -93,7 +93,7 @@ To use a keyed provider instead, see [How does the LLM answer work?](#how-does-t
 Edit the following before `just build-push` if this hallway demo should not use the NIST/OWASP defaults. `demo_queries.yaml` and `docker/chainlit/config.toml` are copied into the image.
 
 - **Demo questions:** `demo_queries.yaml`. `label` is the chip/button text; `message` is the query. After deploy, mount a file and set `DEMO_QUERIES_PATH` instead of rebuilding.
-- **Page title:** `[UI] name` in `.chainlit/config.toml` (local `chainlit run`) and `docker/chainlit/config.toml` (what the image copies to `.chainlit/`). Default is `MongoDB AI risk`.
+- **Page title:** `[UI] name` in `.chainlit/config.toml` (local `uvicorn`) and `docker/chainlit/config.toml` (what the image copies to `.chainlit/`). Default is `MongoDB AI risk`.
 
 ```sh
 # ECR is IMMUTABLE: bump image_tag in app/terraform.tfvars and the tag argument on every push.
@@ -141,6 +141,14 @@ The response carries three keys and nothing else:
 - **`indexes`**: One entry per expected index with its current status.
 
 The handler opens its own Mongo client with a 2s server-selection timeout, which sits inside the ALB probe timeout. When Atlas is unreachable it returns `503` with the same body, so the ALB takes the task out of service during a cluster outage instead of leaving a half-answering task in the pool. Query and ingest keep the driver default of 30s.
+
+The app is a parent `FastAPI()` that owns `/health` and mounts the Chainlit UI at `/`. It runs with `uvicorn`:
+
+```sh
+uvicorn hybrid_search.app:app --host 0.0.0.0 --port 8001
+```
+
+Run that from this directory. `hybrid_search.app` resolves the Chainlit entrypoint from its own path, so the command works from any working directory. Mounting Chainlit does not run its `lifespan`, so the `chainlit run` startup log and `--watch` are not available; the parent app serves `/docs` and `/openapi.json` for the health route.
 
 ## Download seed files and open the UI
 

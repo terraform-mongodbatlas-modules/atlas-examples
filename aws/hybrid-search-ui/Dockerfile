@@ -26,6 +26,6 @@ USER appuser
 EXPOSE 8001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/')"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"
 
-CMD [".venv/bin/chainlit", "run", "src/hybrid_search/ui/chat.py", "--port", "8001", "--host", "0.0.0.0"]
+CMD [".venv/bin/uvicorn", "hybrid_search.app:app", "--host", "0.0.0.0", "--port", "8001"]

@@ -2,17 +2,16 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-import chainlit.server
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from pymongo.errors import ServerSelectionTimeoutError
 
-import hybrid_search.ui.chat  # noqa: F401  registers the /health middleware on the app
 import hybrid_search.ui.health_endpoint as health_module
+from hybrid_search.app import app
 from hybrid_search.health import IndexState
 from hybrid_search.settings import HybridSearchSettings
 
-client = TestClient(chainlit.server.app)
+client = TestClient(app)
 
 
 def _patch_health(monkeypatch, *, states: list[IndexState], has_chunks: bool) -> None:
@@ -66,3 +65,8 @@ def test_root_is_not_intercepted():
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+
+
+def test_docs_and_openapi_are_served():
+    assert client.get("/openapi.json").status_code == 200
+    assert client.get("/docs").status_code == 200

@@ -961,6 +961,7 @@ ui = [
     { name = "chainlit" },
     { name = "pymupdf" },
     { name = "pyyaml" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -982,6 +983,7 @@ requires-dist = [
     { name = "pymupdf", marker = "extra == 'ui'" },
     { name = "pyyaml", marker = "extra == 'ui'" },
     { name = "typer" },
+    { name = "uvicorn", marker = "extra == 'ui'" },
 ]
 provides-extras = ["aws", "ui"]
 

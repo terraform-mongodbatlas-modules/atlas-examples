@@ -36,7 +36,6 @@ from hybrid_search.ui.demo import (
     load_demo_queries,
     query_from_demo_response,
 )
-from hybrid_search.ui.health_endpoint import register_health_endpoint
 from hybrid_search.ui.index_status import problem_message
 from hybrid_search.ui.ingest_progress import FileProgress, render_ingest_batch
 from hybrid_search.ui.mode_router import (
@@ -55,7 +54,6 @@ from hybrid_search.ui.search_settings import (
 )
 
 logger = logging.getLogger(__name__)
-register_health_endpoint()
 ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
 _ASK_ACCEPT = ["application/pdf", "text/plain", "text/markdown", "text/x-markdown"]
 INGEST_MAX_FILES = 20
