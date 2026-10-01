@@ -1,4 +1,5 @@
-FROM python:3.13-slim
+# ---- Builder: resolve and install the virtualenv, keep the uv cache here ----
+FROM python:3.13-slim AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.9.21 /uv /uvx /bin/
 
@@ -12,16 +13,30 @@ RUN uv sync --frozen --no-dev --no-install-project --extra ui --extra aws
 COPY src/ ./src/
 RUN uv sync --frozen --no-dev --extra ui --extra aws
 
-# Static assets last: edits here keep the install layers cached.
-COPY chainlit.md ./
-COPY chainlit.md chainlit_en-US.md
-COPY docker/chainlit/ .chainlit/
-COPY demo_queries.yaml ./
-COPY seed/ ./seed/
+# ---- Runtime: fresh base, only the virtualenv and the sources it points at ----
+FROM python:3.13-slim
 
+WORKDIR /app
+
+# Create the unprivileged user and hand over the still-empty /app directory
+# before any large layer lands. A recursive chown after the install layers
+# copies the whole virtualenv into a second layer (252MB) and, because it sits
+# after `COPY seed/`, re-pushes that layer on every dataset-only change.
 RUN useradd --create-home --shell /bin/bash appuser \
-    && chown -R appuser:appuser /app
+    && chown appuser:appuser /app
 USER appuser
+
+# The venv installs the project in editable mode, so site-packages holds a .pth
+# pointing at /app/src. Copy both or the import fails with ModuleNotFoundError.
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+COPY --chown=appuser:appuser src/ ./src/
+
+# Static assets last: edits here keep the venv layer cached.
+COPY --chown=appuser:appuser chainlit.md ./
+COPY --chown=appuser:appuser chainlit.md chainlit_en-US.md
+COPY --chown=appuser:appuser docker/chainlit/ .chainlit/
+COPY --chown=appuser:appuser demo_queries.yaml ./
+COPY --chown=appuser:appuser seed/ ./seed/
 
 EXPOSE 8001
 
