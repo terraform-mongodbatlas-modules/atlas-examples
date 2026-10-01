@@ -24,7 +24,7 @@ WORKDIR /app
 # Create the unprivileged user and hand over the still-empty /app directory
 # before any large layer lands. A recursive chown after the install layers
 # copies the whole virtualenv into a second layer (252MB) and, because it sits
-# after `COPY seed/`, re-pushes that layer on every dataset-only change.
+# after `COPY assets/`, re-pushes that layer on every dataset-only change.
 RUN useradd --create-home --shell /bin/bash appuser \
     && chown appuser:appuser /app
 USER appuser
@@ -34,12 +34,13 @@ USER appuser
 COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
 COPY --chown=appuser:appuser src/ ./src/
 
-# Static assets last: edits here keep the venv layer cached.
-COPY --chown=appuser:appuser chainlit.md ./
-COPY --chown=appuser:appuser chainlit.md chainlit_en-US.md
-COPY --chown=appuser:appuser docker/chainlit/ .chainlit/
-COPY --chown=appuser:appuser demo_queries.yaml ./
-COPY --chown=appuser:appuser seed/ ./seed/
+# Static assets last: edits here keep the venv layer cached. Everything a user
+# can edit lives under assets/ (see assets/README.md). Chainlit reads its config
+# and welcome file from CHAINLIT_APP_ROOT, which points at assets/.
+COPY --chown=appuser:appuser assets/ ./assets/
+
+# app.py also defaults this for local uvicorn; the ENV keeps it explicit here.
+ENV CHAINLIT_APP_ROOT=/app/assets
 
 EXPOSE 8001
 

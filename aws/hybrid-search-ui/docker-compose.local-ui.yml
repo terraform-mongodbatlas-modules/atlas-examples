@@ -2,7 +2,7 @@
 #
 # From aws/hybrid-search-ui/:
 #   just dump-local-env
-#   docker compose -f docker/docker-compose.local-ui.yml --env-file secrets/.env.local up --build
+#   docker compose -f docker-compose.local-ui.yml --env-file secrets/.env.local up --build
 #
 # Open http://localhost:8001
 
@@ -42,4 +42,4 @@ services:
       GROVE_API_KEY: ${GROVE_API_KEY:-}
       GROVE_BASE_URL: ${GROVE_BASE_URL:-}
       GROVE_MODEL: ${GROVE_MODEL:-}
-      DEMO_QUERIES_PATH: ${DEMO_QUERIES_PATH:-demo_queries.yaml}
+      DEMO_QUERIES_PATH: ${DEMO_QUERIES_PATH:-assets/demo_queries.yaml}

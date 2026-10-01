@@ -28,18 +28,17 @@ flowchart LR
 - **Atlas:** Project, SHARDED cluster (one shard; compute auto-scaling), PrivateLink, IAM database user for the ECS task role.
 - **AWS:** VPC (private subnets plus NAT and an IGW for the CloudFront VPC origin), KMS/log/backup integrations, ECR, ALB + CloudFront + WAF, ECS task and execution roles, Secrets Manager app secret.
 - **LLM:** Amazon Bedrock by default. The ECS task role calls `bedrock-runtime` (Amazon Nova Lite) over a private interface endpoint (no key, no secret); a keyed provider still works when you set `llm.secret_name`.
-- **App:** ECS cluster, Fargate service running the in-example Chainlit image (port 8001), built from this directory's `Dockerfile`. The service creates the indexes and ingests the seed on startup; `hybrid-search index create` and `hybrid-search ingest run` remain for manual re-runs, not a second service.
+- **App:** ECS cluster, Fargate service running the in-example Chainlit image (port 8001), built from this directory's `Dockerfile`. The service creates the indexes and ingests the bundled corpus on startup; `hybrid-search index create` and `hybrid-search ingest run` remain for manual re-runs, not a second service.
 
 ```sh
 aws/hybrid-search-ui/
 ├── README.md
 ├── Dockerfile
 ├── justfile
-├── demo_queries.yaml   # starter chips and Demo picker
-├── seed/               # bundled seed doc (why-mongodb-for-agents.md)
+├── assets/             # user-editable files baked into the image (see assets/README.md)
 ├── src/hybrid_search/  # in-example Python app
 ├── scripts/            # seed download (cache/ is gitignored)
-├── docker/             # local compose stacks; chainlit/config.toml is the image UI title
+├── docker-compose.local-ui*.yml # local compose stacks
 ├── lz/                 # Atlas + AWS infra, autoEmbed, Chainlit, app secret
 └── app/                # ECS cluster + service
 aws/modules/app-infra/     # VPC, endpoints, IAM, ECR, HTTP edge
@@ -82,7 +81,7 @@ terraform -chdir=lz apply
 # Optional local UI (needs public_debug_access). Skip Build the image and deploy the UI.
 just dump-local-env
 # dump-local-env prints:
-docker compose -f docker/docker-compose.local-ui.yml --env-file secrets/.env.local up --build
+docker compose -f docker-compose.local-ui.yml --env-file secrets/.env.local up --build
 # Open http://localhost:8001
 ```
 
@@ -90,10 +89,10 @@ To use a keyed provider instead, see [How does the LLM answer work?](#how-does-t
 
 ## Customize and Build the image
 
-Edit the following before `just build-push` if this hallway demo should not use the NIST/OWASP defaults. `demo_queries.yaml` and `docker/chainlit/config.toml` are copied into the image.
+Edit the following before `just build-push` if this hallway demo should not use the NIST/OWASP defaults. Everything under `assets/` is copied into the image (see `assets/README.md`).
 
-- **Demo questions:** `demo_queries.yaml`. `label` is the chip/button text; `message` is the query. After deploy, mount a file and set `DEMO_QUERIES_PATH` instead of rebuilding.
-- **Page title:** `[UI] name` in `.chainlit/config.toml` (local `uvicorn`) and `docker/chainlit/config.toml` (what the image copies to `.chainlit/`). Default is `MongoDB AI risk`.
+- **Demo questions:** `assets/demo_queries.yaml`. `label` is the chip/button text; `message` is the query. After deploy, mount a file and set `DEMO_QUERIES_PATH` instead of rebuilding.
+- **Page title:** `[UI] name` in `assets/.chainlit/config.toml`. Chainlit reads it from `CHAINLIT_APP_ROOT=assets`, both locally and in the image. Default is `MongoDB AI risk`.
 
 ```sh
 # ECR is IMMUTABLE: bump image_tag in app/terraform.tfvars and the tag argument on every push.
@@ -110,14 +109,14 @@ terraform -chdir=app apply
 
 The service creates the indexes and ingests documents itself, in the background, on every boot. A chat session also creates missing indexes, so the two paths are idempotent. `terraform apply` no longer needs a one-shot task to sequence the work.
 
-The startup task connects to Atlas (retrying forever on a transient outage), creates `chunks.autoembed_idx` and `chunks.text_idx` if missing, waits for them to reach `READY`, then ingests `DOCUMENT_DIRS` plus the bundled `seed/`. It runs in the FastAPI lifespan without blocking the HTTP server, so the UI and `/health` respond while the indexes build. On shutdown the task is cancelled, which ends a failing Mongo connection in one event-loop tick instead of holding the container open.
+The startup task connects to Atlas (retrying forever on a transient outage), creates `chunks.autoembed_idx` and `chunks.text_idx` if missing, waits for them to reach `READY`, then ingests `DOCUMENT_DIRS`. `DOCUMENT_DIRS` defaults to the bundled `assets/document_dirs/`, which carries a short "why MongoDB for agents" write-up, so a fresh deploy is queryable without an upload. Set `DOCUMENT_DIRS` to ingest somewhere else, or to an empty string to skip the bundled corpus. It runs in the FastAPI lifespan without blocking the HTTP server, so the UI and `/health` respond while the indexes build. On shutdown the task is cancelled, which ends a failing Mongo connection in one event-loop tick instead of holding the container open.
 
 A redeploy re-ingests only files whose content changed. Ingest state lives in a separate `ingest_state` collection keyed by a stable source key, so the filename-based skip rule in the browser upload flow is untouched.
 
 ### Ingest from the CLI
 
 ```sh
-# Ingest DOCUMENT_DIRS plus the bundled seed/.
+# Ingest DOCUMENT_DIRS (the bundled assets/document_dirs/ by default).
 hybrid-search ingest run
 
 # Scan a specific directory (repeatable; replaces the defaults).
@@ -176,7 +175,7 @@ open "$(terraform -chdir=lz output -raw https_url)"
 
 Log in as `demo` with the password from `terraform -chdir=lz output -raw chainlit_demo_password`. Click **Upload documents** or the composer **Ingest** button, then choose files from `scripts/cache/` (NIST PDFs and OWASP markdown). Starter chips and the composer **Demo** button read `demo_queries.yaml`. **Cancel** on the Demo picker returns to ordinary search.
 
-The image also carries a small seed at `seed/why-mongodb-for-agents.md` (a short "why MongoDB for agents" write-up), so the demo has a corpus without a network download. The `just download-seed` pack stays the larger option.
+The image also carries a small corpus at `assets/document_dirs/why-mongodb-for-agents.md` (a short "why MongoDB for agents" write-up), so the demo has a corpus without a network download. The `just download-seed` pack stays the larger option.
 
 The browser tab is **MongoDB AI risk** (`[UI] name` in the Chainlit config). Each answer lists source filenames at the bottom (for example `NIST.AI.100-1.pdf`). When a chunk carries a location, the filename in the hit list and the sources list shows it too: `p. 12` for a PDF page, `lines 40-58` for a markdown or text line range. Chunks ingested before this feature render the filename alone.
 
@@ -300,7 +299,7 @@ Change it the same way as `TOP_K` (see [How do I tune retrieval breadth?](#how-d
 
 ### Local Docker without ECS
 
-The optional `just dump-local-env` step after lz apply writes `secrets/.env.local` and prints the compose command. Local compose creates the indexes on boot, same as ECS. The default provider is Bedrock, so local Docker also needs AWS credentials: export short-lived SSO credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) in your shell, and the compose file passes them through along with `AWS_REGION`. For a local MongoDB instead of Atlas, use `docker/docker-compose.local-ui-atlas.yml`.
+The optional `just dump-local-env` step after lz apply writes `secrets/.env.local` and prints the compose command. Local compose creates the indexes on boot, same as ECS. The default provider is Bedrock, so local Docker also needs AWS credentials: export short-lived SSO credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) in your shell, and the compose file passes them through along with `AWS_REGION`. For a local MongoDB instead of Atlas, use `docker-compose.local-ui-atlas.yml`.
 
 ### Why does search fail with `localhost:28000`?
 
