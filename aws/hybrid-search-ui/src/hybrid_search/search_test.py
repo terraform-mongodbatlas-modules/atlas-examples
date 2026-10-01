@@ -1,19 +1,12 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
-
-import pytest
 from pydantic import SecretStr
 
 from hybrid_search.search import (
-    RetrievalPipeline,
     build_rank_fusion_pipeline,
     build_text_search_pipeline,
     build_vector_search_pipeline,
-    search,
-    search_with_modes,
 )
-from hybrid_search.search_modes import SearchModes
 from hybrid_search.settings import HybridSearchSettings
 
 
@@ -61,64 +54,3 @@ def test_vector_search_pipeline_shape():
     assert pipeline[1] == {"$limit": 5}
     assert pipeline[2] == {"$addFields": {"hybrid_score": {"$meta": "vectorSearchScore"}}}
     assert pipeline[3] == {"$project": {"vector": 0}}
-
-
-def _settings() -> HybridSearchSettings:
-    return HybridSearchSettings(mongodb_uri=SecretStr("mongodb://localhost"))
-
-
-def _mock_collection(docs: list[dict]) -> MagicMock:
-    collection = MagicMock()
-    cursor = MagicMock()
-    cursor.to_list = AsyncMock(return_value=docs)
-    collection.aggregate = MagicMock(return_value=cursor)
-    return collection
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("modes", "expected_root", "expected_pipeline"),
-    [
-        (
-            SearchModes(keyword=True, vector=False),
-            "$search",
-            RetrievalPipeline.KEYWORD,
-        ),
-        (
-            SearchModes(keyword=False, vector=True),
-            "$vectorSearch",
-            RetrievalPipeline.VECTOR,
-        ),
-        (
-            SearchModes(keyword=True, vector=True),
-            "$rankFusion",
-            RetrievalPipeline.RANK_FUSION,
-        ),
-    ],
-)
-async def test_search_with_modes_pipeline(modes, expected_root, expected_pipeline):
-    collection = _mock_collection([{"file_path": "a.pdf", "content": "ctx", "hybrid_score": 1.0}])
-    result = await search_with_modes(
-        "risk",
-        modes=modes,
-        collection=collection,
-        settings=_settings(),
-    )
-    assert result.references == [{"file_path": "a.pdf", "content": "ctx", "score": 1.0}]
-    assert result.pipeline == expected_pipeline
-    pipeline = collection.aggregate.call_args.args[0]
-    assert expected_root in pipeline[0]
-
-
-@pytest.mark.asyncio
-async def test_search_uses_text_query_once():
-    settings = _settings()
-    collection = _mock_collection([{"file_path": "a.pdf", "content": "ctx", "hybrid_score": 1.0}])
-
-    docs = await search("risk", collection=collection, settings=settings)
-    assert docs == [{"file_path": "a.pdf", "content": "ctx", "score": 1.0}]
-    collection.aggregate.assert_called_once()
-    pipeline = collection.aggregate.call_args.args[0]
-    assert pipeline[0]["$rankFusion"]["input"]["pipelines"]["vector"][0]["$vectorSearch"][
-        "query"
-    ] == {"text": "risk"}

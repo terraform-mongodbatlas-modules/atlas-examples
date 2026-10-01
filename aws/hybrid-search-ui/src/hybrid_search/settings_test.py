@@ -39,7 +39,11 @@ def test_defaults():
     assert settings.chunk_max_tokens == 512
     assert settings.vector_index_name == "autoembed_idx"
     assert settings.text_index_name == "text_idx"
-    assert settings.demo_queries_path == Path("demo_queries.yaml")
+    assert settings.demo_queries_path == Path("assets/demo_queries.yaml")
+
+
+def test_mongodb_tls_default():
+    assert _settings().mongodb_tls is True
 
 
 def test_voyage_fields_are_not_settings():
@@ -110,8 +114,8 @@ def test_chunk_max_tokens_rejects_above_context_window(monkeypatch):
         _settings(chunk_max_tokens=1_200)
 
 
-def test_document_dirs_defaults_empty():
-    assert _settings().document_dirs == []
+def test_document_dirs_defaults_to_bundled_corpus():
+    assert _settings().document_dirs == [Path("assets/document_dirs")]
 
 
 def test_document_dirs_env_splits_on_pathsep(monkeypatch):
@@ -123,10 +127,6 @@ def test_document_dirs_env_splits_on_pathsep(monkeypatch):
 
 def test_skip_ingest_defaults_false():
     assert _settings().skip_ingest is False
-
-
-def test_seed_dir_default():
-    assert _settings().seed_dir == Path("seed")
 
 
 def test_apply_log_level_configures_root_and_hybrid_search(monkeypatch):

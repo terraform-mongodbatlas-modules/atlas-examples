@@ -6,6 +6,7 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from hybrid_search.generate import generate_answer, unique_source_files
+from hybrid_search.indexes import ensure_indexes_ready
 from hybrid_search.search import SearchResult, search_with_modes
 from hybrid_search.search_modes import DEFAULT, SearchModes
 from hybrid_search.settings import HybridSearchSettings
@@ -28,6 +29,7 @@ async def retrieve(
     collection: AsyncIOMotorCollection,
 ) -> SearchResult:
     modes.validate_retrieval()
+    await ensure_indexes_ready(collection, settings)
     return await search_with_modes(
         query,
         modes=modes,

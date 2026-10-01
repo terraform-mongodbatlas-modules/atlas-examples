@@ -20,7 +20,7 @@ aws = ["pymongo[aws]"]
 ui = ["chainlit", "pymupdf", "pyyaml", "uvicorn"]
 
 [dependency-groups]
-dev = ["pytest", "pytest-asyncio", "ruff"]
+dev = ["atlas-local-lib-py", "pytest", "pytest-asyncio", "ruff"]
 
 [build-system]
 requires = ["hatchling"]
@@ -36,6 +36,9 @@ exclude = ["**/*_test.py"]
 [tool.pytest.ini_options]
 python_files = ["*_test.py"]
 asyncio_mode = "auto"
+# cli/query_logic_test.py and ui/query_logic_test.py share a basename; without this,
+# pytest's default import mode collides on the module name.
+consider_namespace_packages = true
 
 [tool.ruff]
 line-length = 100

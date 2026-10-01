@@ -31,17 +31,16 @@ def _capture(monkeypatch, settings: HybridSearchSettings) -> list:
 
 
 def test_cmd_ingest_defaults_to_settings_dirs(monkeypatch):
-    seed_dir = Path("seed")
-    settings = _settings(document_dirs=[Path("/a"), Path("/b")], seed_dir=seed_dir)
+    settings = _settings(document_dirs=[Path("/a"), Path("/b")])
     calls = _capture(monkeypatch, settings)
 
     cmd_ingest(dirs=[], skip_ingest=None, force=False)
 
-    assert calls[0].dirs == [Path("/a"), Path("/b"), seed_dir]
+    assert calls[0].dirs == [Path("/a"), Path("/b")]
 
 
 def test_cmd_ingest_explicit_dir_replaces_defaults(monkeypatch):
-    settings = _settings(document_dirs=[Path("/a")], seed_dir=Path("seed"))
+    settings = _settings(document_dirs=[Path("/a")])
     calls = _capture(monkeypatch, settings)
 
     cmd_ingest(dirs=[Path("/custom")], skip_ingest=None, force=False)

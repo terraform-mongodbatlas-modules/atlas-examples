@@ -1,20 +1,70 @@
 from __future__ import annotations
 
 import logging
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any
 
 import pytest
 from pydantic import SecretStr
 from pymongo.errors import OperationFailure
-from pymongo.operations import SearchIndexModel
 
 from hybrid_search.indexes import (
     autoembed_index_definition,
     create_chunks_indexes_if_missing,
+    ensure_indexes_ready,
     format_index_ready_line,
     wait_chunks_indexes_ready,
 )
 from hybrid_search.settings import HybridSearchSettings
+
+_Page = list[dict[str, Any]] | Exception
+
+
+class _FakeCursor:
+    """Replays the next page from the owning collection; the last page repeats."""
+
+    def __init__(self, collection: _FakeCollection) -> None:
+        self._collection = collection
+
+    async def to_list(self, length: int | None = None) -> list[dict[str, Any]]:
+        collection = self._collection
+        page = collection.pages[min(collection.page_index, len(collection.pages) - 1)]
+        collection.page_index += 1
+        if isinstance(page, Exception):
+            raise page
+        return page
+
+
+class _FakeCollection:
+    def __init__(
+        self,
+        pages: list[_Page],
+        *,
+        name: str = "chunks",
+        database_name: str = "hybrid_search",
+        create_failures: int = 0,
+    ) -> None:
+        self.name = name
+        self.database = type("DB", (), {"name": database_name})()
+        self.pages = pages
+        self.page_index = 0
+        self.create_failures = create_failures
+        self.inserted = 0
+        self.created: list[str] = []
+
+    def list_search_indexes(self) -> _FakeCursor:
+        return _FakeCursor(self)
+
+    async def insert_one(self, _doc: dict[str, Any]) -> None:
+        self.inserted += 1
+
+    async def delete_one(self, _doc: dict[str, Any]) -> None:
+        pass
+
+    async def create_search_index(self, model: Any) -> None:
+        if self.create_failures > 0:
+            self.create_failures -= 1
+            raise OperationFailure("database hybrid_search not found", 26)
+        self.created.append(model.document["name"])
 
 
 @pytest.fixture
@@ -24,139 +74,104 @@ def settings() -> HybridSearchSettings:
     )
 
 
+def _index(name: str, status: str) -> dict[str, str]:
+    return {"name": name, "status": status}
+
+
 @pytest.mark.asyncio
 async def test_create_indexes_when_missing(settings):
-    collection = MagicMock()
-    collection.list_search_indexes.return_value.to_list = AsyncMock(return_value=[])
-    collection.create_search_index = AsyncMock()
+    collection = _FakeCollection([[]])
+
     await create_chunks_indexes_if_missing(collection, settings)
-    assert collection.create_search_index.await_count == 2
-    models = [call.args[0] for call in collection.create_search_index.await_args_list]
-    assert all(isinstance(model, SearchIndexModel) for model in models)
-    assert models[0].document["name"] == "autoembed_idx"
-    assert models[1].document["name"] == "text_idx"
+
+    assert collection.created == ["autoembed_idx", "text_idx"]
 
 
 @pytest.mark.asyncio
-async def test_creates_collection_when_list_indexes_missing_namespace(settings, caplog):
-    collection = MagicMock()
-    collection.name = "chunks"
-    collection.database.name = "hybrid_search"
-    collection.insert_one = AsyncMock()
-    collection.delete_one = AsyncMock()
-    collection.list_search_indexes.return_value.to_list = AsyncMock(
-        side_effect=[
-            OperationFailure("database hybrid_search not found", 26),
-            [],
-        ]
-    )
-    collection.create_search_index = AsyncMock()
+async def test_create_indexes_skips_existing(settings):
+    collection = _FakeCollection([[_index("autoembed_idx", "READY"), _index("text_idx", "READY")]])
+
+    await create_chunks_indexes_if_missing(collection, settings)
+
+    assert collection.created == []
+
+
+@pytest.mark.asyncio
+async def test_create_materializes_namespace_then_retries(settings, caplog):
+    collection = _FakeCollection([[]], create_failures=1)
     caplog.set_level(logging.INFO)
 
     await create_chunks_indexes_if_missing(collection, settings)
 
-    collection.insert_one.assert_awaited()
-    collection.delete_one.assert_awaited()
-    assert collection.create_search_index.await_count == 2
-    assert "hybrid_search.chunks" in caplog.text
+    assert collection.inserted == 1
+    assert collection.created == ["autoembed_idx", "text_idx"]
     assert "namespace missing" in caplog.text.lower()
 
 
 @pytest.mark.asyncio
-async def test_materializes_collection_when_create_index_missing_namespace(settings):
-    collection = MagicMock()
-    collection.name = "chunks"
-    collection.insert_one = AsyncMock()
-    collection.delete_one = AsyncMock()
-    collection.database.create_collection = AsyncMock()
-    collection.list_search_indexes.return_value.to_list = AsyncMock(return_value=[])
-    collection.create_search_index = AsyncMock(
-        side_effect=[
-            OperationFailure("database hybrid_search not found", 26),
-            None,
-            None,
-        ]
-    )
-
-    await create_chunks_indexes_if_missing(collection, settings)
-
-    collection.insert_one.assert_awaited()
-    collection.delete_one.assert_awaited()
-    assert collection.create_search_index.await_count == 3
-
-
-@pytest.mark.asyncio
-async def test_reraises_list_indexes_other_operation_failure(settings):
-    collection = MagicMock()
-    collection.list_search_indexes.return_value.to_list = AsyncMock(
-        side_effect=OperationFailure("unauthorized", 13)
-    )
+async def test_create_reraises_other_operation_failure(settings):
+    collection = _FakeCollection([OperationFailure("unauthorized", 13)])
 
     with pytest.raises(OperationFailure, match="unauthorized"):
         await create_chunks_indexes_if_missing(collection, settings)
-    collection.insert_one.assert_not_called()
+    assert collection.inserted == 0
 
 
 @pytest.mark.asyncio
 async def test_wait_until_ready(settings):
-    statuses = iter(
+    collection = _FakeCollection(
         [
-            [
-                {"name": "autoembed_idx", "status": "BUILDING"},
-                {"name": "text_idx", "status": "READY"},
-            ],
-            [{"name": "autoembed_idx", "status": "READY"}, {"name": "text_idx", "status": "READY"}],
+            [_index("autoembed_idx", "BUILDING"), _index("text_idx", "READY")],
+            [_index("autoembed_idx", "READY"), _index("text_idx", "READY")],
         ]
-    )
-    collection = MagicMock()
-    collection.list_search_indexes.side_effect = lambda: MagicMock(
-        to_list=AsyncMock(return_value=next(statuses))
     )
 
     ready = await wait_chunks_indexes_ready(collection, settings, timeout_s=5, interval_s=0)
+
     assert ("chunks", "text_idx", "READY") in ready
     assert ("chunks", "autoembed_idx", "READY") in ready
 
 
 @pytest.mark.asyncio
+async def test_wait_raises_when_index_failed(settings):
+    collection = _FakeCollection([[_index("autoembed_idx", "FAILED")]])
+
+    with pytest.raises(RuntimeError, match="autoembed_idx failed"):
+        await wait_chunks_indexes_ready(collection, settings, timeout_s=5, interval_s=0)
+
+
+@pytest.mark.asyncio
+async def test_wait_times_out(settings):
+    collection = _FakeCollection([[_index("autoembed_idx", "BUILDING")]])
+
+    with pytest.raises(TimeoutError):
+        await wait_chunks_indexes_ready(collection, settings, timeout_s=0.01, interval_s=0)
+
+
+@pytest.mark.asyncio
 async def test_wait_materializes_namespace_when_list_missing(settings, caplog):
-    collection = MagicMock()
-    collection.name = "chunks"
-    collection.database.name = "hybrid_search"
-    collection.insert_one = AsyncMock()
-    collection.delete_one = AsyncMock()
-    collection.list_search_indexes.return_value.to_list = AsyncMock(
-        side_effect=[
+    collection = _FakeCollection(
+        [
             OperationFailure("database hybrid_search not found", 26),
-            [
-                {"name": "autoembed_idx", "status": "READY"},
-                {"name": "text_idx", "status": "READY"},
-            ],
+            [_index("autoembed_idx", "READY"), _index("text_idx", "READY")],
         ]
     )
     caplog.set_level(logging.INFO)
 
     ready = await wait_chunks_indexes_ready(collection, settings, timeout_s=5, interval_s=0)
 
-    collection.insert_one.assert_awaited()
+    assert collection.inserted == 1
     assert ("chunks", "autoembed_idx", "READY") in ready
     assert "hybrid_search.chunks" in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_wait_logs_status_transitions(settings, caplog):
-    statuses = iter(
+    collection = _FakeCollection(
         [
-            [
-                {"name": "autoembed_idx", "status": "BUILDING"},
-                {"name": "text_idx", "status": "BUILDING"},
-            ],
-            [{"name": "autoembed_idx", "status": "READY"}, {"name": "text_idx", "status": "READY"}],
+            [_index("autoembed_idx", "BUILDING"), _index("text_idx", "BUILDING")],
+            [_index("autoembed_idx", "READY"), _index("text_idx", "READY")],
         ]
-    )
-    collection = MagicMock()
-    collection.list_search_indexes.side_effect = lambda: MagicMock(
-        to_list=AsyncMock(return_value=next(statuses))
     )
     caplog.set_level(logging.INFO)
 
@@ -170,16 +185,12 @@ async def test_wait_logs_status_transitions(settings, caplog):
 
 @pytest.mark.asyncio
 async def test_wait_logs_status_every_poll_not_just_transitions(settings, caplog):
-    statuses = iter(
+    collection = _FakeCollection(
         [
-            [{"name": "autoembed_idx", "status": "BUILDING"}],
-            [{"name": "autoembed_idx", "status": "BUILDING"}],
-            [{"name": "autoembed_idx", "status": "READY"}, {"name": "text_idx", "status": "READY"}],
+            [_index("autoembed_idx", "BUILDING")],
+            [_index("autoembed_idx", "BUILDING")],
+            [_index("autoembed_idx", "READY"), _index("text_idx", "READY")],
         ]
-    )
-    collection = MagicMock()
-    collection.list_search_indexes.side_effect = lambda: MagicMock(
-        to_list=AsyncMock(return_value=next(statuses))
     )
     caplog.set_level(logging.INFO)
 
@@ -191,22 +202,40 @@ async def test_wait_logs_status_every_poll_not_just_transitions(settings, caplog
 
 @pytest.mark.asyncio
 async def test_wait_logs_missing_index_as_pending_every_poll(settings, caplog):
-    statuses = iter(
+    collection = _FakeCollection(
         [
-            [{"name": "autoembed_idx", "status": "BUILDING"}],
-            [{"name": "autoembed_idx", "status": "BUILDING"}],
-            [{"name": "autoembed_idx", "status": "READY"}, {"name": "text_idx", "status": "READY"}],
+            [_index("autoembed_idx", "BUILDING")],
+            [_index("autoembed_idx", "BUILDING")],
+            [_index("autoembed_idx", "READY"), _index("text_idx", "READY")],
         ]
-    )
-    collection = MagicMock()
-    collection.list_search_indexes.side_effect = lambda: MagicMock(
-        to_list=AsyncMock(return_value=next(statuses))
     )
     caplog.set_level(logging.INFO)
 
     await wait_chunks_indexes_ready(collection, settings, timeout_s=5, interval_s=0)
 
     assert caplog.text.count("chunks.text_idx PENDING") == 2
+
+
+@pytest.mark.asyncio
+async def test_ensure_indexes_ready_passes_when_both_ready(settings):
+    collection = _FakeCollection([[_index("autoembed_idx", "READY"), _index("text_idx", "READY")]])
+    await ensure_indexes_ready(collection, settings)
+
+
+@pytest.mark.asyncio
+async def test_ensure_indexes_ready_raises_with_status_for_pending(settings):
+    collection = _FakeCollection(
+        [[_index("autoembed_idx", "BUILDING"), _index("text_idx", "READY")]]
+    )
+    with pytest.raises(RuntimeError, match=r"autoembed_idx \(BUILDING\)"):
+        await ensure_indexes_ready(collection, settings)
+
+
+@pytest.mark.asyncio
+async def test_ensure_indexes_ready_reports_missing_index(settings):
+    collection = _FakeCollection([[_index("text_idx", "READY")]])
+    with pytest.raises(RuntimeError, match=r"autoembed_idx \(PENDING\)"):
+        await ensure_indexes_ready(collection, settings)
 
 
 def test_autoembed_index_definition():

@@ -1,4 +1,8 @@
 **/.vendor/
-hybrid-search-ui/.chainlit/
 hybrid-search-ui/scripts/cache/
 hybrid-search-ui/secrets/
+# Chainlit runtime: it creates these at CHAINLIT_APP_ROOT (assets/) and at the
+# app root on the first run. They are copies of the packaged defaults.
+hybrid-search-ui/assets/.files/
+hybrid-search-ui/assets/.chainlit/translations/
+hybrid-search-ui/.chainlit/

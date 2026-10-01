@@ -12,12 +12,15 @@ def get_client(
     settings: HybridSearchSettings,
     *,
     server_selection_timeout_ms: int | None = None,
+    tls: bool | None = None,
 ) -> AsyncIOMotorClient:
     timeout_ms = server_selection_timeout_ms or settings.mongo_server_selection_timeout_ms
+    use_tls = settings.mongodb_tls if tls is None else tls
+    tls_kwargs = {"tlsCAFile": certifi.where()} if use_tls else {"tls": False}
     return AsyncIOMotorClient(
         settings.mongodb_uri.get_secret_value(),
-        tlsCAFile=certifi.where(),
         serverSelectionTimeoutMS=timeout_ms,
+        **tls_kwargs,
     )
 
 

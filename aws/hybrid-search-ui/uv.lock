@@ -183,6 +183,19 @@ wheels = [
 ]
 
 [[package]]
+name = "atlas-local-lib-py"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/ca/e2a5e44ce68192044243acd37c6daa373645eaf82bf77cc6b4dfc0e023e6/atlas_local_lib_py-1.0.0.tar.gz", hash = "sha256:079995f4614e9bb5c6eb67b9b02e3d96e20d12362a6b05d784fb004244ca1777", size = 84646, upload-time = "2026-09-17T16:56:40.189Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/90/2b/c2c729f49c51ebae6aceb9163ed0ec62eaa37cec805c0359516535d2f904/atlas_local_lib_py-1.0.0-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:76e6c5327cb1e213d5ffea0cc0933f6a47104fffa9d300e0d136fde8c7988ce6", size = 1408262, upload-time = "2026-09-17T16:56:32.221Z" },
+    { url = "https://files.pythonhosted.org/packages/20/d2/17b8ad8414c9febd0d6c82dc382a8513b050b8a35050e6f54b086489362f/atlas_local_lib_py-1.0.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:da407f94441ca3dbfc1cc10643d2a4f0f69c8744f409f17fe3cca6ee6572a705", size = 1384897, upload-time = "2026-09-17T16:56:33.734Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/18/653997ea90abf0cf96517720960692d891e34efbfd9fdd4639712b337f3a/atlas_local_lib_py-1.0.0-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:a243e98d3a1bb57b92cecf53bd52a0039d82b14175d2a439ad62d5b26d031b17", size = 1556540, upload-time = "2026-09-17T16:56:35.501Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/fe/ec7662bc2f4609aca65a9e740937e44a460af7affae834820f03aaf19514/atlas_local_lib_py-1.0.0-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:765b06f05658bad303353dabe4846dded912c374fe45c48c87e5866cd7bb6d5f", size = 1549228, upload-time = "2026-09-17T16:56:37.197Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/53/3d49529f8e53a8efd8f0a1e7f963a96b1cd7a6c08ba8b0c22d17be231ab4/atlas_local_lib_py-1.0.0-cp310-abi3-win_amd64.whl", hash = "sha256:bd45cdc99076ba50798184ea52963ef88f36daf6c30a35346a775c9591b162b4", size = 1311252, upload-time = "2026-09-17T16:56:38.74Z" },
+]
+
+[[package]]
 name = "attrs"
 version = "26.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -966,6 +979,7 @@ ui = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "atlas-local-lib-py" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -989,6 +1003,7 @@ provides-extras = ["aws", "ui"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "atlas-local-lib-py" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },

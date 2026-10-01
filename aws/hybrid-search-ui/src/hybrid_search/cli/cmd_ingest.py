@@ -15,7 +15,7 @@ def cmd_ingest(
     dirs: list[Path] = typer.Option(
         [],
         "--dir",
-        help="Directory to scan; repeat for more. Defaults to document_dirs plus the bundled seed.",
+        help="Directory to scan; repeat for more. Defaults to DOCUMENT_DIRS.",
     ),
     skip_ingest: bool | None = typer.Option(
         None,
@@ -32,7 +32,7 @@ def cmd_ingest(
     if skip_ingest is not None:
         settings = settings.model_copy(update={"skip_ingest": skip_ingest})
     apply_log_level(settings.log_level)
-    effective_dirs = dirs or [*settings.document_dirs, settings.seed_dir]
+    effective_dirs = dirs or settings.document_dirs
     result = ingest(IngestInput(settings=settings, dirs=effective_dirs, force=force))
     if result.exit_code != 0:
         raise typer.Exit(result.exit_code)

@@ -27,6 +27,8 @@ class HybridSearchSettings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
     mongodb_uri: SecretStr
+    # Atlas serves TLS; the plaintext Atlas Local container needs this off.
+    mongodb_tls: bool = True
     mongodb_database: str = "hybrid_search"
     autoembed_model: str = "voyage-4-lite"
     # 512 tokens matches the Voyage auto-chunking default.
@@ -54,9 +56,13 @@ class HybridSearchSettings(BaseSettings):
     skip_index_creation: bool = False
     skip_ingest: bool = False
     log_level: LogLevel = "INFO"
-    demo_queries_path: Path = Path("demo_queries.yaml")
-    seed_dir: Path = Path("seed")
-    document_dirs: Annotated[list[Path], NoDecode] = Field(default_factory=list)
+    demo_queries_path: Path = Path("assets/demo_queries.yaml")
+    # Bundled corpus. The module renders assets/document_dirs with the caller's
+    # files, so DOCUMENT_DIRS replaces this default for a caller that ingests
+    # elsewhere. A caller with no corpus sets DOCUMENT_DIRS to an empty string.
+    document_dirs: Annotated[list[Path], NoDecode] = Field(
+        default_factory=lambda: [Path("assets/document_dirs")]
+    )
     # Driver default is 30s, right for queries but too long for a health probe.
     mongo_server_selection_timeout_ms: int = 30_000
 

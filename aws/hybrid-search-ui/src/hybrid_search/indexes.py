@@ -121,6 +121,19 @@ async def index_states(
     ]
 
 
+async def ensure_indexes_ready(
+    collection: AsyncIOMotorCollection,
+    settings: HybridSearchSettings,
+) -> None:
+    states = await index_states(collection, settings)
+    not_ready = [state for state in states if state.status != "READY"]
+    if not not_ready:
+        return
+    detail = ", ".join(f"{state.name} ({state.status})" for state in not_ready)
+    msg = f"search indexes are not ready on {collection.name}: {detail}"
+    raise RuntimeError(msg)
+
+
 async def wait_chunks_indexes_ready(
     collection: AsyncIOMotorCollection,
     settings: HybridSearchSettings,

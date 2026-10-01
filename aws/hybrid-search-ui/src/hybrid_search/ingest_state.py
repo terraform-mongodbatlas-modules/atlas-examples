@@ -10,7 +10,7 @@ one file's chunks. Two same-named files in different ``document_dirs`` stay
 separate because the key is path-derived, not filename-derived.
 
 The key is the path relative to the working directory when the file sits under
-it (the bundled seed under ``/app``), and the resolved absolute path otherwise.
+it (the bundled corpus under ``/app``), and the resolved absolute path otherwise.
 Either form is stable across runs, so a redeploy reuses the key and only changed
 content re-ingests. The browser upload flow keeps its filename rule in
 ``ingest.py``; the two rules coexist because they serve different users.

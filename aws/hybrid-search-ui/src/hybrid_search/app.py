@@ -7,15 +7,21 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from chainlit.utils import mount_chainlit
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from hybrid_search.chainlit_root import ensure_chainlit_app_root
 from hybrid_search.settings import get_settings
 from hybrid_search.startup import run_startup_task
 from hybrid_search.ui.health_endpoint import UNAVAILABLE_PAYLOAD, health_payload
 
 logger = logging.getLogger(__name__)
+
+# Chainlit captures CHAINLIT_APP_ROOT when chainlit.config is first imported, so
+# this must run before the chainlit import below.
+ensure_chainlit_app_root()
+
+from chainlit.utils import mount_chainlit  # noqa: E402
 
 # Resolve the Chainlit entrypoint from this file so the app runs from any working
 # directory (the workspace root under pytest, /app in the image).

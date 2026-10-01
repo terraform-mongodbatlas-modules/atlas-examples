@@ -55,7 +55,7 @@ async def run_startup_task(settings: HybridSearchSettings) -> None:
             settings,
             collection,
             state_collection,
-            [*settings.document_dirs, settings.seed_dir],
+            settings.document_dirs,
         )
     except INGEST_ERRORS as exc:
         # A background task that raises is invisible and must not take the
