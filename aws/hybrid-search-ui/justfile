@@ -49,7 +49,7 @@ delete-llm-secret name="hybrid-search-ui-llm" region="us-east-1":
     aws secretsmanager delete-secret --secret-id "{{name}}" --force-delete-without-recovery --region "{{region}}" >/dev/null
     echo "Deleted {{name}}"
 
-# One-shot ECS RunTask of the live UI image: hybrid-search index create. Blocking until exit 0.
+# One-shot ECS RunTask of the live UI image: hybrid-search index-create. Blocking until exit 0.
 create-index:
     uv run python "{{justfile_directory()}}/scripts/index_create.py" "{{justfile_directory()}}/app"
 

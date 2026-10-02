@@ -85,10 +85,10 @@ def test_ingest_query_then_delete(tmp_path: Path):
     doc.write_text(f"# Risk Management\n\n{_LONG_PARAGRAPH}\n\n{_LONG_PARAGRAPH}\n")
     file_path = source_key(doc)
 
-    index = _invoke(env, ["index", "create"])
+    index = _invoke(env, ["index-create"])
     assert index.exit_code == 0, index.output
 
-    ingest = _invoke(env, ["ingest", "run", "--dir", str(tmp_path)])
+    ingest = _invoke(env, ["ingest", "--dir", str(tmp_path)])
     assert ingest.exit_code == 0, ingest.output
     assert _chunk_count(uri, file_path) > 1
 
@@ -110,14 +110,14 @@ def test_edit_reingest_replaces_chunks(tmp_path: Path):
     doc.write_text(f"# Risk Management\n\n{_LONG_PARAGRAPH}\n\n{_LONG_PARAGRAPH}\n")
     file_path = source_key(doc)
 
-    index = _invoke(env, ["index", "create"])
+    index = _invoke(env, ["index-create"])
     assert index.exit_code == 0, index.output
-    first = _invoke(env, ["ingest", "run", "--dir", str(tmp_path)])
+    first = _invoke(env, ["ingest", "--dir", str(tmp_path)])
     assert first.exit_code == 0, first.output
     assert _chunk_count(uri, file_path) > 1
 
     doc.write_text(f"# Risk Management\n\n{_EDIT_PARAGRAPH}\n")
-    second = _invoke(env, ["ingest", "run", "--dir", str(tmp_path)])
+    second = _invoke(env, ["ingest", "--dir", str(tmp_path)])
     assert second.exit_code == 0, second.output
     assert "skipping unchanged" not in second.output
     assert _chunk_count(uri, file_path) == 1

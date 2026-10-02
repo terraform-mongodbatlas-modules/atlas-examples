@@ -1,4 +1,4 @@
-"""One-shot ECS RunTask: hybrid-search index create. Blocks until the task exits 0."""
+"""One-shot ECS RunTask: hybrid-search index-create. Blocks until the task exits 0."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from typing import Any
 _READY_RE = re.compile(r"(\S+\.\S+)\s+READY\b")
 
 DEFAULT_APP_DIR = Path(__file__).resolve().parent.parent / "app"
-INDEX_CMD = [".venv/bin/hybrid-search", "index", "create"]
+INDEX_CMD = [".venv/bin/hybrid-search", "index-create"]
 # The in-container wait (wait_chunks_indexes_ready) defaults to 600s before the app
 # exits 1. Poll past that so the app's own exit code and logs are always read. Do not
 # use `aws ecs wait tasks-stopped`: its botocore ceiling is fixed at 600s (6s x 100)
@@ -324,7 +324,7 @@ def _aws_json(run: Run, args: list[str]) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run hybrid-search index create as a one-shot ECS task."
+        description="Run hybrid-search index-create as a one-shot ECS task."
     )
     parser.add_argument(
         "app_dir",

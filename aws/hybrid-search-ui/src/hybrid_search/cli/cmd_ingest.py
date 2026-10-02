@@ -7,10 +7,7 @@ import typer
 from hybrid_search.cli.ingest_logic import IngestInput, ingest
 from hybrid_search.settings import apply_log_level, get_settings
 
-ingest_app = typer.Typer(help="Ingest documents into the chunks collection")
 
-
-@ingest_app.command("run")
 def cmd_ingest(
     dirs: list[Path] = typer.Option(
         [],

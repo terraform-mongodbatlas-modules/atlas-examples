@@ -3,7 +3,7 @@
 The process that creates the container also owns the test run, because a justfile
 target cannot export an environment into a later `just` call. `atlas-local-lib-py`
 starts (or reuses) `mongodb/mongodb-atlas-local:preview`, this script sets
-`MONGODB_URI` for the child commands, runs `hybrid-search index create` so the
+`MONGODB_URI` for the child commands, runs `hybrid-search index-create` so the
 indexes are READY, then runs `pytest src/hybrid_search/integration`.
 
 Pass extra arguments through to pytest, for example `just integration-test -k not_ready`.
@@ -177,7 +177,7 @@ def main(
     uri = deployment.connection_string()
     env = child_env(uri)
     cli = cli_command()
-    run([*cli, "index", "create"], env=env)
+    run([*cli, "index-create"], env=env)
     run(
         [sys.executable, "-m", "pytest", "src/hybrid_search/integration", *ctx.args],
         env=env,
