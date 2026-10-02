@@ -13,6 +13,11 @@ This script creates the container with `docker run` rather than the library's
 so a pull or a slow start looks like a freeze and ignores an interrupt. It also
 cannot forward `EMBEDDING_PROVIDER_ENDPOINT`.
 
+The container is kept between runs, so the Atlas Search indexes stay READY and a
+re-run skips the index build. Pass `--force-new` to remove and re-create it, which
+is what a changed `VOYAGE_API_KEY` or `EMBEDDING_PROVIDER_ENDPOINT` needs: mongot
+reads both from the container environment, fixed at creation time.
+
 Both `VOYAGE_API_KEY` and `EMBEDDING_PROVIDER_ENDPOINT` are required. Without the
 endpoint mongot cannot register the autoEmbed model, so index creation stays
 PENDING until the 600s wait times out. The script fails before starting the
@@ -121,6 +126,12 @@ def _docker(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["docker", *args], capture_output=True, text=True, check=False)
 
 
+def _container_state() -> str:
+    """Return the container's state, or empty when it does not exist."""
+    inspected = _docker("inspect", "-f", "{{.State.Status}}", DEPLOYMENT_NAME)
+    return inspected.stdout.strip() if inspected.returncode == 0 else ""
+
+
 def _wait_until_healthy() -> None:
     started = time.monotonic()
     deadline = started + HEALTH_TIMEOUT_S
@@ -139,14 +150,11 @@ def _wait_until_healthy() -> None:
     raise SystemExit(msg)
 
 
-def start_deployment() -> LocalDeployment:
-    voyage_api_key, endpoint = require_voyage_env()
-    _echo(f"using EMBEDDING_PROVIDER_ENDPOINT={endpoint}")
+def _create_container(voyage_api_key: str, endpoint: str) -> None:
     _echo(
         f"starting container {DEPLOYMENT_NAME} from {IMAGE_REPOSITORY}:preview "
         "(a first-time image pull can take a few minutes)"
     )
-    _docker("rm", "-f", DEPLOYMENT_NAME)
     created = _docker(
         "run",
         "-d",
@@ -163,6 +171,27 @@ def start_deployment() -> LocalDeployment:
     if created.returncode != 0:
         msg = f"docker run failed: {created.stderr.strip()}"
         raise SystemExit(msg)
+
+
+def start_deployment(*, force_new: bool) -> LocalDeployment:
+    voyage_api_key, endpoint = require_voyage_env()
+    _echo(f"using EMBEDDING_PROVIDER_ENDPOINT={endpoint}")
+    state = _container_state()
+    if force_new and state:
+        _echo(f"removing {DEPLOYMENT_NAME} (--force-new)")
+        _docker("rm", "-f", DEPLOYMENT_NAME)
+        state = ""
+    if not state:
+        _create_container(voyage_api_key, endpoint)
+    elif state != "running":
+        _echo(f"starting existing container {DEPLOYMENT_NAME} (was {state})")
+        started = _docker("start", DEPLOYMENT_NAME)
+        if started.returncode != 0:
+            msg = f"docker start failed: {started.stderr.strip()}"
+            raise SystemExit(msg)
+    else:
+        # Reuse keeps the indexes READY, so a re-run skips the index build.
+        _echo(f"reusing running container {DEPLOYMENT_NAME} (--force-new to re-create)")
     _wait_until_healthy()
     return LocalDeployment.get(DEPLOYMENT_NAME)
 
@@ -184,14 +213,43 @@ def main(
         bool,
         typer.Option("--teardown", help="Delete the local deployment instead of running the tier."),
     ] = False,
+    force_new: Annotated[
+        bool,
+        typer.Option(
+            "--force-new",
+            help="Remove and re-create the container instead of reusing it.",
+        ),
+    ] = False,
+    clean: Annotated[
+        bool,
+        typer.Option(
+            "--clean",
+            help="Drop the test database before pytest, forcing a full re-ingest.",
+        ),
+    ] = False,
 ) -> None:
     if teardown_deployment:
         teardown()
         return
 
-    deployment = start_deployment()
+    deployment = start_deployment(force_new=force_new)
     uri = deployment.connection_string()
     env = child_env(uri)
+    if clean:
+        # pytest drops the database at the end of a run, so this is only needed after a
+        # failure or a --teardown of the container.
+        _echo(f"dropping {TEST_DATABASE} (--clean)")
+        dropped = _docker(
+            "exec",
+            DEPLOYMENT_NAME,
+            "mongosh",
+            "--quiet",
+            "--eval",
+            f"db.getSiblingDB('{TEST_DATABASE}').dropDatabase()",
+        )
+        if dropped.returncode != 0:
+            msg = f"failed to drop {TEST_DATABASE}: {dropped.stderr.strip()}"
+            raise SystemExit(msg)
     cli = cli_command()
     run([*cli, "index-create"], env=env)
     run(

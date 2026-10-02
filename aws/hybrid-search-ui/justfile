@@ -61,7 +61,9 @@ download-seed:
 unit-test:
     uv run --extra ui pytest --ignore=src/hybrid_search/integration
 
-# Local integration tier: start the Atlas Local container, create indexes, run pytest.
+# Local integration tier: reuse or start the Atlas Local container, create indexes, run pytest.
+# The container and its database are kept, so a re-run skips the index build.
+# --force-new re-creates the container; --clean drops the test database first.
 integration-test *args:
     uv run --extra ui python "{{scripts_dir}}/run_integration.py" {{args}}
 

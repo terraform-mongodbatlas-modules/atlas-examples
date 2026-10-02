@@ -2,8 +2,11 @@
 
 The wrapper behind `just integration-test` owns the container and sets
 `MONGODB_URI`. `integration_environment` is autouse, so every test in this
-directory skips without that variable and the default run stays offline, and it
-drops the test database once the run finishes.
+directory skips without that variable and the default run stays offline.
+
+The test database is kept between runs, and the tests clean up their own
+documents, so a re-run skips the index build. `just integration-test --clean`
+drops the database first when a full re-ingest is wanted.
 """
 
 from __future__ import annotations
@@ -13,7 +16,6 @@ from collections.abc import Iterator
 
 import pytest
 from pydantic import SecretStr
-from pymongo import MongoClient
 
 from hybrid_search.settings import HybridSearchSettings
 
@@ -35,8 +37,3 @@ def integration_environment() -> Iterator[None]:
     if not os.environ.get("MONGODB_URI"):
         pytest.skip("MONGODB_URI is unset; run `just integration-test`")
     yield
-    client = MongoClient(os.environ["MONGODB_URI"])
-    try:
-        client.drop_database(TEST_DATABASE)
-    finally:
-        client.close()
