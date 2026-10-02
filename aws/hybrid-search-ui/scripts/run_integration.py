@@ -8,10 +8,15 @@ indexes are READY, then runs `pytest src/hybrid_search/integration`.
 
 Pass extra arguments through to pytest, for example `just integration-test -k not_ready`.
 
-`atlas-local-lib-py` 1.0.0 forwards only `VOYAGE_API_KEY` and the `MONGODB_*`
-variables, so when `EMBEDDING_PROVIDER_ENDPOINT` is set this script creates the
-container with `docker run` instead, then hands it to the library for the
-connection string. mongot needs the full embeddings path, so a host-only value
+This script creates the container with `docker run` rather than the library's
+`get_or_create`, because that call is a blocking native call that prints nothing,
+so a pull or a slow start looks like a freeze and ignores an interrupt. It also
+cannot forward `EMBEDDING_PROVIDER_ENDPOINT`.
+
+Both `VOYAGE_API_KEY` and `EMBEDDING_PROVIDER_ENDPOINT` are required. Without the
+endpoint mongot cannot register the autoEmbed model, so index creation stays
+PENDING until the 600s wait times out. The script fails before starting the
+container instead. mongot needs the full embeddings path, so a host-only value
 such as `https://ai-stage.mongodb.com` gets `/v1/embeddings` appended.
 """
 
@@ -28,7 +33,6 @@ from typing import Annotated
 import typer
 from atlas_local import (
     DeleteDeploymentError,
-    DockerConnectionError,
     GetDeploymentError,
     LocalDeployment,
 )
@@ -39,6 +43,8 @@ IMAGE_REPOSITORY = "quay.io/mongodb/mongodb-atlas-local"
 EMBEDDINGS_PATH = "/v1/embeddings"
 HEALTH_TIMEOUT_S = 180
 HEALTH_INTERVAL_S = 3
+# A cold container start is about 30s locally; a first-time image pull adds more.
+HEALTH_ECHO_INTERVAL_S = 15
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 app = typer.Typer(
@@ -62,13 +68,28 @@ def child_env(uri: str) -> dict[str, str]:
     return env
 
 
-def embedding_endpoint() -> str | None:
+def embedding_endpoint() -> str:
     endpoint = os.environ.get("EMBEDDING_PROVIDER_ENDPOINT", "").rstrip("/")
-    if not endpoint:
-        return None
     if endpoint.endswith(EMBEDDINGS_PATH):
         return endpoint
     return f"{endpoint}{EMBEDDINGS_PATH}"
+
+
+def require_voyage_env() -> tuple[str, str]:
+    """Fail before touching Docker when the embedding configuration is incomplete."""
+    missing = [
+        name
+        for name in ("VOYAGE_API_KEY", "EMBEDDING_PROVIDER_ENDPOINT")
+        if not os.environ.get(name)
+    ]
+    if missing:
+        msg = (
+            f"missing required environment: {', '.join(missing)}. "
+            "Source the Voyage env file first:\n"
+            "  set -a; source /Users/espen.albert/code/z/atlas_init/profiles/default/.env-voyage; set +a"
+        )
+        raise SystemExit(msg)
+    return os.environ["VOYAGE_API_KEY"], embedding_endpoint()
 
 
 def cli_command() -> list[str]:
@@ -82,8 +103,15 @@ def cli_command() -> list[str]:
     raise SystemExit(msg)
 
 
+def _echo(message: str) -> None:
+    # Flush so progress streams when stdout is piped, not only on a TTY.
+    print(message, flush=True)
+
+
 def run(command: list[str], *, env: dict[str, str]) -> None:
-    typer.echo(f"+ {' '.join(command)}")
+    _echo(f"+ {' '.join(command)}")
+    # Same process group, so a terminal interrupt reaches the child too. A new session
+    # would shield the child and leave it running after this script exits.
     completed = subprocess.run(command, cwd=REPO_ROOT, env=env, check=False)
     if completed.returncode != 0:
         raise typer.Exit(completed.returncode)
@@ -94,18 +122,30 @@ def _docker(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def _wait_until_healthy() -> None:
-    deadline = time.monotonic() + HEALTH_TIMEOUT_S
+    started = time.monotonic()
+    deadline = started + HEALTH_TIMEOUT_S
+    next_echo = started + HEALTH_ECHO_INTERVAL_S
     while time.monotonic() < deadline:
         status = _docker("inspect", "-f", "{{.State.Health.Status}}", DEPLOYMENT_NAME)
         if status.stdout.strip() == "healthy":
+            _echo(f"container healthy after {int(time.monotonic() - started)}s")
             return
+        if time.monotonic() >= next_echo:
+            elapsed = int(time.monotonic() - started)
+            _echo(f"waiting for {DEPLOYMENT_NAME} to be healthy ({elapsed}s)")
+            next_echo = time.monotonic() + HEALTH_ECHO_INTERVAL_S
         time.sleep(HEALTH_INTERVAL_S)
     msg = f"deployment {DEPLOYMENT_NAME} did not become healthy in {HEALTH_TIMEOUT_S}s"
     raise SystemExit(msg)
 
 
-def _start_with_endpoint(endpoint: str) -> LocalDeployment:
-    # The library cannot forward the endpoint, so create the container directly.
+def start_deployment() -> LocalDeployment:
+    voyage_api_key, endpoint = require_voyage_env()
+    _echo(f"using EMBEDDING_PROVIDER_ENDPOINT={endpoint}")
+    _echo(
+        f"starting container {DEPLOYMENT_NAME} from {IMAGE_REPOSITORY}:preview "
+        "(a first-time image pull can take a few minutes)"
+    )
     _docker("rm", "-f", DEPLOYMENT_NAME)
     created = _docker(
         "run",
@@ -115,7 +155,7 @@ def _start_with_endpoint(endpoint: str) -> LocalDeployment:
         "-p",
         "127.0.0.1:0:27017",
         "-e",
-        "VOYAGE_API_KEY",
+        f"VOYAGE_API_KEY={voyage_api_key}",
         "-e",
         f"EMBEDDING_PROVIDER_ENDPOINT={endpoint}",
         f"{IMAGE_REPOSITORY}:preview",
@@ -125,23 +165,6 @@ def _start_with_endpoint(endpoint: str) -> LocalDeployment:
         raise SystemExit(msg)
     _wait_until_healthy()
     return LocalDeployment.get(DEPLOYMENT_NAME)
-
-
-def start_deployment() -> LocalDeployment:
-    endpoint = embedding_endpoint()
-    if endpoint:
-        typer.echo(f"using EMBEDDING_PROVIDER_ENDPOINT={endpoint}")
-        return _start_with_endpoint(endpoint)
-    try:
-        return LocalDeployment.get_or_create(
-            name=DEPLOYMENT_NAME,
-            image_tag="preview",
-            voyage_api_key=os.environ.get("VOYAGE_API_KEY"),
-            wait_until_healthy=True,
-        )
-    except DockerConnectionError as exc:
-        msg = f"Docker is not running; start it and retry. {exc}"
-        raise SystemExit(msg) from exc
 
 
 def teardown() -> None:
@@ -165,13 +188,6 @@ def main(
     if teardown_deployment:
         teardown()
         return
-
-    if not os.environ.get("VOYAGE_API_KEY"):
-        typer.echo(
-            "warning: VOYAGE_API_KEY is unset; autoEmbed index creation and vector "
-            "search will fail. Set it before running the integration tier.",
-            err=True,
-        )
 
     deployment = start_deployment()
     uri = deployment.connection_string()
