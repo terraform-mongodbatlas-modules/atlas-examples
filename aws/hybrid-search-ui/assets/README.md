@@ -5,7 +5,7 @@ Files a user of this example edits. The image copies this whole directory to
 
 - **`.chainlit/config.toml`**: UI name, description, language, and `cot`. The
   browser tab title is `[UI] name`.
-- **`chainlit.md`**: Welcome screen. `chainlit_en-US.md` is a symlink to it,
+- **`chainlit.md`**: Header Readme dialog content. `chainlit_en-US.md` is a symlink to it,
   read for the configured `en-US` language. Chainlit logs a warning on every
   page load when the language has no file.
 - **`.chainlit/translations/`** and **`.files/`**: Not committed. Chainlit
