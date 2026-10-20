@@ -43,6 +43,8 @@ https://registry.terraform.io/namespaces/terraform-mongodbatlas-modules
 
 The modules provide reusable building blocks for common Atlas deployment patterns across cloud providers.
 
+For a one-apply example built on these modules, see [terraform-mongodbatlas-aws-chatbot](https://github.com/terraform-mongodbatlas-modules/terraform-mongodbatlas-aws-chatbot). It deploys a hybrid search chatbot on AWS and, like the examples here, is a demo rather than a production template.
+
 ## Support
 
 For issues related to the Terraform provider itself, please open an issue in the provider repository:
