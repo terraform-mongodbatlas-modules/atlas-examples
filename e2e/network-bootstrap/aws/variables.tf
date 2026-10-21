@@ -8,3 +8,9 @@ variable "aws_region" {
   type        = string
   default     = "us-east-1"
 }
+
+variable "tags" {
+  description = "Tags to apply to AWS resources"
+  type        = map(string)
+  default     = {}
+}

@@ -23,6 +23,8 @@ The only coupling between these configs and the examples is the **input contract
 | `azure/` | Resource group + VNet + subnet (`eastus2`); `regions` output with `name` (`var.atlas_region`, default `US_EAST_2`), `azure_location`, `subnet_id`; plus a `resource_group_name` output | `regions` variable, `azure_resource_group_name` |
 | `gcp/` | VPC + subnetwork (region set by the workflow, currently `us-central1`); `regions` output with `name` (`var.gcp_region`), `subnetwork` (self link) | `regions` variable |
 
+Each config also accepts a `tags` map (default `{}`). The E2E scripts populate it from the `MONGODB_TAG_OWNER` and `MONGODB_TAG_ENV` environment variables, so the networking resources carry the Cloud Tag Policy tags. The `gcp/` config takes no `tags` because GCP labels cannot contain the `@` in an owner email.
+
 If an example's required inputs change, update the matching config's `regions` output here. The E2E run fails loudly if they drift apart, and these configs are covered by the same format/validate checks as the rest of the repository.
 
 ## Naming

@@ -18,6 +18,8 @@ module "validation_vm" {
   # If empty/null (default), VM uses Serial Console with password auth
   admin_ssh_public_key = var.validation_vm_ssh_key
 
+  tags = var.tags
+
   atlas_project_id = module.atlas_project.id
 
   # Connection string falls back to private_endpoint → private_srv → standard_srv.

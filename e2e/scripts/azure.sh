@@ -9,6 +9,8 @@
 # Optional:
 #   RUN_ID (default: current timestamp), ATLAS_AZURE_APP_ID (non-production Atlas environments),
 #   MONGODB_ATLAS_BASE_URL,
+#   MONGODB_TAG_OWNER / MONGODB_TAG_ENV for the Cloud Tag Policy tags on the
+#   resources this script creates (defaults: owner@example.com and dev),
 #   SKIP_DESTROY=true to keep resources after the run (for debugging; the per-run
 #   tfvars files are kept and working manual destroy commands are printed)
 #
@@ -22,6 +24,11 @@ BOOTSTRAP="$ROOT/e2e/network-bootstrap/azure"
 EXAMPLE="$ROOT/azure/atlas-azure-module-complete"
 
 : "${MONGODB_ATLAS_ORG_ID:?set MONGODB_ATLAS_ORG_ID}"
+
+# Cloud Tag Policy tags. CI sets both from the workflow; the placeholder owner keeps
+# the team email out of any local run that does not set them.
+TAG_OWNER="${MONGODB_TAG_OWNER:-owner@example.com}"
+TAG_ENV="${MONGODB_TAG_ENV:-dev}"
 
 # Effective inputs are persisted in per-run tfvars files (gitignored) so applies,
 # destroys, and any manual cleanup all use exactly the same values.
@@ -50,7 +57,11 @@ else
   echo "--- No existing service principal for app $app_id — module will create one"
 fi
 
-jq -n --arg suffix "$RUN_ID" '{name_suffix: $suffix}' > "$BOOTSTRAP_TFVARS"
+jq -n --arg suffix "$RUN_ID" --arg owner "$TAG_OWNER" --arg env "$TAG_ENV" \
+  '{
+    name_suffix: $suffix,
+    tags: { "mongodb-owner": $owner, "mongodb-env": $env }
+  }' > "$BOOTSTRAP_TFVARS"
 
 cleanup() {
   if [[ "${SKIP_DESTROY:-false}" == "true" ]]; then
@@ -95,6 +106,8 @@ jq -n \
   --arg cluster "atlas-ex-e2e-azure-$RUN_ID" \
   --arg sub "$subscription_id" \
   --arg rg "$(terraform output -raw resource_group_name)" \
+  --arg owner "$TAG_OWNER" \
+  --arg env "$TAG_ENV" \
   --argjson regions "$(terraform output -json regions)" \
   --argjson extra "$extra_vars" \
   '{
@@ -104,7 +117,8 @@ jq -n \
     azure_subscription_id: $sub,
     enable_validation_vm: false,
     azure_resource_group_name: $rg,
-    regions: $regions
+    regions: $regions,
+    tags: { "mongodb-owner": $owner, "mongodb-env": $env }
   } + $extra' > "$EXAMPLE_TFVARS"
 
 echo "--- Applying example ($EXAMPLE)"

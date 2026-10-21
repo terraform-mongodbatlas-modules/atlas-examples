@@ -21,3 +21,9 @@ regions = [
     subnet_ids = ["<YOUR_SUBNET_ID>", "<YOUR_SUBNET_ID>"]
   }
 ]
+
+# Optional: tags applied to all Atlas and AWS resources created by this example
+# tags = {
+#   Owner       = "<YOUR_TEAM>"
+#   Environment = "<YOUR_ENVIRONMENT>"
+# }

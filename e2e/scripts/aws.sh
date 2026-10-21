@@ -8,6 +8,8 @@
 # Optional:
 #   RUN_ID (default: current timestamp), AWS_E2E_REGION (default: us-east-2),
 #   MONGODB_ATLAS_BASE_URL (non-production Atlas environments),
+#   MONGODB_TAG_OWNER / MONGODB_TAG_ENV for the Cloud Tag Policy tags on the
+#   resources this script creates (defaults: owner@example.com and dev),
 #   SKIP_DESTROY=true to keep resources after the run (for debugging; the per-run
 #   tfvars files are kept and working manual destroy commands are printed)
 set -euo pipefail
@@ -19,6 +21,11 @@ EXAMPLE="$ROOT/aws/atlas-aws-module-complete"
 
 : "${MONGODB_ATLAS_ORG_ID:?set MONGODB_ATLAS_ORG_ID}"
 
+# Cloud Tag Policy tags. CI sets both from the workflow; the placeholder owner keeps
+# the team email out of any local run that does not set them.
+TAG_OWNER="${MONGODB_TAG_OWNER:-owner@example.com}"
+TAG_ENV="${MONGODB_TAG_ENV:-dev}"
+
 AWS_REGION="${AWS_E2E_REGION:-us-east-2}"
 # Effective inputs are persisted in per-run tfvars files (gitignored) so applies,
 # destroys, and any manual cleanup all use exactly the same values.
@@ -26,7 +33,12 @@ BOOTSTRAP_TFVARS="$BOOTSTRAP/e2e-$RUN_ID.tfvars.json"
 EXAMPLE_TFVARS="$EXAMPLE/e2e-$RUN_ID.tfvars.json"
 
 jq -n --arg suffix "$RUN_ID" --arg region "$AWS_REGION" \
-  '{name_suffix: $suffix, aws_region: $region}' > "$BOOTSTRAP_TFVARS"
+  --arg owner "$TAG_OWNER" --arg env "$TAG_ENV" \
+  '{
+    name_suffix: $suffix,
+    aws_region: $region,
+    tags: { "mongodb-owner": $owner, "mongodb-env": $env }
+  }' > "$BOOTSTRAP_TFVARS"
 
 cleanup() {
   if [[ "${SKIP_DESTROY:-false}" == "true" ]]; then
@@ -72,6 +84,8 @@ jq -n \
   --arg cluster "atlas-ex-e2e-aws-$RUN_ID" \
   --arg region "$AWS_REGION" \
   --arg bucket "atlas-examples-e2e-backup-$RUN_ID" \
+  --arg owner "$TAG_OWNER" \
+  --arg env "$TAG_ENV" \
   --argjson regions "$(terraform output -json regions)" \
   '{
     atlas_org_id: $org,
@@ -81,7 +95,8 @@ jq -n \
     enable_validation_vm: false,
     backup_export_force_destroy: true,
     backup_export_bucket_name: $bucket,
-    regions: $regions
+    regions: $regions,
+    tags: { "mongodb-owner": $owner, "mongodb-env": $env }
   }' > "$EXAMPLE_TFVARS"
 
 echo "--- Applying example ($EXAMPLE)"

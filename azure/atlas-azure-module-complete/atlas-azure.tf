@@ -79,5 +79,7 @@ module "atlas_azure" {
     }
   }
 
+  azure_tags = var.tags
+
   depends_on = [module.atlas_project]
 }
