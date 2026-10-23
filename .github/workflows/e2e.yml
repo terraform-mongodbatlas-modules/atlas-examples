@@ -54,7 +54,7 @@ jobs:
       MONGODB_ATLAS_ORG_ID: ${{ secrets.MONGODB_ATLAS_ORG_ID }}
       # Cloud Tag Policy tags for the resources this job creates. The owner always
       # comes from the repository variable, never a hardcoded email.
-      MONGODB_TAG_OWNER: ${{ vars.MONGODB_OWNER }}
+      MONGODB_TAG_OWNER: ${{ vars.MONGODB_TAG_OWNER }}
       MONGODB_TAG_ENV: dev
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -94,7 +94,7 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       # Cloud Tag Policy tags for the resources this job creates. The owner always
       # comes from the repository variable, never a hardcoded email.
-      MONGODB_TAG_OWNER: ${{ vars.MONGODB_OWNER }}
+      MONGODB_TAG_OWNER: ${{ vars.MONGODB_TAG_OWNER }}
       MONGODB_TAG_ENV: dev
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
