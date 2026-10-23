@@ -47,3 +47,9 @@ variable "bastion_subnet_cidr" {
   type        = string
   default     = "10.0.255.0/26"
 }
+
+variable "tags" {
+  description = "Tags applied to Azure resources"
+  type        = map(string)
+  default     = {}
+}

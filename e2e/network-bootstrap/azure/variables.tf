@@ -14,3 +14,9 @@ variable "atlas_region" {
   type        = string
   default     = "US_EAST_2"
 }
+
+variable "tags" {
+  description = "Tags to apply to Azure resources"
+  type        = map(string)
+  default     = {}
+}

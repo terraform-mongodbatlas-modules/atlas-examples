@@ -52,7 +52,7 @@ variable "regions" {
 # Optional variables
 # ----------------------------------------------------
 variable "tags" {
-  description = "Tags applied to all Atlas resources"
+  description = "Tags applied to all Atlas and AWS resources"
   type        = map(string)
   default     = {}
 }

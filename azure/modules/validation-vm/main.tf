@@ -16,10 +16,10 @@ locals {
   name_prefix    = "atlas"
   vm_name        = "${local.name_prefix}-validation-vm"
   db_username    = "${local.name_prefix}-validation-user"
-  common_tags = {
+  common_tags = merge(var.tags, {
     "Purpose"   = "Atlas Connectivity Validation"
     "ManagedBy" = "Terraform"
-  }
+  })
 
   use_bastion        = var.admin_ssh_public_key != null && trimspace(var.admin_ssh_public_key) != ""
   use_serial_console = !local.use_bastion

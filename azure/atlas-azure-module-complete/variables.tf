@@ -98,7 +98,7 @@ variable "atlas_azure_service_principal_id" {
 }
 
 variable "tags" {
-  description = "Tags applied to all Atlas resources"
+  description = "Tags applied to all Atlas and Azure resources"
   type        = map(string)
   default     = {}
 }

@@ -27,3 +27,26 @@ resource "aws_subnet" "private" {
     Name = "atlas-examples-e2e-private-${count.index + 1}-${var.name_suffix}"
   }
 }
+
+# default_tags does not reach the per-VPC defaults AWS creates implicitly, so tag
+# them directly. Tag-only resources leave the existing rules and routes untouched.
+resource "aws_ec2_tag" "default_security_group" {
+  for_each    = var.tags
+  resource_id = aws_vpc.this.default_security_group_id
+  key         = each.key
+  value       = each.value
+}
+
+resource "aws_ec2_tag" "default_route_table" {
+  for_each    = var.tags
+  resource_id = aws_vpc.this.default_route_table_id
+  key         = each.key
+  value       = each.value
+}
+
+resource "aws_ec2_tag" "default_network_acl" {
+  for_each    = var.tags
+  resource_id = aws_vpc.this.default_network_acl_id
+  key         = each.key
+  value       = each.value
+}

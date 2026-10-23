@@ -18,4 +18,10 @@ provider "mongodbatlas" {}
 
 provider "aws" {
   region = var.aws_region
+
+  # Cloud Tag Policy tags for every AWS resource in this configuration, including the
+  # ones the atlas-aws module and the validation VM module create.
+  default_tags {
+    tags = var.tags
+  }
 }

@@ -41,6 +41,8 @@ module "validation_vm" {
 
   instance_type = "t3.micro"
 
+  tags = var.tags
+
   atlas_project_id   = module.atlas_project.id
   atlas_cluster_name = var.atlas_cluster_name
 

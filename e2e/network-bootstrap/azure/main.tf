@@ -4,6 +4,7 @@
 resource "azurerm_resource_group" "this" {
   name     = "atlas-examples-e2e-${var.name_suffix}"
   location = var.azure_location
+  tags     = var.tags
 }
 
 resource "azurerm_virtual_network" "this" {
@@ -11,6 +12,7 @@ resource "azurerm_virtual_network" "this" {
   location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
   address_space       = ["10.0.0.0/16"]
+  tags                = var.tags
 }
 
 resource "azurerm_subnet" "private_endpoint" {
